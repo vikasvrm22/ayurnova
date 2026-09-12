@@ -53,11 +53,23 @@ async function getCustomerToken() {
   return data?.session?.access_token || null;
 }
 
+/** Older routes (checkout, reviews, ...) return `{error: "<string>"}`;
+ * newer routes (catalogPublic.js, wellnessPublic.js, and Phase 6A's new
+ * routes) return `{success:false, error:{code, message}}` - `data.error`
+ * is an OBJECT there, not a string. `new Error(data.error)` on an object
+ * stringifies to the useless "[object Object]" instead of the real
+ * message. Handles both shapes so every existing/new call site gets a
+ * real, readable error message either way. */
+function extractErrorMessage(data) {
+  if (data && typeof data.error === "object" && data.error !== null) return data.error.message || "Request failed";
+  return (data && data.error) || "Request failed";
+}
+
 async function apiGet(path) {
   const token = await getCustomerToken();
   const resp = await fetch(path, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
   const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(data.error || "Request failed");
+  if (!resp.ok) throw new Error(extractErrorMessage(data));
   return data;
 }
 
@@ -69,7 +81,27 @@ async function apiPost(path, body) {
     body: JSON.stringify(body),
   });
   const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(data.error || "Request failed");
+  if (!resp.ok) throw new Error(extractErrorMessage(data));
+  return data;
+}
+
+async function apiPut(path, body) {
+  const token = await getCustomerToken();
+  const resp = await fetch(path, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(body),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(extractErrorMessage(data));
+  return data;
+}
+
+async function apiDelete(path) {
+  const token = await getCustomerToken();
+  const resp = await fetch(path, { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(extractErrorMessage(data));
   return data;
 }
 

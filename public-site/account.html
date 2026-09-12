@@ -50,6 +50,13 @@
       <h3 class="section-title" style="margin:0; text-align:left;">My Orders</h3>
       <div id="orders-list" style="margin-top:16px;"></div>
     </div>
+    <div class="form-card" style="max-width:700px; margin-top:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 class="section-title" style="margin:0; text-align:left;">My Addresses</h3>
+        <button type="button" id="add-address-btn" style="width:auto; margin:0; padding:8px 16px; border-radius:20px; background:var(--green); color:#fff; border:none; cursor:pointer; font-weight:700; font-size:13px;">+ Add Address</button>
+      </div>
+      <div id="addresses-list" style="margin-top:16px;"></div>
+    </div>
   </div>
 </div>
 
@@ -112,10 +119,10 @@
       const listEl = document.getElementById("orders-list");
       if (!items.length) { listEl.innerHTML = `<p style="color:#888;">You haven't placed any orders yet.</p>`; return; }
       listEl.innerHTML = items.map(o => `
-        <div style="border-bottom:1px solid var(--hairline); padding:12px 0; display:flex; justify-content:space-between; font-size:13.5px;">
+        <a href="/order-detail?id=${o.id}" style="border-bottom:1px solid var(--hairline); padding:12px 0; display:flex; justify-content:space-between; font-size:13.5px; text-decoration:none; color:inherit;">
           <div><b>${o.order_number}</b><br><span style="color:#888; font-size:12px;">${new Date(o.created_at).toLocaleDateString("en-IN")}</span></div>
           <div style="text-align:right;">${fmt(o.total)}<br><span class="badge-${o.status}" style="font-size:11px; text-transform:capitalize;">${o.status}</span></div>
-        </div>
+        </a>
       `).join("");
     } catch (e) {
       document.getElementById("orders-list").innerHTML = `<p style="color:#B23A2E;">Could not load orders: ${e.message}</p>`;
@@ -155,6 +162,85 @@
     }
   }
 
+  // Phase 6A: customer address book - straight CRUD over
+  // server/src/routes/addressesPublic.js, which sits on the `addresses`
+  // table/RLS that have existed since the Phase 1 schema.
+  async function loadAddresses() {
+    const el = document.getElementById("addresses-list");
+    try {
+      const { data } = await apiGet("/api/public/addresses");
+      if (!data.items.length) { el.innerHTML = `<p style="color:#888;">No saved addresses yet.</p>`; return; }
+      el.innerHTML = data.items.map(a => `
+        <div style="border-bottom:1px solid var(--hairline); padding:12px 0; font-size:13.5px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+            <div>
+              <b>${a.full_name}</b> ${a.is_default ? `<span style="font-size:11px; color:var(--green-dark); background:var(--green-light); padding:2px 8px; border-radius:10px;">Default</span>` : ""}<br>
+              <span style="color:#666;">${a.line1}${a.line2 ? ", " + a.line2 : ""}, ${a.city}, ${a.state} — ${a.pincode}</span><br>
+              <span style="color:#666;">${a.phone}</span>
+            </div>
+            <div style="text-align:right; white-space:nowrap;">
+              <a href="#" onclick='openAddressForm(${JSON.stringify(a).replace(/'/g, "&#39;")}); return false;'>Edit</a>
+              &nbsp;|&nbsp;
+              <a href="#" style="color:#B23A2E;" onclick="deleteAddress('${a.id}'); return false;">Delete</a>
+            </div>
+          </div>
+        </div>`).join("");
+    } catch (e) {
+      el.innerHTML = `<p style="color:#B23A2E;">Could not load addresses: ${e.message}</p>`;
+    }
+  }
+
+  async function deleteAddress(id) {
+    if (!confirm("Delete this address?")) return;
+    try { await apiDelete(`/api/public/addresses/${id}`); loadAddresses(); }
+    catch (e) { alert(e.message); }
+  }
+
+  function openAddressForm(existing) {
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;overflow:auto;padding:20px 0;";
+    backdrop.innerHTML = `
+      <div class="form-card" style="max-width:420px; width:90%;">
+        <h3 class="section-title" style="margin:0; text-align:left;">${existing ? "Edit" : "New"} Address</h3>
+        <label>Full Name</label><input id="a-full-name" value="${existing?.full_name || ""}">
+        <label>Phone</label><input id="a-phone" value="${existing?.phone || ""}">
+        <label>Address Line 1</label><input id="a-line1" value="${existing?.line1 || ""}">
+        <label>Address Line 2 (optional)</label><input id="a-line2" value="${existing?.line2 || ""}">
+        <label>City</label><input id="a-city" value="${existing?.city || ""}">
+        <label>State</label><input id="a-state" value="${existing?.state || ""}">
+        <label>Pincode</label><input id="a-pincode" value="${existing?.pincode || ""}">
+        <label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" id="a-default" style="width:auto;" ${existing?.is_default ? "checked" : ""}> Set as default address</label>
+        <div id="a-error" style="color:#B23A2E; font-size:12.5px; margin-top:8px;"></div>
+        <div style="display:flex; gap:8px; margin-top:14px;">
+          <button type="button" id="a-cancel" style="background:#fff; border:1px solid var(--hairline); color:#333;">Cancel</button>
+          <button type="button" id="a-save">${existing ? "Save" : "Add Address"}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    backdrop.querySelector("#a-cancel").onclick = () => backdrop.remove();
+    backdrop.querySelector("#a-save").onclick = async () => {
+      const body = {
+        full_name: backdrop.querySelector("#a-full-name").value.trim(),
+        phone: backdrop.querySelector("#a-phone").value.trim(),
+        line1: backdrop.querySelector("#a-line1").value.trim(),
+        line2: backdrop.querySelector("#a-line2").value.trim(),
+        city: backdrop.querySelector("#a-city").value.trim(),
+        state: backdrop.querySelector("#a-state").value.trim(),
+        pincode: backdrop.querySelector("#a-pincode").value.trim(),
+        is_default: backdrop.querySelector("#a-default").checked,
+      };
+      try {
+        if (existing) await apiPut(`/api/public/addresses/${existing.id}`, body);
+        else await apiPost("/api/public/addresses", body);
+        backdrop.remove();
+        loadAddresses();
+      } catch (e) {
+        backdrop.querySelector("#a-error").textContent = e.message;
+      }
+    };
+  }
+  document.getElementById("add-address-btn").addEventListener("click", () => openAddressForm(null));
+
   async function checkSession() {
     if (!window.supabaseClient) return;
     const { data } = await window.supabaseClient.auth.getSession();
@@ -163,6 +249,7 @@
       document.getElementById("account-panel").style.display = "block";
       loadOrders();
       loadWellnessProfile();
+      loadAddresses();
     } else {
       document.getElementById("auth-forms").style.display = "block";
       document.getElementById("account-panel").style.display = "none";

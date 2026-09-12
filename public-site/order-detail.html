@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/css/style.css"><!--SSR_HEAD-->
+</head>
+<body>
+<div class="announce-strip"><div class="container"><span>COD AVAILABLE</span><span>FREE SHIPPING ABOVE ₹599</span></div></div>
+<header class="site-header"><div class="container">
+  <div class="brand"><div class="brand-mark">AV</div><div class="brand-text"><h1>AyurVeda Store</h1><span>Authentic Ayurvedic Wellness</span></div></div>
+  <form class="header-search" action="/shop" method="get"><input type="text" name="q" placeholder="Search products..."><button type="submit">Search</button></form>
+  <div class="header-icons"><a href="/account">👤<span>Account</span></a><a href="/cart">🛒<span class="cart-count">0</span></a></div>
+</div></header>
+<nav class="main-nav"><div class="container">
+  <a href="/">Home</a><a href="/shop">Shop All</a><a href="/account">My Account</a>
+</div></nav>
+
+<div class="container" style="padding:24px 16px; max-width:760px;">
+  <p style="font-size:12.5px;"><a href="/account">← Back to My Account</a></p>
+
+  <div id="login-prompt" style="display:none;" class="form-card">
+    <p>Please log in to view this order.</p>
+    <a href="/account" class="pill">Log In →</a>
+  </div>
+
+  <div id="load-error" style="display:none;" class="form-card">
+    <p style="color:#B23A2E;" id="load-error-text"></p>
+  </div>
+
+  <div id="order-body" style="display:none;">
+    <div class="form-card" style="max-width:100%;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+        <div>
+          <h3 class="section-title" style="margin:0; text-align:left;" id="order-number"></h3>
+          <div style="font-size:12.5px; color:#888; margin-top:4px;" id="order-date"></div>
+        </div>
+        <div id="order-status-badge" style="font-size:13px; text-transform:capitalize;"></div>
+      </div>
+
+      <table style="width:100%; margin-top:18px; font-size:13.5px; border-collapse:collapse;">
+        <thead><tr style="border-bottom:1px solid var(--hairline); text-align:left;"><th style="padding:6px 0;">Item</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
+        <tbody id="order-items-rows"></tbody>
+      </table>
+
+      <div style="text-align:right; margin-top:14px; font-size:13.5px;" id="order-totals"></div>
+
+      <div style="margin-top:18px; border-top:1px solid var(--hairline); padding-top:14px;">
+        <b style="font-size:13.5px;">Shipping Address</b>
+        <p style="font-size:13px; color:#666; line-height:1.6; margin-top:4px;" id="order-address"></p>
+      </div>
+
+      <div style="margin-top:10px; font-size:13.5px;" id="order-tracking"></div>
+      <div style="margin-top:10px; font-size:13.5px;">Payment: <b id="order-payment-method"></b> — <span id="order-payment-status"></span></div>
+
+      <div id="cancel-block" style="margin-top:18px; display:none;">
+        <button class="btn" style="background:#B23A2E; color:#fff; border:none; padding:10px 20px; border-radius:20px; cursor:pointer; font-weight:700;" id="cancel-btn">Cancel Order</button>
+        <div id="cancel-error" style="color:#B23A2E; font-size:12.5px; margin-top:8px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="mega-footer"><div class="container">
+  <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a></div>
+  <div><h5>Quick Links</h5><a href="/shop">Shop by Product</a><a href="/account">My Account</a></div>
+</div><div class="footer-bottom">© 2026 AyurVeda Store</div></footer>
+
+<script>
+  const orderId = new URLSearchParams(location.search).get("id");
+  function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
+  const PAYMENT_STATUS_LABEL = { paid: "Paid", unpaid: "Unpaid", refunded: "Refunded", partially_refunded: "Partially Refunded", failed: "Failed" };
+
+  async function load() {
+    if (!window.supabaseClient) { document.getElementById("login-prompt").style.display = "block"; return; }
+    const { data } = await window.supabaseClient.auth.getSession();
+    if (!data?.session) { document.getElementById("login-prompt").style.display = "block"; return; }
+    if (!orderId) {
+      document.getElementById("load-error").style.display = "block";
+      document.getElementById("load-error-text").textContent = "No order specified.";
+      return;
+    }
+
+    try {
+      const res = await apiGet(`/api/public/my-orders/${orderId}`);
+      const o = res.data;
+      document.getElementById("order-body").style.display = "block";
+      document.getElementById("order-number").textContent = `Order ${o.orderNumber}`;
+      document.getElementById("order-date").textContent = new Date(o.createdAt).toLocaleString("en-IN");
+      document.getElementById("order-status-badge").innerHTML = `<span class="badge-${o.status}">${o.status}</span>`;
+
+      document.getElementById("order-items-rows").innerHTML = o.items.map(i => `
+        <tr><td style="padding:8px 0;">${i.title}${i.variantLabel ? ` <span style="color:#888;">(${i.variantLabel})</span>` : ""}</td><td>${i.qty}</td><td>${fmt(i.price)}</td><td>${fmt(i.subtotal)}</td></tr>`).join("");
+
+      document.getElementById("order-totals").innerHTML = `
+        <div>Subtotal: ${fmt(o.subtotal)}</div>
+        <div>Shipping: ${o.shippingFee === 0 ? "FREE" : fmt(o.shippingFee)}</div>
+        ${o.discount ? `<div>Discount: −${fmt(o.discount)}</div>` : ""}
+        <div style="font-weight:800; font-size:16px;">Total: ${fmt(o.total)}</div>`;
+
+      const addr = o.shippingAddress || {};
+      document.getElementById("order-address").textContent = `${addr.full_name || ""}, ${addr.line1 || ""}, ${addr.city || ""}, ${addr.state || ""} — ${addr.pincode || ""} (${addr.phone || ""})`;
+      document.getElementById("order-tracking").innerHTML = o.trackingNumber ? `Tracking Number: <b>${o.trackingNumber}</b>` : "";
+      document.getElementById("order-payment-method").textContent = o.paymentMethod === "cod" ? "Cash on Delivery" : "Prepaid";
+      document.getElementById("order-payment-status").innerHTML = `<span class="badge-${o.paymentStatus === "paid" ? "delivered" : o.paymentStatus === "unpaid" ? "pending" : "shipped"}">${PAYMENT_STATUS_LABEL[o.paymentStatus] || o.paymentStatus}</span>`;
+
+      if (o.canCancel) document.getElementById("cancel-block").style.display = "block";
+    } catch (e) {
+      document.getElementById("load-error").style.display = "block";
+      document.getElementById("load-error-text").textContent = e.message;
+    }
+  }
+
+  document.getElementById("cancel-btn").addEventListener("click", async () => {
+    if (!confirm("Cancel this order? This cannot be undone.")) return;
+    const btn = document.getElementById("cancel-btn");
+    btn.disabled = true;
+    try {
+      await apiPost(`/api/public/my-orders/${orderId}/cancel`, {});
+      load();
+    } catch (e) {
+      document.getElementById("cancel-error").textContent = e.message;
+      btn.disabled = false;
+    }
+  });
+
+  load();
+</script>
+</body>
+</html>

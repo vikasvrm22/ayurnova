@@ -552,6 +552,7 @@ const STATIC_PAGES = {
   "/dosha-test": { file: "dosha-test.html", title: "Wellness Assessment — AyurVeda Store", description: "Take our free Wellness Assessment to discover your Dosha and get personalized Ayurvedic product recommendations." },
   "/cart": { file: "cart.html", title: "Your Cart — AyurVeda Store", description: "Review your cart and checkout.", noindex: true },
   "/account": { file: "account.html", title: "My Account — AyurVeda Store", description: "Log in or view your orders.", noindex: true },
+  "/order-detail": { file: "order-detail.html", title: "Order Detail — AyurVeda Store", description: "View your order details.", noindex: true },
   "/compare": { file: "compare.html", title: "Compare Products — AyurVeda Store", description: "Compare Ayurvedic products side by side.", noindex: true },
   "/for-you": { file: "for-you.html", title: "For You — AyurVeda Store", description: "Personalized Ayurvedic product and routine recommendations based on your Wellness Profile.", noindex: true },
 };

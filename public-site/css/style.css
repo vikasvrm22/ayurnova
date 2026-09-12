@@ -158,6 +158,15 @@ a{ color:var(--green-dark); }
 .quiz-option{ display:block; border:1px solid var(--hairline); border-radius:8px; padding:12px 14px; margin-bottom:8px; cursor:pointer; font-size:13.5px; }
 .quiz-option:hover{ border-color:var(--green); background:var(--green-light); }
 
+/* ---- Order status badges (My Orders / order detail - Phase 6A). Same
+   color semantics as admin/css/admin.css's badge-* classes, not previously
+   defined here even though account.html has referenced badge-${status}
+   since its own original build. ---- */
+.badge-pending, .badge-processing{ display:inline-block; padding:2px 9px; border-radius:10px; background:#fff3e0; color:#b45309; }
+.badge-shipped{ display:inline-block; padding:2px 9px; border-radius:10px; background:#eef1f8; color:#555; }
+.badge-delivered{ display:inline-block; padding:2px 9px; border-radius:10px; background:var(--green-light); color:var(--green-dark); }
+.badge-cancelled{ display:inline-block; padding:2px 9px; border-radius:10px; background:#f2f2f2; color:#888; }
+
 /* ---- Footer ---- */
 .mega-footer{ background:var(--green-dark); color:#dbe7d6; margin-top:30px; padding:34px 0 10px; font-size:13px; }
 .mega-footer .container{ display:grid; grid-template-columns:repeat(5,1fr); gap:20px; }

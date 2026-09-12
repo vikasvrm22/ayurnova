@@ -38,6 +38,9 @@ import wellnessPublicRoutes from "./routes/wellnessPublic.js";
 import routinesPublicRoutes from "./routes/routinesPublic.js";
 // ---- Phase 5A: Inventory foundation ----
 import inventoryAdminRoutes from "./routes/inventoryAdmin.js";
+// ---- Phase 6A: Customer Orders & Address Management ----
+import orderDetailPublicRoutes from "./routes/orderDetailPublic.js";
+import addressesPublicRoutes from "./routes/addressesPublic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -149,6 +152,14 @@ app.use("/api/public/blog", blogPublicRoutes);
 // recommendations + general routine browsing) ----
 app.use("/api/public/wellness", wellnessPublicRoutes);
 app.use("/api/public/routines", routinesPublicRoutes);
+
+// ---- Public Customer Orders & Address Management API (Phase 6A). Mounted
+// AFTER publicRoutes (line 137) above, which already owns the exact
+// GET /api/public/my-orders (list) path - this router only adds /:id and
+// /:id/cancel, sub-paths publicRoutes never defined, so there is no
+// overlap in practice. ----
+app.use("/api/public/my-orders", orderDetailPublicRoutes);
+app.use("/api/public/addresses", addressesPublicRoutes);
 
 app.get("/api/meta/schema", (req, res) => {
   res.json({ roles: ROLES, rolePermissions: ROLE_PERMISSIONS, productFields: PRODUCT_FIELDS });
