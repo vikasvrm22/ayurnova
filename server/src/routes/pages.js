@@ -6,6 +6,7 @@ import {
   escapeHtml, truncate, renderHeadMeta, renderProductJsonLd, renderBreadcrumbJsonLd, parseListLines,
 } from "../seo/seoHelpers.js";
 import { trackPageView } from "../analytics/tracker.js";
+import { listPublishedProducts, getPublishedProductBySlug, PRODUCT_SORT_MAP, DEFAULT_PRODUCT_SORT } from "../services/catalogService.js";
 
 const router = Router();
 
@@ -62,39 +63,26 @@ function productCardHtml(product) {
     </div>`;
 }
 
-async function getPublishedProducts({ limit = 12, categoryId, sort = "-created_at", offset = 0, withCount = false } = {}) {
-  // Selecting only the columns each page actually renders (not "*") means
-  // Postgres/PostgREST does less work and sends a smaller payload - this
-  // adds up across every homepage/shop-page load on a metered host.
-  const columns = "id, title, slug, avg_rating, review_count, short_description, " +
-    "product_variants(id, label, price, mrp), product_images(url, sort_order)";
-  let query = supabaseAdmin()
-    .from("products")
-    .select(columns, withCount ? { count: "exact" } : undefined)
-    .eq("status", "published");
-  if (categoryId) query = query.eq("category_id", categoryId);
-  const sortField = sort.replace(/^-/, "");
-  query = query.order(sortField, { ascending: !sort.startsWith("-") }).range(offset, offset + limit - 1);
-  const { data, count } = await query;
-  return { items: data || [], total: count || 0 };
-}
-
 // ============================= HOMEPAGE =============================
 router.get("/", trackPageView, async (req, res, next) => {
   try {
     const html = await cached("home", async () => {
       let template = getTemplate("index.html");
-      const { items: highlights } = await getPublishedProducts({ limit: 4, withCount: false });
-      const { items: bestSellers } = await getPublishedProducts({ limit: 6, sort: "-review_count", withCount: false });
+      const { items: highlights } = await listPublishedProducts({ page: 1, pageSize: 4, sort: "newest" });
+      const { items: bestSellers } = await listPublishedProducts({ page: 1, pageSize: 6, sort: "bestselling" });
 
-      template = template.replace(
-        /(<h3 class="section-title">Product Highlights<\/h3>[\s\S]*?<div class="product-grid">)[\s\S]*?(<\/div>)/,
-        `$1${highlights.map(productCardHtml).join("")}$2`
-      );
-      template = template.replace(
-        /(<h3 class="section-title">Best Sellers<\/h3>[\s\S]*?<div class="carousel-strip">)[\s\S]*?(<\/div>)/,
-        `$1${bestSellers.map(productCardHtml).join("")}$2`
-      );
+      // Phase 0 §3.1 CONFIRMED LIVE BUG: this used to regex-match
+      // `<div class="product-grid">[\s\S]*?<\/div>` (non-greedy), which
+      // stops at the FIRST `</div>` it finds - but the old placeholder
+      // markup inside that grid had nested `<div>`s, so the match closed on
+      // a nested child's closing tag instead of the grid's own, leaving the
+      // rest of the hardcoded demo cards dangling as broken HTML right
+      // after it (reproduced live against the actual DB in Phase 0).
+      // Fixed by injecting at dedicated, unambiguous HTML comment markers
+      // (public-site/index.html) instead of pattern-matching nested HTML -
+      // a marker can never be ambiguous about where it ends.
+      template = template.replace("<!--PRODUCT_HIGHLIGHTS-->", highlights.map(productCardHtml).join(""));
+      template = template.replace("<!--BEST_SELLERS-->", bestSellers.map(productCardHtml).join(""));
 
       const headMeta = renderHeadMeta({
         title: "AyurVeda Store — Authentic Ayurvedic Supplements Online",
@@ -112,29 +100,32 @@ router.get("/", trackPageView, async (req, res, next) => {
 // ============================= SHOP LISTING =============================
 router.get("/shop", trackPageView, async (req, res, next) => {
   try {
-    const { concern, benefit, sort = "-created_at", page = 1 } = req.query;
+    const { concern, benefit } = req.query;
+    // Phase 0 §13: `sort` used to be taken straight from the query string
+    // and passed to `.order()` with no validation - a public, unauthenticated
+    // endpoint accepting an arbitrary column name. Whitelisted here (falls
+    // back to the default silently rather than erroring - this is a public
+    // page, not an API, so an unrecognised value should just render
+    // sensibly rather than showing an error page).
+    const sort = Object.prototype.hasOwnProperty.call(PRODUCT_SORT_MAP, req.query.sort) ? req.query.sort : DEFAULT_PRODUCT_SORT;
+    let page = Math.trunc(Number(req.query.page));
+    if (!Number.isFinite(page) || page < 1) page = 1;
+
     const cacheKey = `shop:${concern || ""}:${benefit || ""}:${sort}:${page}`;
     const html = await cached(cacheKey, async () => {
       let template = getTemplate("shop.html");
-      let categoryId = null;
-      if (concern) {
-        const { data } = await supabaseAdmin().from("categories").select("id").eq("slug", concern).maybeSingle();
-        categoryId = data?.id;
-      } else if (benefit) {
-        const { data } = await supabaseAdmin().from("categories").select("id").eq("slug", benefit).maybeSingle();
-        categoryId = data?.id;
-      }
       const pageSize = 12;
-      const p = Math.max(1, Number(page));
-      const { items, total } = await getPublishedProducts({ limit: pageSize, categoryId, sort, offset: (p - 1) * pageSize, withCount: true });
+      const { items, total } = await listPublishedProducts({ page, pageSize, concern, benefit, sort });
 
+      // Same confirmed SSR bug as the homepage (Phase 0 §3.1) - fixed the
+      // same way, with a dedicated marker instead of nested-HTML regex.
       const grid = items.length
         ? items.map(productCardHtml).join("")
         : `<p style="grid-column:1/-1; text-align:center; color:#888;">No products found.</p>`;
-      template = template.replace(/(<div class="product-grid">)[\s\S]*?(<\/div>)/, `$1${grid}$2`);
+      template = template.replace("<!--SHOP_PRODUCTS-->", grid);
       template = template.replace(
         /Showing 1–12 of 86 products/,
-        `Showing ${(p - 1) * pageSize + 1}–${Math.min(p * pageSize, total)} of ${total} products`
+        `Showing ${total === 0 ? 0 : (page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total} products`
       );
 
       const headMeta = renderHeadMeta({

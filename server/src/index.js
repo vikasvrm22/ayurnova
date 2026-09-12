@@ -23,6 +23,7 @@ import settingsRoutes from "./routes/settings.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 import publicRoutes from "./routes/public.js";
+import catalogPublicRoutes from "./routes/catalogPublic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -40,6 +41,21 @@ app.use(
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+        // Phase 1 finding (discovered via real-browser E2E testing, not
+        // present in Phase 0's curl-only audit): helmet's secure-by-default
+        // CSP directives include `script-src-attr 'none'` unless overridden,
+        // which is a SEPARATE directive from `script-src` under CSP Level 3
+        // - `scriptSrc`'s 'unsafe-inline' above only covers inline <script>
+        // elements, not inline `onclick="..."` HTML attributes. Every page
+        // in this app (storefront and admin) relies extensively on inline
+        // onclick/onchange handlers - without this, product cards, Add to
+        // Cart, cart quantity controls, and most admin action buttons are
+        // silently non-functional in every real browser (confirmed by
+        // reproducing against a live Chromium instance - the dosha quiz's
+        // "Next" button stayed permanently disabled because its option
+        // `onclick="selectOption(...)"` handlers were blocked). This
+        // restores the behaviour the rest of the config already intends.
+        scriptSrcAttr: ["'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
         connectSrc: ["'self'", config.supabase.url || "https://*.supabase.co"].filter(Boolean),
@@ -75,6 +91,10 @@ app.use("/api/admin/analytics", analyticsRoutes);
 
 // ---- Public API (storefront AJAX: checkout, reviews, bookings, coupons) ----
 app.use("/api/public", publicRoutes);
+
+// ---- Public catalog API (Phase 1: products/categories/search JSON - the
+// Android-readiness gap identified in Phase 0 §6) ----
+app.use("/api/public", catalogPublicRoutes);
 
 app.get("/api/meta/schema", (req, res) => {
   res.json({ roles: ROLES, rolePermissions: ROLE_PERMISSIONS, productFields: PRODUCT_FIELDS });
