@@ -2,6 +2,7 @@
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/css/style.css"><!--SSR_HEAD-->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
 <body>
 <div class="announce-strip"><div class="container"><span>COD AVAILABLE</span><span>FREE SHIPPING ABOVE ₹599</span></div></div>
@@ -55,12 +56,12 @@
 
         <div style="display:flex; gap:10px; margin:10px 0; font-size:13px;">
           <label><input type="radio" name="pay" value="cod" checked> Cash on Delivery</label>
-          <label><input type="radio" name="pay" value="prepaid"> Prepaid (2% off)</label>
+          <label><input type="radio" name="pay" value="prepaid"> Prepaid (2% off) - Cards/UPI/Netbanking</label>
         </div>
-        <p style="font-size:11px; color:#999;">Note: Prepaid payment gateway integration is a placeholder in this build - see SETUP.md.</p>
 
         <div id="checkout-error" style="color:#B23A2E; font-size:12.5px; margin:6px 0;"></div>
         <button id="checkout-btn" style="width:100%; padding:11px; background:var(--green); color:#fff; border:none; border-radius:22px; font-weight:700;">Place Order</button>
+        <button id="retry-payment-btn" style="display:none; width:100%; padding:11px; background:var(--gold); color:#fff; border:none; border-radius:22px; font-weight:700; margin-top:8px;">Retry Payment</button>
       </div>
 
       <p id="trust-badges" style="font-size:11.5px; color:#888; text-align:center; margin-top:12px;"></p>
@@ -177,9 +178,80 @@
     }
   });
 
+  // Phase 2: opens Razorpay's own Checkout UI with the order Checkout.js
+  // needs. The `handler` callback below only RELAYS whatever Razorpay
+  // gives it to our backend's /payments/verify - the backend is what
+  // cryptographically decides whether the payment actually succeeded
+  // (see server/src/services/paymentService.js's verifyCheckoutPayment);
+  // this page never marks anything paid on its own.
+  let lastUnpaidOrder = null; // { orderNumber, address } - kept for Retry Payment
+
+  function showPaymentNotCompleted(orderNumber, address, message) {
+    lastUnpaidOrder = { orderNumber, address };
+    document.getElementById("checkout-error").textContent = `${message} Your order ${orderNumber} is saved - click Retry Payment to try again.`;
+    document.getElementById("retry-payment-btn").style.display = "block";
+  }
+
+  function openRazorpayCheckout(orderNumber, razorpay, address) {
+    if (typeof Razorpay === "undefined") {
+      showPaymentNotCompleted(orderNumber, address, "Could not load the payment window.");
+      return;
+    }
+    const rzp = new Razorpay({
+      key: razorpay.keyId,
+      amount: razorpay.amount,
+      currency: razorpay.currency,
+      order_id: razorpay.orderId,
+      name: "AyurVeda Store",
+      description: `Order ${orderNumber}`,
+      prefill: { name: address.full_name, contact: address.phone },
+      theme: { color: "#2F5233" },
+      handler: async function (response) {
+        try {
+          await apiPost("/api/public/payments/verify", {
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+            guest_phone: address.phone,
+          });
+          localStorage.removeItem("ayur_cart");
+          document.getElementById("retry-payment-btn").style.display = "none";
+          document.getElementById("cart-body").style.display = "none";
+          document.getElementById("order-success").style.display = "block";
+          document.getElementById("success-order-number").textContent = orderNumber;
+          updateCartBadge();
+        } catch (e) {
+          showPaymentNotCompleted(orderNumber, address, `Payment could not be verified (${e.message}).`);
+        }
+      },
+      modal: {
+        ondismiss: function () {
+          showPaymentNotCompleted(orderNumber, address, "Payment window closed before completing.");
+        },
+      },
+    });
+    rzp.open();
+  }
+
+  document.getElementById("retry-payment-btn").addEventListener("click", async () => {
+    if (!lastUnpaidOrder) return;
+    const errEl = document.getElementById("checkout-error");
+    errEl.textContent = "";
+    try {
+      const res = await apiPost("/api/public/payments/retry", {
+        order_number: lastUnpaidOrder.orderNumber,
+        guest_phone: lastUnpaidOrder.address.phone,
+      });
+      openRazorpayCheckout(lastUnpaidOrder.orderNumber, res.razorpay, lastUnpaidOrder.address);
+    } catch (e) {
+      errEl.textContent = e.message;
+    }
+  });
+
   document.getElementById("checkout-btn").addEventListener("click", async () => {
     const errEl = document.getElementById("checkout-error");
     errEl.textContent = "";
+    document.getElementById("retry-payment-btn").style.display = "none";
     const cart = getCart();
     if (!cart.length) return;
 
@@ -199,6 +271,13 @@
         coupon_code: appliedCoupon || undefined,
         guest_email: "", guest_phone: address.phone,
       });
+      if (res.payment_required) {
+        // Cart/localStorage is intentionally NOT cleared yet - only once
+        // /payments/verify confirms success above, so an abandoned/failed
+        // payment doesn't lose the customer's cart.
+        openRazorpayCheckout(res.order_number, res.razorpay, address);
+        return;
+      }
       localStorage.removeItem("ayur_cart");
       document.getElementById("cart-body").style.display = "none";
       document.getElementById("order-success").style.display = "block";
