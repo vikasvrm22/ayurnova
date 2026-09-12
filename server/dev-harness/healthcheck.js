@@ -30,6 +30,13 @@ const checks = [
   { name: "public catalog: products list", path: "/api/public/products", expect: 200 },
   { name: "public catalog: invalid pagination rejected", path: "/api/public/products?pageSize=abc", expect: 200 }, // non-numeric pageSize silently falls back to default, not an error - see catalog API test suite for the full contract
   { name: "admin API without token -> 401", path: "/api/admin/products", expect: 401 },
+
+  // ---- Phase 2: payments/integrations ----
+  { name: "admin payments without token -> 401", path: "/api/admin/payments", expect: 401 },
+  { name: "admin integrations without token -> 401", path: "/api/admin/integrations", expect: 401 },
+  { name: "payments verify missing fields -> 400", path: "/api/public/payments/verify", method: "POST", body: {}, expect: 400 },
+  { name: "payments retry missing order_number -> 400", path: "/api/public/payments/retry", method: "POST", body: {}, expect: 400 },
+  { name: "razorpay webhook missing signature -> 400", path: "/api/public/payments/webhook/razorpay", method: "POST", body: { event: "test" }, expect: 400 },
 ];
 
 async function run() {
@@ -38,7 +45,12 @@ async function run() {
   for (const check of checks) {
     const url = `${BASE_URL}${check.path}`;
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      const res = await fetch(url, {
+        method: check.method || "GET",
+        headers: check.body ? { "Content-Type": "application/json" } : undefined,
+        body: check.body ? JSON.stringify(check.body) : undefined,
+        signal: AbortSignal.timeout(8000),
+      });
       const ok = res.status === check.expect;
       console.log(`${ok ? "PASS" : "FAIL"}  ${check.name}  (expected ${check.expect}, got ${res.status})`);
       if (!ok) failed++;
