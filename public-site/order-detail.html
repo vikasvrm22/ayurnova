@@ -55,6 +55,21 @@
         <button class="btn" style="background:#B23A2E; color:#fff; border:none; padding:10px 20px; border-radius:20px; cursor:pointer; font-weight:700;" id="cancel-btn">Cancel Order</button>
         <div id="cancel-error" style="color:#B23A2E; font-size:12.5px; margin-top:8px;"></div>
       </div>
+
+      <div id="return-block" style="margin-top:18px; border-top:1px solid var(--hairline); padding-top:14px; display:none;">
+        <b style="font-size:13.5px;">Request a Return</b>
+        <p style="font-size:12px; color:#888; margin-top:2px;">Within 7 days of delivery. Choose the item(s), quantity and reason.</p>
+        <div id="return-item-rows"></div>
+        <label style="font-weight:400; margin-top:10px;">Note (optional)</label>
+        <textarea id="return-note" rows="2" placeholder="Anything else we should know?"></textarea>
+        <button type="button" style="margin-top:10px;" id="return-submit-btn">Submit Return Request</button>
+        <div id="return-error" style="color:#B23A2E; font-size:12.5px; margin-top:8px;"></div>
+      </div>
+
+      <div id="returns-history-block" style="margin-top:18px; border-top:1px solid var(--hairline); padding-top:14px; display:none;">
+        <b style="font-size:13.5px;">Return History</b>
+        <div id="returns-history-rows" style="margin-top:8px;"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -68,6 +83,11 @@
   const orderId = new URLSearchParams(location.search).get("id");
   function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
   const PAYMENT_STATUS_LABEL = { paid: "Paid", unpaid: "Unpaid", refunded: "Refunded", partially_refunded: "Partially Refunded", failed: "Failed" };
+  const RETURN_REASONS = [
+    ["damaged", "Damaged"], ["leaked", "Leaked"], ["defective", "Defective"],
+    ["wrong_product", "Wrong Product"], ["expired", "Expired"], ["tampered", "Tampered"], ["missing_item", "Missing Item"],
+  ];
+  const RETURN_STATUS_LABEL = { requested: "Requested", approved: "Approved", rejected: "Rejected", refunded: "Refunded" };
 
   async function load() {
     if (!window.supabaseClient) { document.getElementById("login-prompt").style.display = "block"; return; }
@@ -103,11 +123,74 @@
       document.getElementById("order-payment-status").innerHTML = `<span class="badge-${o.paymentStatus === "paid" ? "delivered" : o.paymentStatus === "unpaid" ? "pending" : "shipped"}">${PAYMENT_STATUS_LABEL[o.paymentStatus] || o.paymentStatus}</span>`;
 
       if (o.canCancel) document.getElementById("cancel-block").style.display = "block";
+
+      const returnableItems = o.items.filter(i => i.returnableQty > 0);
+      if (o.canRequestReturn && returnableItems.length) {
+        document.getElementById("return-block").style.display = "block";
+        document.getElementById("return-item-rows").innerHTML = returnableItems.map(i => `
+          <div style="border-bottom:1px solid var(--hairline); padding:10px 0;">
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+              <input type="checkbox" class="return-item-check" data-order-item-id="${i.id}" data-max="${i.returnableQty}" style="width:auto;">
+              ${i.title}${i.variantLabel ? ` (${i.variantLabel})` : ""} <span style="color:#888;">(${i.returnableQty} returnable)</span>
+            </label>
+            <div class="return-item-fields" data-for="${i.id}" style="display:none; margin-top:6px; margin-left:24px; gap:8px; align-items:center;">
+              <select class="return-item-qty">${Array.from({length:i.returnableQty}, (_,n)=>n+1).map(n=>`<option value="${n}">${n}</option>`).join("")}</select>
+              <select class="return-item-reason">${RETURN_REASONS.map(([v,l])=>`<option value="${v}">${l}</option>`).join("")}</select>
+            </div>
+          </div>`).join("");
+        document.querySelectorAll(".return-item-check").forEach(cb => cb.addEventListener("change", () => {
+          const fields = document.querySelector(`.return-item-fields[data-for="${cb.dataset.orderItemId}"]`);
+          fields.style.display = cb.checked ? "flex" : "none";
+        }));
+      }
+
+      await loadReturnsHistory();
     } catch (e) {
       document.getElementById("load-error").style.display = "block";
       document.getElementById("load-error-text").textContent = e.message;
     }
   }
+
+  async function loadReturnsHistory() {
+    try {
+      const res = await apiGet("/api/public/returns");
+      const forThisOrder = res.data.items.filter(r => r.orderId === orderId);
+      if (!forThisOrder.length) return;
+      document.getElementById("returns-history-block").style.display = "block";
+      document.getElementById("returns-history-rows").innerHTML = forThisOrder.map(r => `
+        <div style="border-bottom:1px solid var(--hairline); padding:10px 0; font-size:13px;">
+          <span class="badge-${r.status === "refunded" ? "delivered" : r.status === "rejected" ? "cancelled" : r.status === "approved" ? "shipped" : "pending"}">${RETURN_STATUS_LABEL[r.status]}</span>
+          <span style="margin-left:8px;">${r.items.map(i => `${i.qty}× ${RETURN_REASONS.find(x=>x[0]===i.reason)?.[1] || i.reason}`).join(", ")}</span>
+          ${r.status === "rejected" ? `<div style="color:#B23A2E; font-size:12px; margin-top:4px;">Reason: ${r.rejectionReason}</div>` : ""}
+          ${r.refundStatus === "completed" ? `<div style="color:#0e7a33; font-size:12px; margin-top:4px;">Refunded ${fmt(r.refundAmount)} on ${new Date(r.refundProcessedAt).toLocaleDateString("en-IN")}</div>` : ""}
+        </div>`).join("");
+    } catch (e) { /* non-fatal */ }
+  }
+
+  document.getElementById("return-submit-btn").addEventListener("click", async () => {
+    const errEl = document.getElementById("return-error");
+    errEl.textContent = "";
+    const items = [];
+    document.querySelectorAll(".return-item-check:checked").forEach(cb => {
+      const row = cb.closest("div").parentElement;
+      const qty = Number(row.querySelector(".return-item-qty").value);
+      const reason = row.querySelector(".return-item-reason").value;
+      items.push({ order_item_id: cb.dataset.orderItemId, qty, reason });
+    });
+    if (!items.length) { errEl.textContent = "Select at least one item to return."; return; }
+
+    const btn = document.getElementById("return-submit-btn");
+    btn.disabled = true;
+    try {
+      await apiPost("/api/public/returns", { order_id: orderId, note: document.getElementById("return-note").value.trim(), items });
+      document.getElementById("return-note").value = "";
+      load();
+    } catch (e) {
+      errEl.textContent = e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   document.getElementById("cancel-btn").addEventListener("click", async () => {
     if (!confirm("Cancel this order? This cannot be undone.")) return;

@@ -65,12 +65,33 @@ router.get(
     if (!order) throw new AppError("Order not found", 404, "ORDER_NOT_FOUND");
 
     const { data: items } = await supabaseAdmin()
-      .from("order_items").select("title_snapshot, variant_label_snapshot, price_snapshot, qty, subtotal").eq("order_id", order.id);
+      .from("order_items").select("id, title_snapshot, variant_label_snapshot, price_snapshot, qty, subtotal").eq("order_id", order.id);
+
+    // Phase 6B: how many units of each item are still eligible for a
+    // return request (original qty minus units already covered by a
+    // non-rejected return_request_items row - a rejected request frees
+    // its qty back up). A UI hint only: returnsPublic.js re-derives this
+    // exact same figure server-side again at return-creation time, so
+    // this can never be the actual enforcement.
+    const itemIds = (items || []).map((i) => i.id);
+    let alreadyRequestedByItem = {};
+    if (itemIds.length) {
+      const { data: existingReturnItems } = await supabaseAdmin()
+        .from("return_request_items").select("order_item_id, qty, return_requests!inner(status)").in("order_item_id", itemIds);
+      for (const e of existingReturnItems || []) {
+        if (e.return_requests?.status === "rejected") continue;
+        alreadyRequestedByItem[e.order_item_id] = (alreadyRequestedByItem[e.order_item_id] || 0) + e.qty;
+      }
+    }
+    const withinReturnWindow = !!order.delivered_at && Date.now() - new Date(order.delivered_at).getTime() <= 7 * 24 * 60 * 60 * 1000;
+    const canRequestReturn = order.status === "delivered" && withinReturnWindow;
 
     sendOk(res, {
       ...toCustomerOrder(order),
+      canRequestReturn,
       items: (items || []).map((i) => ({
-        title: i.title_snapshot, variantLabel: i.variant_label_snapshot, price: i.price_snapshot, qty: i.qty, subtotal: i.subtotal,
+        id: i.id, title: i.title_snapshot, variantLabel: i.variant_label_snapshot, price: i.price_snapshot, qty: i.qty, subtotal: i.subtotal,
+        returnableQty: canRequestReturn ? Math.max(0, i.qty - (alreadyRequestedByItem[i.id] || 0)) : 0,
       })),
     });
   })

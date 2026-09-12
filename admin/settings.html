@@ -11,7 +11,7 @@
     <nav class="sidebar-nav">
       <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
       <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
-      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a><a href="wellness.html">Wellness</a><a href="inventory.html">Inventory</a><a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
+      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a><a href="wellness.html">Wellness</a><a href="inventory.html">Inventory</a><a href="returns.html">Returns</a><a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
       <a href="payments-list.html">Payments</a>
       <a href="integrations.html">Integrations</a><a href="settings.html" class="active">Settings</a>
     </nav>
@@ -49,6 +49,15 @@
         <label class="switch"><input type="checkbox" id="toggle-return"><span class="slider"></span></label>
       </div>
       <button class="btn btn-primary" style="margin-top:14px;" id="save-badges">Save</button>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Returns (Phase 6B)</h3>
+      <div class="toggle-row">
+        <div><div class="label">💳 COD Refunds</div><div class="sub">Allows staff to record manual/offline refunds (UPI/Bank Transfer) for Cash-on-Delivery returns on the Returns page. Off by default - COD refunds are blocked server-side while this is off.</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-cod-refund"><span class="slider"></span></label>
+      </div>
+      <button class="btn btn-primary" style="margin-top:14px;" id="save-returns">Save</button>
     </div>
 
     <div class="card">
@@ -90,6 +99,9 @@
       document.getElementById("f-whatsapp").value = social.whatsapp_channel || "";
       document.getElementById("f-telegram").value = social.telegram || "";
       document.getElementById("f-instagram").value = social.instagram || "";
+
+      const returns = settings.returns || { cod_refund_enabled: false };
+      document.getElementById("toggle-cod-refund").checked = !!returns.cod_refund_enabled;
     } catch (e) {
       Toast.show(`Could not load settings: ${e.message}`, "error");
     }
@@ -142,6 +154,15 @@
         },
       });
       Toast.show("Social links saved", "success");
+    } catch (e) { Toast.show(e.message, "error"); }
+  });
+
+  document.getElementById("save-returns").addEventListener("click", async () => {
+    try {
+      await Api.put("/settings/returns", {
+        value: { cod_refund_enabled: document.getElementById("toggle-cod-refund").checked },
+      });
+      Toast.show("Returns settings saved", "success");
     } catch (e) { Toast.show(e.message, "error"); }
   });
 

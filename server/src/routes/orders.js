@@ -113,6 +113,32 @@ router.put("/:id/status", requireStaffAuth, requirePermission("manageOrders"), a
     const { data, error } = await supabaseAdmin().from("orders").update(patch).eq("id", req.params.id).select().single();
     if (error) throw error;
 
+    // Phase 6B: delivered_at is set exactly once, on the genuine
+    // transition INTO delivered - never overwritten by a later edit (e.g.
+    // a tracking-number correction after delivery). This is the
+    // authoritative timestamp the customer return-eligibility window
+    // (server/src/routes/returnsPublic.js) is computed from; orders.
+    // updated_at cannot be used for that, since it changes on any edit.
+    //
+    // Deliberately a SEPARATE write from the core status update above
+    // (not merged into the same patch): marking an order delivered is
+    // pre-existing Phase 1 functionality staff already rely on working -
+    // a failure here (e.g. pre-migration, the column not existing yet)
+    // must never block that core action, same risk tolerance as every
+    // other inventory-accounting/audit side effect in this file.
+    if (status === "delivered" && existing?.status !== "delivered") {
+      const { error: deliveredAtError } = await supabaseAdmin()
+        .from("orders").update({ delivered_at: patch.updated_at }).eq("id", req.params.id);
+      if (deliveredAtError) {
+        await supabaseAdmin().from("activity_log").insert({
+          entity_type: "order", entity_id: req.params.id, action: "delivered_at_write_failed", actor: req.staff.email,
+          note: (deliveredAtError.message || "delivered_at write failed").slice(0, 500),
+        });
+      } else {
+        data.delivered_at = patch.updated_at;
+      }
+    }
+
     await supabaseAdmin().from("activity_log").insert({
       entity_type: "order", entity_id: req.params.id, action: `status -> ${status}`, actor: req.staff.email,
     });

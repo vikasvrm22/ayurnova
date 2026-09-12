@@ -41,6 +41,9 @@ import inventoryAdminRoutes from "./routes/inventoryAdmin.js";
 // ---- Phase 6A: Customer Orders & Address Management ----
 import orderDetailPublicRoutes from "./routes/orderDetailPublic.js";
 import addressesPublicRoutes from "./routes/addressesPublic.js";
+// ---- Phase 6B: Returns & Refund Experience ----
+import returnsPublicRoutes from "./routes/returnsPublic.js";
+import returnsAdminRoutes from "./routes/returnsAdmin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -160,6 +163,10 @@ app.use("/api/public/routines", routinesPublicRoutes);
 // overlap in practice. ----
 app.use("/api/public/my-orders", orderDetailPublicRoutes);
 app.use("/api/public/addresses", addressesPublicRoutes);
+
+// ---- Public/Admin Returns & Refund Experience (Phase 6B) ----
+app.use("/api/public/returns", returnsPublicRoutes);
+app.use("/api/admin/returns", returnsAdminRoutes);
 
 app.get("/api/meta/schema", (req, res) => {
   res.json({ roles: ROLES, rolePermissions: ROLE_PERMISSIONS, productFields: PRODUCT_FIELDS });

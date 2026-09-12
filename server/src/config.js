@@ -58,11 +58,15 @@ export const ROLES = ["SuperAdmin", "Admin", "Editor", "Viewer"];
 // sellable stock and feed an audit ledger, the same operational weight as
 // order management, so Editor is false here (same as manageOrders) even
 // though Editor already has manageProducts/manageWellness.
+// manageReturns (Phase 6B) follows the same tier again - reviewing a
+// return decides real refund money and triggers real inventory intake, so
+// Editor/Viewer are both false, same as manageOrders/managePayments/
+// manageInventory (task explicitly requires Viewer cannot manage returns).
 export const ROLE_PERMISSIONS = {
-  SuperAdmin: { manageProducts: true, manageOrders: true, manageUsers: true, manageSettings: true, viewCustomers: true, manageCoupons: true, moderateReviews: true, manageIntegrations: true, managePayments: true, manageWellness: true, manageInventory: true },
-  Admin:      { manageProducts: true, manageOrders: true, manageUsers: false, manageSettings: true, viewCustomers: true, manageCoupons: true, moderateReviews: true, manageIntegrations: true, managePayments: true, manageWellness: true, manageInventory: true },
-  Editor:     { manageProducts: true, manageOrders: false, manageUsers: false, manageSettings: false, viewCustomers: false, manageCoupons: false, moderateReviews: true, manageIntegrations: false, managePayments: false, manageWellness: true, manageInventory: false },
-  Viewer:     { manageProducts: false, manageOrders: false, manageUsers: false, manageSettings: false, viewCustomers: true, manageCoupons: false, moderateReviews: false, manageIntegrations: false, managePayments: false, manageWellness: false, manageInventory: false },
+  SuperAdmin: { manageProducts: true, manageOrders: true, manageUsers: true, manageSettings: true, viewCustomers: true, manageCoupons: true, moderateReviews: true, manageIntegrations: true, managePayments: true, manageWellness: true, manageInventory: true, manageReturns: true },
+  Admin:      { manageProducts: true, manageOrders: true, manageUsers: false, manageSettings: true, viewCustomers: true, manageCoupons: true, moderateReviews: true, manageIntegrations: true, managePayments: true, manageWellness: true, manageInventory: true, manageReturns: true },
+  Editor:     { manageProducts: true, manageOrders: false, manageUsers: false, manageSettings: false, viewCustomers: false, manageCoupons: false, moderateReviews: true, manageIntegrations: false, managePayments: false, manageWellness: true, manageInventory: false, manageReturns: false },
+  Viewer:     { manageProducts: false, manageOrders: false, manageUsers: false, manageSettings: false, viewCustomers: true, manageCoupons: false, moderateReviews: false, manageIntegrations: false, managePayments: false, manageWellness: false, manageInventory: false, manageReturns: false },
 };
 
 // Payment statuses - Phase 2. `payments.status`/`payment_attempts.status`

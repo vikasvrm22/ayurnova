@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Returns — AyurVeda Store Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a>
+      <a href="wellness.html">Wellness</a><a href="inventory.html">Inventory</a><a href="returns.html" class="active">Returns</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
+      <a href="payments-list.html">Payments</a>
+      <a href="integrations.html">Integrations</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
+  </aside>
+  <main class="main-area">
+    <div class="page-header"><h2>Returns (Phase 6B)</h2></div>
+    <p style="font-size:12.5px; color:#666; margin-top:-6px;">Customer return requests. Approving receives the returned stock into a QC-pending batch (Phase 5A) - it only becomes sellable again once staff marks that batch's quality status "passed" on the Inventory page. Refunds reuse the existing Payments refund flow for prepaid orders; COD refunds are manual/offline and gated by a Settings toggle.</p>
+
+    <div class="filters-row">
+      <select id="f-status"><option value="">All statuses</option><option value="requested">Requested</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="refunded">Refunded</option></select>
+    </div>
+
+    <table class="data-table">
+      <thead><tr><th>Order</th><th>Items</th><th>Note</th><th>Refund</th><th>Status</th><th></th></tr></thead>
+      <tbody id="return-rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+    </table>
+    <div style="display:flex; gap:8px; align-items:center; margin-top:12px; font-size:13px;" id="pagination"></div>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  const state = { page: 1, pageSize: 20, codRefundEnabled: false };
+  const STATUS_BADGE = { requested: "pending", approved: "processing", rejected: "cancelled", refunded: "delivered" };
+  const REASON_LABEL = { damaged: "Damaged", leaked: "Leaked", defective: "Defective", wrong_product: "Wrong Product", expired: "Expired", tampered: "Tampered", missing_item: "Missing Item" };
+  function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
+
+  async function loadCodFlag() {
+    try {
+      const { settings } = await Api.get("/settings");
+      state.codRefundEnabled = !!settings.returns?.cod_refund_enabled;
+    } catch (e) { state.codRefundEnabled = false; }
+  }
+
+  async function load() {
+    const status = document.getElementById("f-status").value;
+    const params = new URLSearchParams({ page: state.page, pageSize: state.pageSize });
+    if (status) params.set("status", status);
+    try {
+      const data = await Api.get(`/returns?${params.toString()}`);
+      const rowsEl = document.getElementById("return-rows");
+      if (!data.items.length) { rowsEl.innerHTML = `<tr><td colspan="6">No return requests found.</td></tr>`; document.getElementById("pagination").innerHTML = ""; return; }
+      rowsEl.innerHTML = data.items.map(r => `
+        <tr>
+          <td><a href="order-detail.html?id=${r.order_id}">${r.orders?.order_number || r.order_id}</a><br><span style="font-size:11px; color:#888; text-transform:uppercase;">${r.orders?.payment_method || ""}</span></td>
+          <td style="font-size:12.5px;">${(r.return_request_items || []).map(i => `${i.qty}× ${REASON_LABEL[i.reason] || i.reason}`).join(", ")}</td>
+          <td style="font-size:12.5px; color:#666; max-width:180px;">${r.note || "-"}</td>
+          <td style="font-size:12.5px;">${r.refund_amount != null ? fmt(r.refund_amount) : "-"}${r.refund_status === "completed" ? ` <span class="badge badge-delivered">paid</span>` : ""}</td>
+          <td><span class="badge badge-${STATUS_BADGE[r.status]}">${r.status}</span></td>
+          <td><button class="btn btn-outline" onclick="openReturnModal('${r.id}')">Review</button></td>
+        </tr>`).join("");
+
+      const totalPages = Math.max(1, Math.ceil(data.total / state.pageSize));
+      document.getElementById("pagination").innerHTML = `
+        <button class="btn btn-outline" id="pg-prev" ${state.page <= 1 ? "disabled" : ""}>Prev</button>
+        <span>Page ${state.page} of ${totalPages} (${data.total} total)</span>
+        <button class="btn btn-outline" id="pg-next" ${state.page >= totalPages ? "disabled" : ""}>Next</button>`;
+      document.getElementById("pg-prev")?.addEventListener("click", () => { state.page--; load(); });
+      document.getElementById("pg-next")?.addEventListener("click", () => { state.page++; load(); });
+    } catch (e) {
+      document.getElementById("return-rows").innerHTML = `<tr><td colspan="6">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+  document.getElementById("f-status").addEventListener("change", () => { state.page = 1; load(); });
+
+  async function openReturnModal(id) {
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;overflow:auto;padding:20px 0;";
+    backdrop.innerHTML = `<div style="background:#fff;border-radius:10px;padding:22px;width:520px;max-height:88vh;overflow:auto;"><p>Loading...</p></div>`;
+    document.body.appendChild(backdrop);
+
+    let ret;
+    try {
+      const res = await Api.get(`/returns/${id}`);
+      ret = res.item;
+    } catch (e) {
+      backdrop.querySelector("div").innerHTML = `<p>Could not load: ${e.message}</p><button class="btn btn-outline" onclick="this.closest('div').parentElement.remove()">Close</button>`;
+      return;
+    }
+
+    const maxRefundable = (ret.return_request_items || []).reduce((sum, i) => sum + Number(i.order_items?.price_snapshot || 0) * i.qty, 0);
+    const itemsHtml = (ret.return_request_items || []).map(i => `<div style="font-size:12.5px; padding:4px 0; border-bottom:1px solid var(--border);">${i.qty}× ${i.order_items?.title_snapshot || "item"}${i.order_items?.variant_label_snapshot ? ` (${i.order_items.variant_label_snapshot})` : ""} — <b>${REASON_LABEL[i.reason] || i.reason}</b></div>`).join("");
+
+    const content = backdrop.querySelector("div");
+    content.innerHTML = `
+      <h3 style="margin-top:0;">Return — Order ${ret.orders?.order_number || ""}</h3>
+      <div style="font-size:12px; color:#666; text-transform:uppercase;">${ret.orders?.payment_method || ""}</div>
+      <div style="margin-top:10px;">${itemsHtml}</div>
+      ${ret.note ? `<p style="font-size:12.5px; color:#666; margin-top:8px;"><b>Customer note:</b> ${ret.note}</p>` : ""}
+      <div style="margin-top:14px;"><span class="badge badge-${STATUS_BADGE[ret.status]}">${ret.status}</span></div>
+      ${ret.status === "requested" ? `
+        <div class="form-field" style="margin-top:14px;"><label>Approved Refund Amount (max ${fmt(maxRefundable)})</label><input id="rv-amount" type="number" value="${maxRefundable}" max="${maxRefundable}" min="0"></div>
+        <div class="form-field" style="margin-top:8px;"><label>Rejection Reason (required only if rejecting)</label><input id="rv-reject-reason" placeholder="e.g. Outside policy, insufficient evidence"></div>
+        <div id="rv-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+          <button class="btn btn-danger" id="rv-reject">Reject</button>
+          <button class="btn btn-primary" id="rv-approve">Approve</button>
+        </div>` : ""}
+      ${ret.status === "approved" ? `
+        <div style="margin-top:14px; font-size:13px;">Refund amount: <b>${fmt(ret.refund_amount)}</b></div>
+        ${ret.orders?.payment_method === "prepaid" ? `
+          <div id="rf-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+          <button class="btn btn-primary" id="rf-prepaid" style="margin-top:10px;">Process Razorpay Refund</button>` : `
+          ${state.codRefundEnabled ? `
+            <div class="form-field" style="margin-top:10px;"><label>Method</label><select id="rf-method"><option value="upi">UPI</option><option value="bank_transfer">Bank Transfer</option></select></div>
+            <div class="form-field" style="margin-top:8px;"><label>Reference / UTR</label><input id="rf-reference" placeholder="Transaction reference"></div>
+            <div class="form-field" style="margin-top:8px;"><label>Notes (optional)</label><input id="rf-notes"></div>
+            <div id="rf-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+            <button class="btn btn-primary" id="rf-cod" style="margin-top:10px;">Record COD Refund</button>` : `
+            <p style="font-size:12.5px; color:#888; margin-top:10px;">COD refunds are disabled. Enable "COD Refunds" in Settings first.</p>`}
+        `}` : ""}
+      ${ret.status === "refunded" ? `<p style="font-size:13px; margin-top:10px;">Refunded ${fmt(ret.refund_amount)} via ${ret.refund_method} on ${new Date(ret.refund_processed_at).toLocaleDateString("en-IN")}.</p>` : ""}
+      ${ret.status === "rejected" ? `<p style="font-size:13px; margin-top:10px; color:#b91c1c;">Rejected: ${ret.rejection_reason}</p>` : ""}
+      <div style="display:flex; justify-content:flex-end; margin-top:14px;"><button class="btn btn-outline" id="rv-close">Close</button></div>`;
+
+    content.querySelector("#rv-close").onclick = () => backdrop.remove();
+
+    content.querySelector("#rv-approve")?.addEventListener("click", async () => {
+      const amount = Number(content.querySelector("#rv-amount").value);
+      try {
+        await Api.post(`/returns/${id}/review`, { decision: "approve", refund_amount: amount });
+        backdrop.remove(); Toast.show("Return approved", "success"); load();
+      } catch (e) { content.querySelector("#rv-error").textContent = e.message; }
+    });
+    content.querySelector("#rv-reject")?.addEventListener("click", async () => {
+      const reason = content.querySelector("#rv-reject-reason").value.trim();
+      if (!reason) { content.querySelector("#rv-error").textContent = "A rejection reason is required"; return; }
+      try {
+        await Api.post(`/returns/${id}/review`, { decision: "reject", rejection_reason: reason });
+        backdrop.remove(); Toast.show("Return rejected", "success"); load();
+      } catch (e) { content.querySelector("#rv-error").textContent = e.message; }
+    });
+    content.querySelector("#rf-prepaid")?.addEventListener("click", async () => {
+      try {
+        await Api.post(`/returns/${id}/refund`, {});
+        backdrop.remove(); Toast.show("Refund processed", "success"); load();
+      } catch (e) { content.querySelector("#rf-error").textContent = e.message; }
+    });
+    content.querySelector("#rf-cod")?.addEventListener("click", async () => {
+      const method = content.querySelector("#rf-method").value;
+      const reference = content.querySelector("#rf-reference").value.trim();
+      const notes = content.querySelector("#rf-notes").value.trim();
+      if (!reference) { content.querySelector("#rf-error").textContent = "A reference is required"; return; }
+      try {
+        await Api.post(`/returns/${id}/refund`, { method, reference, notes });
+        backdrop.remove(); Toast.show("COD refund recorded", "success"); load();
+      } catch (e) { content.querySelector("#rf-error").textContent = e.message; }
+    });
+  }
+
+  loadCodFlag().then(load);
+</script>
+</body>
+</html>
