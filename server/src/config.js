@@ -1,12 +1,22 @@
 import "dotenv/config.js";
 
 export const config = {
-  port: process.env.PORT || 4000,
+  // Default local port changed from 4000 to 5100 (local-dev config task) to
+  // stay clear of other unrelated local projects that may already occupy
+  // lower ports (e.g. 3000) on a shared dev machine - still overridable via
+  // server/.env's PORT, as before.
+  port: process.env.PORT || 5100,
   jwtSecret: process.env.JWT_SECRET || "dev-secret-change-me",
-  corsOrigin: process.env.CORS_ORIGIN || "*",
+  // Accepts a single origin ("*" or one URL) or a comma-separated list -
+  // this app is a single server serving the API, the SSR public site, and
+  // the static admin panel together, so normal same-origin browser usage
+  // never actually triggers a CORS check; the list form exists only for
+  // the edge case of previewing admin/public-site HTML via a separate
+  // static file server (e.g. a "Live Server"-style tool) on another port.
+  corsOrigin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean) : "*",
 
   site: {
-    baseUrl: process.env.SITE_BASE_URL || "http://localhost:4000",
+    baseUrl: process.env.SITE_BASE_URL || "http://localhost:5100",
     name: "AyurVeda Store",
   },
 

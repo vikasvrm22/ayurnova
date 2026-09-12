@@ -25,8 +25,11 @@ cp .env.example .env
 Open `.env` and fill in the three Supabase values from above, plus:
 ```
 JWT_SECRET=<any long random string>
-SITE_BASE_URL=http://localhost:4000
+SITE_BASE_URL=http://localhost:5100
 ```
+(`PORT` defaults to 5100 - chosen to stay clear of other common local dev
+defaults like 3000/8000 on a shared machine. Change it in `.env` if 5100 is
+already taken on your machine too; nothing else hardcodes it.)
 
 Then:
 ```bash
@@ -41,7 +44,7 @@ sidebar → Change Password).
 ```bash
 npm start
 ```
-Visit `http://localhost:4000/admin` to log in, and `http://localhost:4000/`
+Visit `http://localhost:5100/admin` to log in, and `http://localhost:5100/`
 for the storefront.
 
 ## Part 3: Add your first product

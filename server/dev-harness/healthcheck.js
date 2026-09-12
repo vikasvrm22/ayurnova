@@ -8,11 +8,11 @@
  *
  * Usage:
  *   node dev-harness/healthcheck.js [baseUrl]
- *   BASE_URL=http://localhost:4000 node dev-harness/healthcheck.js
+ *   BASE_URL=http://localhost:5100 node dev-harness/healthcheck.js
  *
  * Exit code 0 = all checks passed, 1 = at least one failed.
  */
-const BASE_URL = process.argv[2] || process.env.BASE_URL || "http://localhost:4000";
+const BASE_URL = process.argv[2] || process.env.BASE_URL || "http://localhost:5100";
 
 const checks = [
   { name: "health endpoint", path: "/api/health", expect: 200 },

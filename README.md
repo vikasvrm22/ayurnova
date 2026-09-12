@@ -26,9 +26,11 @@ npm install
 npm run seed-admin   # creates your first Super Admin login
 npm start
 ```
-Then open:
-- Admin panel: `http://localhost:4000/admin`
-- Storefront: `http://localhost:4000/`
+Then open (default port 5100 - see `server/.env.example`'s `PORT`; this one
+server serves the API, the storefront, and the admin panel together, so
+there's nothing else to start separately):
+- Admin panel: `http://localhost:5100/admin`
+- Storefront: `http://localhost:5100/`
 
 ## What this build includes
 
