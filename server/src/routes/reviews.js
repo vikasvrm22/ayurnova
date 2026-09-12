@@ -2,8 +2,10 @@ import { Router } from "express";
 import { supabaseAdmin } from "../db/supabaseClient.js";
 import { requireStaffAuth } from "../auth/adminAuth.js";
 import { requirePermission } from "../auth/rbac.js";
+import { parsePagination } from "../validation/validators.js";
 
 const router = Router();
+const REVIEW_STATUSES = ["pending", "approved", "rejected"];
 
 /** Recomputes a product's avg_rating/review_count from its APPROVED reviews.
  * Called whenever a review's status changes. Exported so public.js can
@@ -19,10 +21,10 @@ export async function recomputeProductRating(productId) {
 
 router.get("/", requireStaffAuth, requirePermission("moderateReviews"), async (req, res, next) => {
   try {
-    const { status, page = 1, pageSize = 20 } = req.query;
+    const { status } = req.query;
     let query = supabaseAdmin().from("reviews").select("*, products(title)", { count: "exact" }).order("created_at", { ascending: false });
-    if (status) query = query.eq("status", status);
-    const p = Math.max(1, Number(page)), ps = Math.max(1, Number(pageSize));
+    if (status && REVIEW_STATUSES.includes(status)) query = query.eq("status", status);
+    const { page: p, pageSize: ps } = parsePagination(req.query);
     query = query.range((p - 1) * ps, p * ps - 1);
     const { data, error, count } = await query;
     if (error) throw error;

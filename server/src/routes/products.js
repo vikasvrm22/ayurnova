@@ -3,11 +3,18 @@ import multer from "multer";
 import { supabaseAdmin } from "../db/supabaseClient.js";
 import { requireStaffAuth } from "../auth/adminAuth.js";
 import { requirePermission } from "../auth/rbac.js";
-import { validateProductPayload, validateVariant, sanitizeText } from "../validation/validators.js";
+import { validateProductPayload, validateVariant, sanitizeText, parsePagination, sanitizeSearchTerm } from "../validation/validators.js";
 import { slugify } from "../seo/seoHelpers.js";
 import { uploadProductImage } from "../storage/imageUpload.js";
 
 const router = Router();
+const PRODUCT_STATUSES = ["draft", "published", "archived"];
+// Admin product list sort - whitelisted columns only. `sort` used to be
+// taken straight from the query string and passed to `.order()` unvalidated
+// (Phase 0 §13: same unsafe-filter-input pattern as the orders.js `.or()`
+// bug, just on the sort column instead of a filter value) - a client could
+// pass any string as a column name. Only keys below can ever reach the DB.
+const ADMIN_PRODUCT_SORT_COLUMNS = new Set(["created_at", "updated_at", "title", "status", "avg_rating", "review_count"]);
 // Multer's limit is a hard ceiling only (prevents genuinely huge uploads
 // from ever reaching memory) - the real, admin-configurable size limit is
 // enforced inside uploadProductImage() so the error message is useful.
@@ -34,18 +41,18 @@ async function uniqueSlug(title, excludeId) {
 // ---- ADMIN: LIST (search/filter/sort/pagination) ----
 router.get("/", requireStaffAuth, async (req, res, next) => {
   try {
-    const { q, status, category_id, page = 1, pageSize = 20, sort = "-created_at" } = req.query;
+    const { q, status, category_id, sort = "-created_at" } = req.query;
     let query = supabaseAdmin().from("products").select("*, product_variants(*), product_images(*)", { count: "exact" });
 
-    if (q) query = query.ilike("title", `%${q}%`);
-    if (status) query = query.eq("status", status);
+    if (q) query = query.ilike("title", `%${sanitizeSearchTerm(q)}%`);
+    if (status && PRODUCT_STATUSES.includes(status)) query = query.eq("status", status);
     if (category_id) query = query.eq("category_id", category_id);
 
     const sortField = sort.replace(/^-/, "");
-    query = query.order(sortField, { ascending: !sort.startsWith("-") });
+    const safeSortField = ADMIN_PRODUCT_SORT_COLUMNS.has(sortField) ? sortField : "created_at";
+    query = query.order(safeSortField, { ascending: !sort.startsWith("-") });
 
-    const p = Math.max(1, Number(page));
-    const ps = Math.max(1, Number(pageSize));
+    const { page: p, pageSize: ps } = parsePagination(req.query);
     query = query.range((p - 1) * ps, p * ps - 1);
 
     const { data, error, count } = await query;

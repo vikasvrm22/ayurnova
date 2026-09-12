@@ -2,6 +2,7 @@ import { Router } from "express";
 import { supabaseAdmin } from "../db/supabaseClient.js";
 import { requireStaffAuth } from "../auth/adminAuth.js";
 import { requirePermission } from "../auth/rbac.js";
+import { parsePagination } from "../validation/validators.js";
 
 const router = Router();
 
@@ -9,9 +10,7 @@ router.use(requireStaffAuth, requirePermission("viewCustomers"));
 
 router.get("/", async (req, res, next) => {
   try {
-    const { page = 1, pageSize = 20 } = req.query;
-    const p = Math.max(1, Number(page));
-    const ps = Math.max(1, Number(pageSize));
+    const { page: p, pageSize: ps } = parsePagination(req.query);
 
     // Supabase Auth admin API - lists registered storefront customers.
     const { data: userList, error } = await supabaseAdmin().auth.admin.listUsers({ page: p, perPage: ps });

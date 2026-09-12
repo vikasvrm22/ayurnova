@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { supabaseAdmin } from "../db/supabaseClient.js";
 import { config } from "../config.js";
 import { ALLOWED_IMAGE_TYPES } from "../validation/validators.js";
+import { AppError } from "../utils/apiResponse.js";
 
 const MAX_WIDTH = 1600; // no product photo needs to be wider than this on screen
 const DEFAULT_TARGET_KB = 200;
@@ -38,28 +39,35 @@ async function compressToWebp(buffer, targetBytes) {
  * and page-load bandwidth down, not just rejecting large uploads. */
 export async function uploadProductImage(file, productId) {
   if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
-    throw new Error(`Unsupported image type: ${file.mimetype}. Use JPEG, PNG or WEBP.`);
+    throw new AppError(`Unsupported image type: ${file.mimetype}. Use JPEG, PNG or WEBP.`, 400, "UNSUPPORTED_IMAGE_TYPE");
   }
 
   const { data: setting } = await supabaseAdmin().from("settings").select("value").eq("key", "uploads").maybeSingle();
   const maxInputMb = setting?.value?.max_image_mb || 5; // guard against absurd uploads before we even try to compress
   const targetKb = setting?.value?.target_kb || DEFAULT_TARGET_KB;
   if (file.size > maxInputMb * 1024 * 1024) {
-    throw new Error(`Image too large (max ${maxInputMb}MB before compression - configurable in Admin -> Settings).`);
+    throw new AppError(`Image too large (max ${maxInputMb}MB before compression - configurable in Admin -> Settings).`, 400, "IMAGE_TOO_LARGE");
   }
 
   let compressed;
   try {
     compressed = await compressToWebp(file.buffer, targetKb * 1024);
   } catch (e) {
-    throw new Error(`Could not process this image: ${e.message}`);
+    // e.message here is from `sharp` (e.g. "unsupported image format") - safe
+    // to show, it describes the uploaded file, not our internals.
+    throw new AppError(`Could not process this image: ${e.message}`, 400, "IMAGE_PROCESSING_FAILED");
   }
 
   const path = `${productId}/${uuid()}.webp`;
   const { error } = await supabaseAdmin()
     .storage.from(config.supabase.storageBucket)
     .upload(path, compressed, { contentType: "image/webp", upsert: false });
-  if (error) throw new Error(`Image upload failed: ${error.message}`);
+  if (error) {
+    // error.message here is a raw Supabase Storage error - log the detail
+    // server-side only, don't relay it to the client (Phase 0 §7.2).
+    console.error("Supabase Storage upload failed:", error);
+    throw new Error("Image upload failed. Please try again.");
+  }
 
   const { data } = supabaseAdmin().storage.from(config.supabase.storageBucket).getPublicUrl(path);
   return { url: data.publicUrl, sizeBytes: compressed.length };
