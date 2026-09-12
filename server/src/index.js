@@ -118,7 +118,15 @@ app.get("/api/meta/schema", (req, res) => {
 app.get("/api/health", (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
 // ---- Admin panel (static SPA) ----
-app.use("/admin", express.static(path.join(__dirname, "../../admin"), { maxAge: "1h" }));
+// `index: "dashboard.html"` makes /admin/ (and bare /admin) resolve to the
+// existing dashboard page instead of 404ing - express.static's default
+// directory-index file is "index.html", which this admin/ directory has
+// never had (every page is separately named: login.html, dashboard.html,
+// etc.). dashboard.html already self-guards via requireAdminAuth() in its
+// own inline <script>, redirecting to login.html when unauthenticated -
+// that behaviour is unchanged, just now also reachable at the bare /admin/
+// entry path rather than only at the exact /admin/dashboard.html URL.
+app.use("/admin", express.static(path.join(__dirname, "../../admin"), { maxAge: "1h", index: "dashboard.html" }));
 
 // ---- Public site: assets served explicitly first (never caught by the
 // SSR page router's routes), then SSR pages, then a catch-all static

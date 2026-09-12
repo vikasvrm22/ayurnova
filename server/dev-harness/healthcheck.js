@@ -30,6 +30,7 @@ const checks = [
   { name: "public catalog: products list", path: "/api/public/products", expect: 200 },
   { name: "public catalog: invalid pagination rejected", path: "/api/public/products?pageSize=abc", expect: 200 }, // non-numeric pageSize silently falls back to default, not an error - see catalog API test suite for the full contract
   { name: "admin API without token -> 401", path: "/api/admin/products", expect: 401 },
+  { name: "admin panel root -> dashboard (not 404)", path: "/admin/", expect: 200 },
 
   // ---- Phase 2: payments/integrations ----
   { name: "admin payments without token -> 401", path: "/api/admin/payments", expect: 401 },
