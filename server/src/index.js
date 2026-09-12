@@ -24,6 +24,9 @@ import dashboardRoutes from "./routes/dashboard.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 import publicRoutes from "./routes/public.js";
 import catalogPublicRoutes from "./routes/catalogPublic.js";
+import paymentsPublicRoutes from "./routes/paymentsPublic.js";
+import paymentsAdminRoutes from "./routes/paymentsAdmin.js";
+import integrationsAdminRoutes from "./routes/integrationsAdmin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -40,7 +43,7 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://checkout.razorpay.com"],
         // Phase 1 finding (discovered via real-browser E2E testing, not
         // present in Phase 0's curl-only audit): helmet's secure-by-default
         // CSP directives include `script-src-attr 'none'` unless overridden,
@@ -58,14 +61,21 @@ app.use(
         scriptSrcAttr: ["'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: ["'self'", config.supabase.url || "https://*.supabase.co"].filter(Boolean),
+        connectSrc: ["'self'", config.supabase.url || "https://*.supabase.co", "https://api.razorpay.com", "https://checkout.razorpay.com", "https://lumberjack.razorpay.com"].filter(Boolean),
+        // Razorpay Checkout opens its payment UI inside an iframe it injects.
+        frameSrc: ["'self'", "https://api.razorpay.com", "https://checkout.razorpay.com"],
       },
     },
   })
 );
 
 app.use(cors({ origin: config.corsOrigin }));
-app.use(express.json({ limit: "2mb" }));
+// Phase 2: Razorpay webhook signature verification needs the EXACT raw
+// request body bytes (the HMAC is computed over them), which are gone
+// once express.json() parses them into an object. `verify` runs before
+// parsing and lets us stash the raw buffer on the request without
+// changing how every other route uses the normal parsed req.body.
+app.use(express.json({ limit: "2mb", verify: (req, _res, buf) => { req.rawBody = buf; } }));
 
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 400, standardHeaders: true, legacyHeaders: false });
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
@@ -88,6 +98,9 @@ app.use("/api/admin/blog", blogRoutes);
 app.use("/api/admin/settings", settingsRoutes);
 app.use("/api/admin/dashboard", dashboardRoutes);
 app.use("/api/admin/analytics", analyticsRoutes);
+// ---- Admin Payments + Integration Management (Phase 2) ----
+app.use("/api/admin/payments", paymentsAdminRoutes);
+app.use("/api/admin/integrations", integrationsAdminRoutes);
 
 // ---- Public API (storefront AJAX: checkout, reviews, bookings, coupons) ----
 app.use("/api/public", publicRoutes);
@@ -95,6 +108,9 @@ app.use("/api/public", publicRoutes);
 // ---- Public catalog API (Phase 1: products/categories/search JSON - the
 // Android-readiness gap identified in Phase 0 §6) ----
 app.use("/api/public", catalogPublicRoutes);
+
+// ---- Public payment API (Phase 2: verify/retry/webhook) ----
+app.use("/api/public/payments", paymentsPublicRoutes);
 
 app.get("/api/meta/schema", (req, res) => {
   res.json({ roles: ROLES, rolePermissions: ROLE_PERMISSIONS, productFields: PRODUCT_FIELDS });

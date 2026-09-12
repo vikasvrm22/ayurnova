@@ -5,6 +5,8 @@ import { validateAddress, validatePhone, sanitizeText } from "../validation/vali
 import { computeCouponDiscount } from "./coupons.js";
 import { recomputeProductRating } from "./reviews.js";
 import { config } from "../config.js";
+import { startPaymentAttempt } from "../services/paymentService.js";
+import { getActiveEnvironment } from "../integrations/razorpay/provider.js";
 
 const router = Router();
 router.use(attachCustomerIfPresent);
@@ -52,6 +54,12 @@ router.post("/checkout", async (req, res, next) => {
     if (!valid) return res.status(400).json({ error: "Invalid address", fields: errors });
     if (!req.customer && !validatePhone(guest_phone || "")) {
       return res.status(400).json({ error: "A valid phone number is required for guest checkout" });
+    }
+    // Fail BEFORE creating an order if prepaid checkout has nowhere to go -
+    // otherwise a Razorpay outage/misconfiguration would leave a real,
+    // unpayable order row behind (Phase 2 order-integrity requirement).
+    if (payment_method === "prepaid" && !(await getActiveEnvironment())) {
+      return res.status(503).json({ error: "Online payment is not available right now. Please choose Cash on Delivery, or try again shortly." });
     }
 
     // Re-price server-side from the database - never trust client-sent prices.
@@ -105,16 +113,25 @@ router.post("/checkout", async (req, res, next) => {
     const { error: itemsError } = await supabaseAdmin().from("order_items").insert(itemsWithOrderId);
     if (itemsError) throw itemsError;
 
-    // Decrement stock for each variant purchased.
-    for (const item of pricedItems) {
-      await supabaseAdmin().rpc("decrement_variant_stock", { variant_id: item.variant_id, qty: item.qty }).catch(async () => {
-        // Fallback if the RPC function isn't installed (see SETUP.md) - a
-        // plain read-then-write (fine at this traffic scale; a race here
-        // would only ever slightly oversell, not corrupt data).
-        const { data: v } = await supabaseAdmin().from("product_variants").select("stock").eq("id", item.variant_id).single();
-        if (v) await supabaseAdmin().from("product_variants").update({ stock: Math.max(0, v.stock - item.qty) }).eq("id", item.variant_id);
-      });
+    if (payment_method === "cod") {
+      // COD: unchanged from before Phase 2 - decrement stock immediately,
+      // since there is no payment gateway step that could fail/be abandoned.
+      for (const item of pricedItems) {
+        await supabaseAdmin().rpc("decrement_variant_stock", { variant_id: item.variant_id, qty: item.qty }).catch(async () => {
+          // Fallback if the RPC function isn't installed (see SETUP.md) - a
+          // plain read-then-write (fine at this traffic scale; a race here
+          // would only ever slightly oversell, not corrupt data).
+          const { data: v } = await supabaseAdmin().from("product_variants").select("stock").eq("id", item.variant_id).single();
+          if (v) await supabaseAdmin().from("product_variants").update({ stock: Math.max(0, v.stock - item.qty) }).eq("id", item.variant_id);
+        });
+      }
     }
+    // Phase 2: for "prepaid", stock is intentionally NOT decremented here.
+    // Decrementing at order-creation time (the pre-Phase-2 behaviour) would
+    // hold/consume inventory for a payment that might fail or be abandoned
+    // in the Razorpay checkout popup. Stock is decremented only once a
+    // payment is verified as SUCCESS - see paymentService.markAttemptOutcome,
+    // called from the /verify and /webhook/razorpay routes below.
 
     if (coupon_code && couponResult.coupon) {
       await supabaseAdmin().from("coupons").update({ used_count: couponResult.coupon.used_count + 1 }).eq("id", couponResult.coupon.id);
@@ -123,7 +140,12 @@ router.post("/checkout", async (req, res, next) => {
     // NOTE: order confirmation email/SMS is not wired up - plug your own
     // SMTP/SMS provider call in here (see SETUP.md "Order notifications").
 
-    res.status(201).json({ order_number: orderNumber, total });
+    if (payment_method === "prepaid") {
+      const paymentAttempt = await startPaymentAttempt(order);
+      return res.status(201).json({ order_number: orderNumber, total, payment_required: true, ...paymentAttempt });
+    }
+
+    res.status(201).json({ order_number: orderNumber, total, payment_required: false });
   } catch (e) {
     next(e);
   }

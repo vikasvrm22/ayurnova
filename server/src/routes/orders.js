@@ -38,7 +38,22 @@ router.get("/:id", requireStaffAuth, async (req, res, next) => {
     const { data: order, error } = await supabaseAdmin().from("orders").select("*").eq("id", req.params.id).single();
     if (error) return res.status(404).json({ error: "Not found" });
     const { data: items } = await supabaseAdmin().from("order_items").select("*").eq("order_id", req.params.id);
-    res.json({ order, items: items || [] });
+
+    // Phase 2: surface payment + attempt history alongside the order, so
+    // the admin order-detail page doesn't need a second round trip. Only
+    // present for prepaid orders that have actually started a payment -
+    // COD orders and abandoned-before-any-attempt prepaid orders have none.
+    let payment = null;
+    const { data: paymentRow } = await supabaseAdmin().from("payments").select("*").eq("order_id", req.params.id).maybeSingle();
+    if (paymentRow) {
+      const { data: attempts } = await supabaseAdmin()
+        .from("payment_attempts").select("*").eq("payment_id", paymentRow.id).order("attempt_number", { ascending: true });
+      const { data: refunds } = await supabaseAdmin()
+        .from("refunds").select("*").eq("payment_id", paymentRow.id).order("created_at", { ascending: false });
+      payment = { ...paymentRow, attempts: attempts || [], refunds: refunds || [] };
+    }
+
+    res.json({ order, items: items || [], payment });
   } catch (e) {
     next(e);
   }
