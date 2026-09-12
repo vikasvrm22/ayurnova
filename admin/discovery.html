@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Discovery — AyurVeda Store Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a><a href="discovery.html" class="active">Discovery</a><a href="faqs.html">FAQs</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
+      <a href="payments-list.html">Payments</a>
+      <a href="integrations.html">Integrations</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
+  </aside>
+  <main class="main-area">
+    <div class="page-header"><h2>Discovery</h2><button class="btn btn-primary" id="new-btn">+ New</button></div>
+    <p style="font-size:12.5px; color:#666; margin-top:-6px;">
+      Manage the Ingredient/Concern/Benefit/Goal taxonomy a product can be tagged with (Phase 3). A product's own tags are edited on its product page.
+    </p>
+    <div class="tabs" style="display:flex; gap:6px; margin:14px 0;">
+      <button class="btn btn-outline tab-btn" data-tab="concern">Concerns</button>
+      <button class="btn btn-outline tab-btn" data-tab="benefit">Benefits</button>
+      <button class="btn btn-outline tab-btn" data-tab="goal">Goals</button>
+      <button class="btn btn-outline tab-btn" data-tab="ingredient">Ingredients</button>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Name</th><th>Slug</th><th>Description</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="4">Loading...</td></tr></tbody>
+    </table>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  let activeTab = "concern"; // concern | benefit | goal | ingredient
+  const TAB_LABEL = { concern: "Concern", benefit: "Benefit", goal: "Goal", ingredient: "Ingredient" };
+
+  function setActiveTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("btn-primary", b.dataset.tab === tab));
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("btn-outline", b.dataset.tab !== tab));
+    load();
+  }
+  document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => setActiveTab(b.dataset.tab)));
+
+  async function load() {
+    document.getElementById("rows").innerHTML = `<tr><td colspan="4">Loading...</td></tr>`;
+    try {
+      const path = activeTab === "ingredient" ? "/ingredients" : `/categories?type=${activeTab}`;
+      const { items } = await Api.get(path);
+      document.getElementById("rows").innerHTML = items.length ? items.map(i => `
+        <tr>
+          <td><b>${i.name}</b></td>
+          <td style="color:#888;">${i.slug}</td>
+          <td style="color:#666; font-size:12.5px;">${i.description ? i.description.slice(0, 80) : "—"}</td>
+          <td>
+            <button class="btn btn-outline" onclick='openForm(${JSON.stringify(i).replace(/'/g, "&#39;")})'>Edit</button>
+            <button class="btn btn-danger" onclick="remove('${i.id}')">Delete</button>
+          </td>
+        </tr>`).join("") : `<tr><td colspan="4">No ${TAB_LABEL[activeTab].toLowerCase()}s yet.</td></tr>`;
+    } catch (e) {
+      document.getElementById("rows").innerHTML = `<tr><td colspan="4">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+
+  async function remove(id) {
+    if (!confirm(`Delete this ${TAB_LABEL[activeTab].toLowerCase()}? Products tagged with it will lose that tag.`)) return;
+    try {
+      const path = activeTab === "ingredient" ? `/ingredients/${id}` : `/categories/${id}`;
+      await Api.del(path);
+      Toast.show("Deleted", "success");
+      load();
+    } catch (e) {
+      Toast.show(e.message, "error");
+    }
+  }
+
+  function openForm(item) {
+    const isIngredient = activeTab === "ingredient";
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;";
+    backdrop.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:22px;width:420px;max-height:85vh;overflow:auto;">
+        <h3 style="margin-top:0;">${item ? "Edit" : "New"} ${TAB_LABEL[activeTab]}</h3>
+        <div class="form-field"><label>Name</label><input id="f-name" value="${item ? item.name.replace(/"/g, "&quot;") : ""}"></div>
+        <div class="form-field" style="margin-top:8px;"><label>Description</label><textarea id="f-description">${item?.description || ""}</textarea></div>
+        ${!isIngredient ? `
+        <div class="form-field" style="margin-top:8px;"><label>Hero Image URL</label><input id="f-hero" value="${item?.hero_image || ""}"></div>
+        <div class="form-field" style="margin-top:8px;"><label>SEO Title</label><input id="f-seo-title" value="${item?.seo_title || ""}"></div>
+        <div class="form-field" style="margin-top:8px;"><label>SEO Meta Description</label><textarea id="f-seo-desc">${item?.seo_description || ""}</textarea></div>
+        ` : ""}
+        <div id="f-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+          <button class="btn btn-outline" id="f-cancel">Cancel</button>
+          <button class="btn btn-primary" id="f-save">${item ? "Save" : "Create"}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    backdrop.querySelector("#f-cancel").onclick = () => backdrop.remove();
+    backdrop.querySelector("#f-save").onclick = async () => {
+      const name = backdrop.querySelector("#f-name").value.trim();
+      if (!name) { backdrop.querySelector("#f-error").textContent = "Name is required"; return; }
+      const body = { name, description: backdrop.querySelector("#f-description").value.trim() };
+      if (!isIngredient) {
+        body.type = activeTab;
+        body.hero_image = backdrop.querySelector("#f-hero").value.trim();
+        body.seo_title = backdrop.querySelector("#f-seo-title").value.trim();
+        body.seo_description = backdrop.querySelector("#f-seo-desc").value.trim();
+      }
+      try {
+        const path = isIngredient ? "/ingredients" : "/categories";
+        if (item) await Api.put(`${path}/${item.id}`, body);
+        else await Api.post(path, body);
+        backdrop.remove();
+        Toast.show("Saved", "success");
+        load();
+      } catch (e) {
+        backdrop.querySelector("#f-error").textContent = e.message;
+      }
+    };
+  }
+
+  document.getElementById("new-btn").addEventListener("click", () => openForm(null));
+
+  setActiveTab("concern");
+</script>
+</body>
+</html>

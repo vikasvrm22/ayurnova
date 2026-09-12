@@ -13,7 +13,7 @@
 <header class="site-header">
   <div class="container">
     <div class="brand"><div class="brand-mark">AV</div><div class="brand-text"><h1>AyurVeda Store</h1><span>Authentic Ayurvedic Wellness</span></div></div>
-    <form class="header-search"><input type="text" placeholder="Search products, concerns, ingredients..."><button type="button">Search</button></form>
+    <form class="header-search" action="/shop" method="get"><input type="text" name="q" placeholder="Search products, concerns, ingredients..."><button type="submit">Search</button></form>
     <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/cart">🛒<span class="cart-count">2</span></a></div>
   </div>
 </header>
@@ -21,7 +21,14 @@
 <nav class="main-nav">
   <div class="container">
     <a href="/">Home</a><a href="/shop" class="active">Shop All</a>
-    <a href="/shop?f=concern">Shop by Health Concern</a><a href="/shop?f=benefit">Shop by Benefit</a>
+    <div class="has-mega" style="position:relative;">
+      <a href="/shop?f=concern">Shop by Health Concern ▾</a>
+      <div class="mega-menu"><!--MEGA_CONCERN--></div>
+    </div>
+    <div class="has-mega" style="position:relative;">
+      <a href="/shop?f=benefit">Shop by Benefit ▾</a>
+      <div class="mega-menu"><!--MEGA_BENEFIT--></div>
+    </div>
     <a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a><a href="/blog">Blog</a>
   </div>
 </nav>
@@ -32,11 +39,19 @@
     <aside class="filter-sidebar">
       <div class="filter-block">
         <h4>Health Concern</h4>
-        <label><input type="checkbox" checked> Digestive &amp; Liver</label>
-        <label><input type="checkbox"> Sleep &amp; Stress</label>
-        <label><input type="checkbox"> Immunity Support</label>
-        <label><input type="checkbox"> Pain &amp; Joint Care</label>
-        <label><input type="checkbox"> Skin &amp; Beauty</label>
+        <!--FILTER_CONCERN-->
+      </div>
+      <div class="filter-block">
+        <h4>Benefit</h4>
+        <!--FILTER_BENEFIT-->
+      </div>
+      <div class="filter-block">
+        <h4>Goal</h4>
+        <!--FILTER_GOAL-->
+      </div>
+      <div class="filter-block">
+        <h4>Product Type</h4>
+        <!--FILTER_PRODUCT_TYPE-->
       </div>
       <div class="filter-block">
         <h4>Price Range</h4>
@@ -44,13 +59,6 @@
         <label><input type="checkbox"> ₹200 – ₹500</label>
         <label><input type="checkbox"> ₹500 – ₹1000</label>
         <label><input type="checkbox"> Above ₹1000</label>
-      </div>
-      <div class="filter-block">
-        <h4>Product Type</h4>
-        <label><input type="checkbox"> Tablets</label>
-        <label><input type="checkbox"> Churna / Powder</label>
-        <label><input type="checkbox"> Oils</label>
-        <label><input type="checkbox"> Syrups</label>
       </div>
       <div class="filter-block">
         <h4>Rating</h4>
@@ -78,8 +86,8 @@
 
 <footer class="mega-footer">
   <div class="container">
-    <div><h5>Top Categories</h5><a href="/shop">Immunity</a><a href="/shop">Sleep &amp; Stress</a><a href="/shop">Digestive Health</a><a href="/shop">Women's Wellness</a></div>
-    <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a><a href="#">FAQ</a></div>
+    <div><h5>Top Categories</h5><!--FOOTER_CATEGORIES--></div>
+    <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a><a href="/faq">FAQ</a></div>
     <div><h5>Policies</h5><a href="#">Terms of Service</a><a href="#">Return &amp; Refund</a><a href="#">Privacy Policy</a></div>
     <div><h5>Quick Links</h5><a href="/shop">Shop by Product</a><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a></div>
     <div><h5>Newsletter</h5><input type="email" placeholder="Your email" style="width:100%;padding:8px;border-radius:6px;border:none;margin-bottom:8px;"><button style="width:100%;padding:8px;background:var(--gold);color:#fff;border:none;border-radius:6px;">Subscribe</button></div>

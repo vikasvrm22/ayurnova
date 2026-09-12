@@ -27,6 +27,10 @@ import catalogPublicRoutes from "./routes/catalogPublic.js";
 import paymentsPublicRoutes from "./routes/paymentsPublic.js";
 import paymentsAdminRoutes from "./routes/paymentsAdmin.js";
 import integrationsAdminRoutes from "./routes/integrationsAdmin.js";
+// ---- Phase 3: Ayurveda Discovery & Knowledge ----
+import ingredientsRoutes from "./routes/ingredients.js";
+import faqsRoutes from "./routes/faqs.js";
+import blogPublicRoutes from "./routes/blogPublic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -111,16 +115,23 @@ app.use("/api/admin/analytics", analyticsRoutes);
 // ---- Admin Payments + Integration Management (Phase 2) ----
 app.use("/api/admin/payments", paymentsAdminRoutes);
 app.use("/api/admin/integrations", integrationsAdminRoutes);
+// ---- Admin Discovery & Knowledge content (Phase 3) ----
+app.use("/api/admin/ingredients", ingredientsRoutes);
+app.use("/api/admin/faqs", faqsRoutes);
 
 // ---- Public API (storefront AJAX: checkout, reviews, bookings, coupons) ----
 app.use("/api/public", publicRoutes);
 
 // ---- Public catalog API (Phase 1: products/categories/search JSON - the
-// Android-readiness gap identified in Phase 0 §6) ----
+// Android-readiness gap identified in Phase 0 §6; extended in Phase 3 with
+// ingredients/richer categories/multi-value filtering/compare) ----
 app.use("/api/public", catalogPublicRoutes);
 
 // ---- Public payment API (Phase 2: verify/retry/webhook) ----
 app.use("/api/public/payments", paymentsPublicRoutes);
+
+// ---- Public Knowledge Hub API (Phase 3) ----
+app.use("/api/public/blog", blogPublicRoutes);
 
 app.get("/api/meta/schema", (req, res) => {
   res.json({ roles: ROLES, rolePermissions: ROLE_PERMISSIONS, productFields: PRODUCT_FIELDS });

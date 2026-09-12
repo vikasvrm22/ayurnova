@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/css/style.css">
+<!--SSR_HEAD-->
+<style>
+  .compare-table{width:100%; border-collapse:collapse; background:#fff; margin-top:14px;}
+  .compare-table th, .compare-table td{border:1px solid var(--hairline); padding:10px 12px; font-size:13px; text-align:left; vertical-align:top;}
+  .compare-table th{background:#f8f9fd;}
+</style>
+</head>
+<body>
+
+<div class="announce-strip"><div class="container"><span>COD AVAILABLE</span><span>FREE SHIPPING ABOVE ₹599</span></div></div>
+
+<header class="site-header">
+  <div class="container">
+    <div class="brand"><div class="brand-mark">AV</div><div class="brand-text"><h1>AyurVeda Store</h1><span>Authentic Ayurvedic Wellness</span></div></div>
+    <form class="header-search" action="/shop" method="get"><input type="text" name="q" placeholder="Search products, concerns, ingredients..."><button type="submit">Search</button></form>
+    <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/cart">🛒<span class="cart-count">0</span></a></div>
+  </div>
+</header>
+
+<nav class="main-nav"><div class="container">
+  <a href="/">Home</a><a href="/shop">Shop All</a><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a><a href="/blog">Blog</a>
+</div></nav>
+
+<div class="container">
+  <p style="font-size:12.5px; color:#888; margin:14px 0 0;"><a href="/">Home</a> &rsaquo; Compare Products</p>
+  <h3 class="section-title" style="text-align:left;">Compare Products</h3>
+  <p class="section-sub" style="text-align:left;">Add products to compare from their product page, or share this page's link (up to 4 products).</p>
+  <div id="compare-body">Loading...</div>
+</div>
+
+<footer class="mega-footer">
+  <div class="container">
+    <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a><a href="/faq">FAQ</a></div>
+    <div><h5>Quick Links</h5><a href="/shop">Shop by Product</a><a href="/consult-vaidya">Consult a Vaidya</a></div>
+  </div>
+  <div class="footer-bottom">© 2026 AyurVeda Store</div>
+</footer>
+
+<script>
+  function fmt(n){ return "₹" + Number(n).toLocaleString("en-IN"); }
+
+  async function loadCompare() {
+    const ids = new URLSearchParams(location.search).get("ids");
+    const body = document.getElementById("compare-body");
+    if (!ids) { body.innerHTML = `<p style="color:#888;">No products selected. Go to a product page and use "Add to Compare".</p>`; return; }
+    try {
+      const res = await fetch(`/api/public/products/compare?ids=${encodeURIComponent(ids)}`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message || "Could not load comparison");
+      const items = json.data.items;
+      if (!items.length) { body.innerHTML = `<p style="color:#888;">No matching products found.</p>`; return; }
+
+      const rows = [
+        { label: "Product", render: p => `<a href="/product/${p.slug}"><b>${p.title}</b></a>` },
+        { label: "Price", render: p => p.variants[0] ? fmt(p.variants[0].price) : "—" },
+        { label: "MRP", render: p => p.variants[0]?.mrp ? fmt(p.variants[0].mrp) : "—" },
+        { label: "Pack Sizes", render: p => p.variants.map(v => v.label).join(", ") || "—" },
+        { label: "In Stock", render: p => p.variants.some(v => v.stock > 0) ? "Yes" : "No" },
+        { label: "Rating", render: p => p.avgRating ? `${p.avgRating} ★ (${p.reviewCount})` : "No reviews yet" },
+        { label: "Concerns", render: p => p.concerns.map(c => c.name).join(", ") || "—" },
+        { label: "Benefits", render: p => p.benefits.map(c => c.name).join(", ") || "—" },
+        { label: "Ingredients", render: p => p.relatedIngredients.map(i => i.name).join(", ") || "—" },
+      ];
+
+      body.innerHTML = `<table class="compare-table"><tbody>
+        ${rows.map(r => `<tr><th>${r.label}</th>${items.map(p => `<td>${r.render(p)}</td>`).join("")}</tr>`).join("")}
+      </tbody></table>`;
+    } catch (e) {
+      body.innerHTML = `<p style="color:#B23A2E;">${e.message}</p>`;
+    }
+  }
+  loadCompare();
+</script>
+</body>
+</html>

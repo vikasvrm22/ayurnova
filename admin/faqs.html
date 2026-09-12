@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAQs — AyurVeda Store Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html" class="active">FAQs</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
+      <a href="payments-list.html">Payments</a>
+      <a href="integrations.html">Integrations</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
+  </aside>
+  <main class="main-area">
+    <div class="page-header"><h2>FAQs</h2><button class="btn btn-primary" id="new-btn">+ New FAQ</button></div>
+    <p style="font-size:12.5px; color:#666; margin-top:-6px;">Global FAQs (no product) show on the site-wide FAQ page. Product FAQs show on that product's page only.</p>
+    <table class="data-table">
+      <thead><tr><th>Question</th><th>Scope</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="3">Loading...</td></tr></tbody>
+    </table>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  async function load() {
+    try {
+      const { items } = await Api.get("/faqs");
+      document.getElementById("rows").innerHTML = items.length ? items.map(f => `
+        <tr>
+          <td><b>${f.question}</b></td>
+          <td>${f.product_id ? `Product: ${f.products?.title || f.product_id}` : `<span style="color:#0e7a33;">Global</span>`}</td>
+          <td>
+            <button class="btn btn-outline" onclick='openForm(${JSON.stringify(f).replace(/'/g, "&#39;")})'>Edit</button>
+            <button class="btn btn-danger" onclick="remove('${f.id}')">Delete</button>
+          </td>
+        </tr>`).join("") : `<tr><td colspan="3">No FAQs yet.</td></tr>`;
+    } catch (e) {
+      document.getElementById("rows").innerHTML = `<tr><td colspan="3">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+
+  async function remove(id) {
+    if (!confirm("Delete this FAQ?")) return;
+    try { await Api.del(`/faqs/${id}`); Toast.show("Deleted", "success"); load(); }
+    catch (e) { Toast.show(e.message, "error"); }
+  }
+
+  function openForm(item) {
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;";
+    backdrop.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:22px;width:440px;max-height:85vh;overflow:auto;">
+        <h3 style="margin-top:0;">${item ? "Edit" : "New"} FAQ</h3>
+        <div class="form-field"><label>Question</label><input id="f-question" value="${item ? item.question.replace(/"/g, "&quot;") : ""}"></div>
+        <div class="form-field" style="margin-top:8px;"><label>Answer</label><textarea id="f-answer">${item?.answer || ""}</textarea></div>
+        <div class="form-field" style="margin-top:8px;">
+          <label>Product ID (leave blank for a global/site-wide FAQ)</label>
+          <input id="f-product-id" placeholder="uuid, from the product's admin URL - optional" value="${item?.product_id || ""}">
+        </div>
+        <div id="f-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+          <button class="btn btn-outline" id="f-cancel">Cancel</button>
+          <button class="btn btn-primary" id="f-save">${item ? "Save" : "Create"}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    backdrop.querySelector("#f-cancel").onclick = () => backdrop.remove();
+    backdrop.querySelector("#f-save").onclick = async () => {
+      const question = backdrop.querySelector("#f-question").value.trim();
+      const answer = backdrop.querySelector("#f-answer").value.trim();
+      if (!question || !answer) { backdrop.querySelector("#f-error").textContent = "Question and answer are both required"; return; }
+      const body = { question, answer, product_id: backdrop.querySelector("#f-product-id").value.trim() || null };
+      try {
+        if (item) await Api.put(`/faqs/${item.id}`, body);
+        else await Api.post("/faqs", body);
+        backdrop.remove();
+        Toast.show("Saved", "success");
+        load();
+      } catch (e) {
+        backdrop.querySelector("#f-error").textContent = e.message;
+      }
+    };
+  }
+
+  document.getElementById("new-btn").addEventListener("click", () => openForm(null));
+  load();
+</script>
+</body>
+</html>

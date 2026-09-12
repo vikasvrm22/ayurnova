@@ -13,7 +13,7 @@
 <header class="site-header">
   <div class="container">
     <div class="brand"><div class="brand-mark">AV</div><div class="brand-text"><h1>AyurVeda Store</h1><span>Authentic Ayurvedic Wellness</span></div></div>
-    <form class="header-search"><input type="text" placeholder="Search products, concerns, ingredients..."><button type="button">Search</button></form>
+    <form class="header-search" action="/shop" method="get"><input type="text" name="q" placeholder="Search products, concerns, ingredients..."><button type="submit">Search</button></form>
     <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/cart">🛒<span class="cart-count">2</span></a></div>
   </div>
 </header>
@@ -45,6 +45,8 @@
         <li>Reduces stomach bloating and constipation</li>
       </ul>
 
+      <div id="pd-tags" style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;"></div>
+
       <div style="font-size:13px; font-weight:700; margin-top:14px;">Select Pack Size:</div>
       <div class="pd-packs">
         <span class="pack-pill sel">Pack of 60 Tablets — ₹380</span>
@@ -60,6 +62,10 @@
         <button class="btn-buynow" onclick="siteAddToCart(true)">Buy Now</button>
       </div>
       <div id="add-to-cart-msg" style="font-size:12.5px; color:#0e7a33; margin-top:6px;"></div>
+      <div style="margin-top:8px;">
+        <button id="compare-btn" class="btn-outline" style="padding:7px 14px; border:1px solid var(--hairline); background:#fff; border-radius:6px; font-size:12.5px; cursor:pointer;" onclick="toggleCompareClick()">+ Add to Compare</button>
+        <a id="compare-link" href="#" style="display:none; margin-left:8px; font-size:12.5px;">View Compare →</a>
+      </div>
 
       <p style="font-size:12px; color:#888;" id="trust-badges"></p>
 
@@ -68,15 +74,13 @@
         <button onclick="showTab(this,'ingredients')">Ingredients</button>
         <button onclick="showTab(this,'howto')">How to Use</button>
         <button onclick="showTab(this,'reviews')">Reviews (313)</button>
+        <button onclick="showTab(this,'faqs')">FAQs</button>
       </div>
       <div id="tab-desc" class="pd-tab-content">Amlant Tablet is a classical Ayurvedic formulation that helps balance excess stomach acid naturally, reducing the frequency of acidity episodes while supporting healthy digestion and reducing bloating.</div>
       <div id="tab-ingredients" class="pd-tab-content" style="display:none;">Shankh Bhasma, Kamdudha Ras, Praval Pishti, Mukta Shukti Bhasma, Yashad Bhasma.</div>
       <div id="tab-howto" class="pd-tab-content" style="display:none;">Take 1–2 tablets twice daily after meals with water, or as directed by your physician.</div>
-      <div id="tab-reviews" class="pd-tab-content" style="display:none;">
-        <div class="review-item"><div class="stars">★★★★★</div><b>Rakesh M.</b> — Works well for my acidity issues, noticeable relief within a week.</div>
-        <div class="review-item"><div class="stars">★★★★☆</div><b>Neha S.</b> — Good product, natural and effective, no side effects so far.</div>
-        <div class="review-item"><div class="stars">★★★★★</div><b>Amit K.</b> — Highly recommend for anyone with recurring acidity problems.</div>
-      </div>
+      <div id="tab-reviews" class="pd-tab-content" style="display:none;"><!--PD_REVIEWS--></div>
+      <div id="tab-faqs" class="pd-tab-content" style="display:none;"><!--PD_FAQS--></div>
     </div>
   </div>
 
@@ -90,8 +94,8 @@
 
 <footer class="mega-footer">
   <div class="container">
-    <div><h5>Top Categories</h5><a href="/shop">Immunity</a><a href="/shop">Sleep &amp; Stress</a><a href="/shop">Digestive Health</a></div>
-    <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a><a href="#">FAQ</a></div>
+    <div><h5>Top Categories</h5><!--FOOTER_CATEGORIES--></div>
+    <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a><a href="/faq">FAQ</a></div>
     <div><h5>Policies</h5><a href="#">Terms of Service</a><a href="#">Return &amp; Refund</a></div>
     <div><h5>Quick Links</h5><a href="/shop">Shop by Product</a><a href="/consult-vaidya">Consult a Vaidya</a></div>
     <div><h5>Newsletter</h5><input type="email" placeholder="Your email" style="width:100%;padding:8px;border-radius:6px;border:none;margin-bottom:8px;"><button style="width:100%;padding:8px;background:var(--gold);color:#fff;border:none;border-radius:6px;">Subscribe</button></div>
@@ -154,6 +158,31 @@
       span.textContent = val;
     });
   });
+
+  // Phase 3: comparison list (see js/site.js - getCompareList/toggleCompare).
+  function refreshCompareUI(){
+    const productId = window.__PRODUCT__?.id;
+    if (!productId) return;
+    const btn = document.getElementById('compare-btn');
+    const link = document.getElementById('compare-link');
+    const list = getCompareList();
+    btn.textContent = isInCompare(productId) ? "✓ Added to Compare" : "+ Add to Compare";
+    if (list.length) {
+      link.style.display = 'inline';
+      link.href = `/compare?ids=${list.join(',')}`;
+      link.textContent = `View Compare (${list.length}) →`;
+    } else {
+      link.style.display = 'none';
+    }
+  }
+  function toggleCompareClick(){
+    const productId = window.__PRODUCT__?.id;
+    if (!productId) return;
+    const { added } = toggleCompare(productId);
+    if (!added) { document.getElementById('add-to-cart-msg').textContent = `You can compare up to ${MAX_COMPARE} products at a time.`; return; }
+    refreshCompareUI();
+  }
+  refreshCompareUI();
 </script>
 </body>
 </html>

@@ -19,7 +19,7 @@
       <a href="customers.html">Customers</a>
       <a href="coupons.html">Coupons</a>
       <a href="reviews.html">Reviews</a>
-      <a href="blog.html">Blog Posts</a>
+      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a>
       <a href="vaidya-bookings.html">Vaidya Bookings</a>
       <a href="users.html">Users &amp; Roles</a>
       <a href="payments-list.html">Payments</a>
@@ -51,6 +51,12 @@
           <div class="form-field full"><label>Full Description</label><textarea id="f-description"></textarea></div>
           <div class="form-field full"><label>Ingredients</label><textarea id="f-ingredients"></textarea></div>
           <div class="form-field full"><label>How to Use</label><textarea id="f-how-to-use"></textarea></div>
+
+          <div class="form-field full">
+            <label>Discovery Tags (Phase 3 - a product can have any number of each)</label>
+            <div id="tags-panel" style="display:flex; flex-direction:column; gap:10px; border:1px solid var(--border); border-radius:8px; padding:10px;">Loading tags...</div>
+            <div style="font-size:11.5px; color:#888; margin-top:4px;">Manage the available Concerns/Benefits/Goals/Ingredients themselves on the <a href="discovery.html" target="_blank">Discovery</a> page.</div>
+          </div>
 
           <div class="form-field full">
             <label>Product Images</label>
@@ -98,6 +104,49 @@
   let variants = []; // {id?, label, price, mrp, stock}
   let removedVariantIds = [];
   let images = []; // {id, url}
+
+  // Phase 3: discovery tags (Ingredients/Concerns/Benefits/Goals). Each
+  // entry is the full option list; `selected` starts empty and is filled in
+  // by loadProduct() once we know which ids this product currently has.
+  const TAG_DIMENSIONS = [
+    { key: "concern_ids", label: "Concerns", path: "/categories?type=concern", options: [], selected: [] },
+    { key: "benefit_ids", label: "Benefits", path: "/categories?type=benefit", options: [], selected: [] },
+    { key: "goal_ids", label: "Goals", path: "/categories?type=goal", options: [], selected: [] },
+    { key: "ingredient_ids", label: "Ingredients", path: "/ingredients", options: [], selected: [] },
+  ];
+
+  function renderTagsPanel() {
+    const panel = document.getElementById("tags-panel");
+    panel.innerHTML = TAG_DIMENSIONS.map(dim => `
+      <div>
+        <div style="font-weight:700; font-size:12.5px; margin-bottom:4px;">${dim.label}</div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          ${dim.options.length ? dim.options.map(o => `
+            <label style="display:inline-flex; align-items:center; gap:4px; border:1px solid var(--border); border-radius:14px; padding:4px 10px; font-size:12px; cursor:pointer;">
+              <input type="checkbox" data-dim="${dim.key}" value="${o.id}" ${dim.selected.includes(o.id) ? "checked" : ""} style="margin:0;">
+              ${o.name}
+            </label>`).join("") : `<span style="font-size:12px; color:#888;">None defined yet.</span>`}
+        </div>
+      </div>`).join("");
+  }
+
+  async function loadTagOptions() {
+    for (const dim of TAG_DIMENSIONS) {
+      try {
+        const { items } = await Api.get(dim.path);
+        dim.options = items;
+      } catch (e) { dim.options = []; }
+    }
+    renderTagsPanel();
+  }
+
+  async function saveTags(id) {
+    const body = {};
+    for (const dim of TAG_DIMENSIONS) {
+      body[dim.key] = Array.from(document.querySelectorAll(`input[data-dim="${dim.key}"]:checked`)).map(el => el.value);
+    }
+    await Api.put(`/products/${id}/relationships`, body).catch(err => Toast.show(err.message, "error"));
+  }
 
   async function loadCategories() {
     try {
@@ -196,7 +245,9 @@
     document.getElementById("archive-btn").style.display = "inline-block";
     document.getElementById("delete-btn").style.display = "inline-block";
     try {
-      const { item, activity } = await Api.get(`/products/${productId}`);
+      const { item, activity, relationships } = await Api.get(`/products/${productId}`);
+      for (const dim of TAG_DIMENSIONS) dim.selected = (relationships && relationships[dim.key]) || [];
+      renderTagsPanel();
       document.getElementById("f-title").value = item.title || "";
       document.getElementById("f-category").value = item.category_id || "";
       document.getElementById("f-brand").value = item.brand || "";
@@ -247,6 +298,7 @@
         document.getElementById("delete-btn").style.display = "inline-block";
       }
       await saveVariants(productId);
+      await saveTags(productId);
       Toast.show("Saved", "success");
       loadProduct();
     } catch (e) {
@@ -276,7 +328,7 @@
   });
 
   loadCategories();
-  loadProduct();
+  loadTagOptions().then(loadProduct);
 </script>
 </body>
 </html>

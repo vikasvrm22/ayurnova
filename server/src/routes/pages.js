@@ -6,7 +6,11 @@ import {
   escapeHtml, truncate, renderHeadMeta, renderProductJsonLd, renderBreadcrumbJsonLd, parseListLines,
 } from "../seo/seoHelpers.js";
 import { trackPageView } from "../analytics/tracker.js";
-import { listPublishedProducts, getPublishedProductBySlug, PRODUCT_SORT_MAP, DEFAULT_PRODUCT_SORT } from "../services/catalogService.js";
+import {
+  listPublishedProducts, getPublishedProductBySlug, listCategories, listRelatedEntities, searchCatalog,
+  getCategoryBySlug, getIngredientBySlug,
+  PRODUCT_SORT_MAP, DEFAULT_PRODUCT_SORT,
+} from "../services/catalogService.js";
 
 const router = Router();
 
@@ -23,6 +27,57 @@ function cached(key, renderFn) {
 
 function fmtPrice(n) {
   return `₹${Number(n).toLocaleString("en-IN")}`;
+}
+
+// ============================= PHASE 3: DISCOVERY NAV HELPERS =============================
+// Real categories.type='concern'/'benefit'/'goal'/'product_type' rows,
+// rendered wherever the pre-Phase-3 markup had hardcoded, dead-end
+// `<a href="/shop">Some Fake Category</a>` links (Phase 0 §10/§13's
+// flagged gap) - genuinely empty state ("Coming soon") when no categories
+// of that type exist yet, never invented placeholder content.
+
+/** Builds a /shop URL that toggles ONE filter key on/off while preserving
+ * every other currently-active query param (so picking a Benefit doesn't
+ * lose an already-picked Concern) and always resets pagination. */
+function shopFilterUrl(currentQuery, key, slug) {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(currentQuery || {})) {
+    if (typeof v === "string" && k !== "page") params.set(k, v);
+  }
+  if (params.get(key) === slug) params.delete(key);
+  else params.set(key, slug);
+  const qs = params.toString();
+  return `/shop${qs ? `?${qs}` : ""}`;
+}
+
+/** The shop sidebar's filter blocks: clickable list of real category names
+ * for one dimension, toggling that dimension's query param in place. */
+function renderFilterBlock(categories, key, currentQuery) {
+  if (!categories.length) return `<span style="font-size:12px; color:#888;">Coming soon.</span>`;
+  const active = currentQuery?.[key];
+  return categories.map((c) => {
+    const isActive = c.slug === active;
+    return `<a href="${shopFilterUrl(currentQuery, key, c.slug)}" style="display:block; padding:3px 0; font-size:13px;${isActive ? " font-weight:700; color:var(--green);" : ""}">${isActive ? "✓ " : ""}${escapeHtml(c.name)}</a>`;
+  }).join("");
+}
+
+/** The header mega-menu's dropdown items: link to that concern/benefit's
+ * own dedicated landing page (SEO-indexable, per the Phase 0 §13 gap) -
+ * not a /shop filter link, which is what the sidebar is for. */
+function renderMegaMenu(categories, pathPrefix) {
+  if (!categories.length) return `<span style="padding:8px 16px; color:#888; font-size:12.5px; display:block;">Coming soon</span>`;
+  return categories.map((c) => `<a href="/${pathPrefix}/${escapeHtml(c.slug)}">${escapeHtml(c.name)}</a>`).join("");
+}
+
+/** Footer "Top Categories" - same landing-page links as the mega-menu,
+ * mixing concern+benefit so the footer isn't empty when only one type has
+ * real content yet. */
+function renderFooterCategories(concerns, benefits) {
+  const links = [
+    ...concerns.slice(0, 4).map((c) => `<a href="/concern/${escapeHtml(c.slug)}">${escapeHtml(c.name)}</a>`),
+    ...benefits.slice(0, 4).map((c) => `<a href="/benefit/${escapeHtml(c.slug)}">${escapeHtml(c.name)}</a>`),
+  ];
+  return links.length ? links.join("") : `<a href="/shop">Shop All</a>`;
 }
 
 function injectHead(html, headMeta) {
@@ -84,6 +139,11 @@ router.get("/", trackPageView, async (req, res, next) => {
       template = template.replace("<!--PRODUCT_HIGHLIGHTS-->", highlights.map(productCardHtml).join(""));
       template = template.replace("<!--BEST_SELLERS-->", bestSellers.map(productCardHtml).join(""));
 
+      const [concerns, benefits] = await Promise.all([listCategories({ type: "concern" }), listCategories({ type: "benefit" })]);
+      template = template.replace("<!--MEGA_CONCERN-->", renderMegaMenu(concerns, "concern"));
+      template = template.replace("<!--MEGA_BENEFIT-->", renderMegaMenu(benefits, "benefit"));
+      template = template.replace("<!--FOOTER_CATEGORIES-->", renderFooterCategories(concerns, benefits));
+
       const headMeta = renderHeadMeta({
         title: "AyurVeda Store — Authentic Ayurvedic Supplements Online",
         description: "Scientifically researched, clinically tested Ayurvedic products for immunity, digestion, sleep, skin and overall wellness. Consult a Vaidya, discover your Dosha.",
@@ -100,7 +160,8 @@ router.get("/", trackPageView, async (req, res, next) => {
 // ============================= SHOP LISTING =============================
 router.get("/shop", trackPageView, async (req, res, next) => {
   try {
-    const { concern, benefit } = req.query;
+    const { concern, benefit, goal, category } = req.query;
+    const q = typeof req.query.q === "string" ? req.query.q.slice(0, 100) : undefined;
     // Phase 0 §13: `sort` used to be taken straight from the query string
     // and passed to `.order()` with no validation - a public, unauthenticated
     // endpoint accepting an arbitrary column name. Whitelisted here (falls
@@ -111,27 +172,47 @@ router.get("/shop", trackPageView, async (req, res, next) => {
     let page = Math.trunc(Number(req.query.page));
     if (!Number.isFinite(page) || page < 1) page = 1;
 
-    const cacheKey = `shop:${concern || ""}:${benefit || ""}:${sort}:${page}`;
+    // Phase 3: filters/search are genuinely per-request now (previously
+    // only concern/benefit varied) - not cached under the shared "home"-style
+    // key, since the sidebar/mega-menu content itself (real categories) can
+    // also change over time independently of any one visitor's filter choice.
+    const cacheKey = `shop:${concern || ""}:${benefit || ""}:${goal || ""}:${category || ""}:${q || ""}:${sort}:${page}`;
     const html = await cached(cacheKey, async () => {
       let template = getTemplate("shop.html");
       const pageSize = 12;
-      const { items, total } = await listPublishedProducts({ page, pageSize, concern, benefit, sort });
+      const { items, total } = q
+        ? await searchCatalog({ q, page, pageSize, sort })
+        : await listPublishedProducts({ page, pageSize, concern, benefit, goal, categorySlug: category, sort });
 
       // Same confirmed SSR bug as the homepage (Phase 0 §3.1) - fixed the
       // same way, with a dedicated marker instead of nested-HTML regex.
       const grid = items.length
         ? items.map(productCardHtml).join("")
-        : `<p style="grid-column:1/-1; text-align:center; color:#888;">No products found.</p>`;
+        : `<p style="grid-column:1/-1; text-align:center; color:#888;">No products found${q ? ` for "${escapeHtml(q)}"` : ""}.</p>`;
       template = template.replace("<!--SHOP_PRODUCTS-->", grid);
       template = template.replace(
         /Showing 1–12 of 86 products/,
-        `Showing ${total === 0 ? 0 : (page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total} products`
+        `Showing ${total === 0 ? 0 : (page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total} products${q ? ` for "${escapeHtml(q)}"` : ""}`
       );
 
+      const [concerns, benefits, goals, productTypes] = await Promise.all([
+        listCategories({ type: "concern" }), listCategories({ type: "benefit" }),
+        listCategories({ type: "goal" }), listCategories({ type: "product_type" }),
+      ]);
+      const currentQuery = { concern, benefit, goal, category, q };
+      template = template.replace("<!--FILTER_CONCERN-->", renderFilterBlock(concerns, "concern", currentQuery));
+      template = template.replace("<!--FILTER_BENEFIT-->", renderFilterBlock(benefits, "benefit", currentQuery));
+      template = template.replace("<!--FILTER_GOAL-->", renderFilterBlock(goals, "goal", currentQuery));
+      template = template.replace("<!--FILTER_PRODUCT_TYPE-->", renderFilterBlock(productTypes, "category", currentQuery));
+      template = template.replace("<!--MEGA_CONCERN-->", renderMegaMenu(concerns, "concern"));
+      template = template.replace("<!--MEGA_BENEFIT-->", renderMegaMenu(benefits, "benefit"));
+      template = template.replace("<!--FOOTER_CATEGORIES-->", renderFooterCategories(concerns, benefits));
+
       const headMeta = renderHeadMeta({
-        title: "Shop Ayurvedic Products — AyurVeda Store",
-        description: "Browse our full range of Ayurvedic supplements, oils and wellness products by health concern, benefit, and product type.",
-        url: `/shop${concern ? `?concern=${concern}` : benefit ? `?benefit=${benefit}` : ""}`,
+        title: q ? `Search: ${q} — AyurVeda Store` : "Shop Ayurvedic Products — AyurVeda Store",
+        description: "Browse our full range of Ayurvedic supplements, oils and wellness products by health concern, benefit, goal, and product type.",
+        url: `/shop${concern ? `?concern=${concern}` : benefit ? `?benefit=${benefit}` : goal ? `?goal=${goal}` : q ? `?q=${encodeURIComponent(q)}` : ""}`,
+        noindex: Boolean(q), // search-results URLs aren't useful landing pages for a crawler
       });
       return injectSupabaseConfig(injectHead(template, headMeta));
     });
@@ -190,8 +271,36 @@ router.get("/product/:slug", trackPageView, async (req, res, next) => {
     const reviewsHtml = (reviews || []).length
       ? reviews.map((r) => `<div class="review-item"><div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div><b>${escapeHtml(r.customer_name)}</b> — ${escapeHtml(r.body || "")}</div>`).join("")
       : `<p style="color:#888;">No reviews yet - be the first to review this product.</p>`;
-    template = template.replace(/id="tab-reviews"[^>]*>[\s\S]*?<\/div>\s*<\/div>/, `id="tab-reviews" class="pd-tab-content" style="display:none;">${reviewsHtml}</div></div>`);
+    template = template.replace("<!--PD_REVIEWS-->", reviewsHtml);
     template = template.replace(/Reviews \(313\)/, `Reviews (${product.review_count})`);
+
+    // Phase 3: discovery tags + this product's own FAQs.
+    const [relatedIngredients, concerns, benefits, goals] = await Promise.all([
+      listRelatedEntities("product_ingredients", "ingredient_id", "ingredients", product.id),
+      listRelatedEntities("product_concerns", "concern_id", "categories", product.id),
+      listRelatedEntities("product_benefits", "benefit_id", "categories", product.id),
+      listRelatedEntities("product_goals", "goal_id", "categories", product.id),
+    ]);
+    const { data: faqs } = await supabaseAdmin()
+      .from("faqs").select("question, answer").eq("product_id", product.id).order("sort_order");
+
+    const tagPill = (label, href, name) =>
+      `<a href="${href}" style="display:inline-block; background:#f2f5ee; color:#2F5233; border-radius:12px; padding:3px 10px; font-size:11.5px; text-decoration:none;">${escapeHtml(label)}: ${escapeHtml(name)}</a>`;
+    const tagsHtml = [
+      ...concerns.map((c) => tagPill("Concern", `/concern/${c.slug}`, c.name)),
+      ...benefits.map((c) => tagPill("Benefit", `/benefit/${c.slug}`, c.name)),
+      ...goals.map((c) => tagPill("Goal", `/goal/${c.slug}`, c.name)),
+      ...relatedIngredients.map((i) => tagPill("Ingredient", `/ingredient/${i.slug}`, i.name)),
+    ].join(" ");
+    template = template.replace('<div id="pd-tags" style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;"></div>', `<div id="pd-tags" style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;">${tagsHtml}</div>`);
+
+    const faqsHtml = (faqs || []).length
+      ? faqs.map((f) => `<div style="margin-bottom:12px;"><b>${escapeHtml(f.question)}</b><p style="margin:4px 0 0; color:#666; font-size:13px;">${escapeHtml(f.answer)}</p></div>`).join("")
+      : `<p style="color:#888;">No FAQs for this product yet.</p>`;
+    template = template.replace("<!--PD_FAQS-->", faqsHtml);
+
+    const [footerConcerns, footerBenefits] = await Promise.all([listCategories({ type: "concern" }), listCategories({ type: "benefit" })]);
+    template = template.replace("<!--FOOTER_CATEGORIES-->", renderFooterCategories(footerConcerns, footerBenefits));
 
     // Bake product+variants JSON in for the client-side pack-selector/add-to-cart script.
     const productJson = JSON.stringify({
@@ -215,6 +324,163 @@ router.get("/product/:slug", trackPageView, async (req, res, next) => {
   }
 });
 
+// ============================= PHASE 3: DISCOVERY LANDING PAGES =============================
+// /concern/:slug, /benefit/:slug, /goal/:slug all share the same shape (a
+// categories row + the published products tagged with it) - one handler
+// covers all three. /ingredient/:slug is structurally identical but reads
+// from the separate `ingredients` table, so it gets its own thin wrapper
+// around the same rendering logic.
+async function renderDiscoverPage(res, { entity, products, total, page, pageSize, breadcrumbLabel, urlPath }) {
+  let template = getTemplate("discover.html");
+  const grid = products.length
+    ? products.map(productCardHtml).join("")
+    : `<p style="grid-column:1/-1; text-align:center; color:#888;">No products tagged with this yet.</p>`;
+  template = template.replace("<!--DISCOVER_LABEL-->", escapeHtml(breadcrumbLabel));
+  template = template.replace("<!--DISCOVER_TITLE-->", escapeHtml(entity.name));
+  template = template.replace("<!--DISCOVER_DESCRIPTION-->", escapeHtml(entity.description || ""));
+  template = template.replace("<!--DISCOVER_PRODUCTS-->", grid);
+
+  const [concerns, benefits] = await Promise.all([listCategories({ type: "concern" }), listCategories({ type: "benefit" })]);
+  template = template.replace("<!--FOOTER_CATEGORIES-->", renderFooterCategories(concerns, benefits));
+
+  const headMeta = renderHeadMeta({
+    title: entity.seo_title || `${entity.name} — AyurVeda Store`,
+    description: entity.seo_description || entity.description || `Shop Ayurvedic products for ${entity.name}.`,
+    url: urlPath, image: entity.hero_image || undefined,
+  }) + "\n" + renderBreadcrumbJsonLd([
+    { name: "Home", url: "/" }, { name: "Shop", url: "/shop" }, { name: entity.name, url: urlPath },
+  ]);
+  res.send(injectSupabaseConfig(injectHead(template, headMeta)));
+}
+
+const DISCOVER_TYPES = [
+  { prefix: "concern", label: "Concern", filterKey: "concern" },
+  { prefix: "benefit", label: "Benefit", filterKey: "benefit" },
+  { prefix: "goal", label: "Goal", filterKey: "goal" },
+];
+for (const { prefix, filterKey } of DISCOVER_TYPES) {
+  router.get(`/${prefix}/:slug`, trackPageView, async (req, res, next) => {
+    try {
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(req.params.slug)) return res.status(404).send(render404Page());
+      const category = await getCategoryBySlug(req.params.slug);
+      if (!category || category.type !== prefix) return res.status(404).send(render404Page());
+
+      const { items, total } = await listPublishedProducts({ page: 1, pageSize: 24, [filterKey]: category.slug });
+      await renderDiscoverPage(res, {
+        entity: category, products: items, total, page: 1, pageSize: 24,
+        breadcrumbLabel: category.name, urlPath: `/${prefix}/${category.slug}`,
+      });
+    } catch (e) {
+      next(e);
+    }
+  });
+}
+
+router.get("/ingredient/:slug", trackPageView, async (req, res, next) => {
+  try {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(req.params.slug)) return res.status(404).send(render404Page());
+    const ingredient = await getIngredientBySlug(req.params.slug);
+    if (!ingredient) return res.status(404).send(render404Page());
+
+    const { items, total } = await listPublishedProducts({ page: 1, pageSize: 24, ingredient: ingredient.slug });
+    await renderDiscoverPage(res, {
+      entity: ingredient, products: items, total, page: 1, pageSize: 24,
+      breadcrumbLabel: ingredient.name, urlPath: `/ingredient/${ingredient.slug}`,
+    });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ============================= PHASE 3: AYURVEDA KNOWLEDGE HUB (BLOG) =============================
+router.get("/blog", trackPageView, async (req, res, next) => {
+  try {
+    let page = Math.trunc(Number(req.query.page));
+    if (!Number.isFinite(page) || page < 1) page = 1;
+    const pageSize = 10;
+    const { data: posts, count } = await supabaseAdmin()
+      .from("blog_posts")
+      .select("id, title, slug, excerpt, cover_image, published_at", { count: "exact" })
+      .eq("status", "published")
+      .order("published_at", { ascending: false })
+      .range((page - 1) * pageSize, page * pageSize - 1);
+
+    let template = getTemplate("blog.html");
+    const cardsHtml = (posts || []).length
+      ? posts.map((p) => `
+        <div class="testimonial-card">
+          <div class="name"><a href="/blog/${escapeHtml(p.slug)}">${escapeHtml(p.title)}</a></div>
+          <p>${escapeHtml(truncate(p.excerpt || "", 160))}</p>
+          <p style="color:#888; font-size:11.5px;">${p.published_at ? new Date(p.published_at).toLocaleDateString("en-IN") : ""}</p>
+        </div>`).join("")
+      : `<p style="color:#888;">No articles published yet - check back soon.</p>`;
+    template = template.replace("<!--BLOG_POSTS-->", cardsHtml);
+
+    const headMeta = renderHeadMeta({
+      title: "Ayurveda Knowledge Hub — AyurVeda Store",
+      description: "Articles on Ayurvedic ingredients, wellness routines and healthy living.",
+      url: "/blog",
+    });
+    res.send(injectSupabaseConfig(injectHead(template, headMeta)));
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/blog/:slug", trackPageView, async (req, res, next) => {
+  try {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(req.params.slug)) return res.status(404).send(render404Page());
+    const { data: post } = await supabaseAdmin()
+      .from("blog_posts").select("*").eq("slug", req.params.slug).eq("status", "published").maybeSingle();
+    if (!post) return res.status(404).send(render404Page());
+
+    let template = getTemplate("blog-post.html");
+    template = template.replace("<!--POST_BREADCRUMB-->", escapeHtml(post.title));
+    template = template.replace("<!--POST_TITLE-->", escapeHtml(post.title));
+    template = template.replace("<!--POST_DATE-->", post.published_at ? new Date(post.published_at).toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" }) : "");
+    // `body` is admin-authored plain text (server/src/routes/blog.js sanitizes
+    // it on save, same as every other admin text field) - escaped then
+    // newline-to-<br> so paragraph breaks the author typed survive, same
+    // spirit as parseListLines elsewhere in this file for bullet lists.
+    const bodyHtml = escapeHtml(post.body || "").split("\n\n").map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`).join("");
+    template = template.replace("<!--POST_BODY-->", bodyHtml);
+
+    const url = `/blog/${post.slug}`;
+    const headMeta = renderHeadMeta({
+      title: post.seo_title || `${post.title} — AyurVeda Store`,
+      description: post.seo_description || post.excerpt || post.title,
+      url, image: post.cover_image || undefined,
+    });
+    res.send(injectSupabaseConfig(injectHead(template, headMeta)));
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ============================= PHASE 3: GLOBAL FAQ PAGE =============================
+router.get("/faq", trackPageView, async (req, res, next) => {
+  try {
+    const html = await cached("faq", async () => {
+      const { data: faqs } = await supabaseAdmin()
+        .from("faqs").select("question, answer").is("product_id", null).order("sort_order");
+      let template = getTemplate("faq.html");
+      const listHtml = (faqs || []).length
+        ? faqs.map((f) => `<div style="margin-bottom:18px; border-bottom:1px solid var(--hairline); padding-bottom:14px;"><h4 style="margin:0 0 6px;">${escapeHtml(f.question)}</h4><p style="margin:0; color:#555;">${escapeHtml(f.answer)}</p></div>`).join("")
+        : `<p style="color:#888;">No FAQs published yet.</p>`;
+      template = template.replace("<!--FAQ_LIST-->", listHtml);
+      const headMeta = renderHeadMeta({
+        title: "Frequently Asked Questions — AyurVeda Store",
+        description: "Answers to common questions about our Ayurvedic products, orders, shipping and returns.",
+        url: "/faq",
+      });
+      return injectSupabaseConfig(injectHead(template, headMeta));
+    });
+    res.send(html);
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ============================= STATIC-ISH PAGES =============================
 const STATIC_PAGES = {
   "/about": { file: "about.html", title: "About Us — AyurVeda Store", description: "Learn about AyurVeda Store's mission and commitment to authentic Ayurvedic wellness." },
@@ -223,6 +489,7 @@ const STATIC_PAGES = {
   "/dosha-test": { file: "dosha-test.html", title: "Discover Your Dosha — AyurVeda Store", description: "Take our free Dosha quiz to find your Ayurvedic body type: Vata, Pitta or Kapha." },
   "/cart": { file: "cart.html", title: "Your Cart — AyurVeda Store", description: "Review your cart and checkout.", noindex: true },
   "/account": { file: "account.html", title: "My Account — AyurVeda Store", description: "Log in or view your orders.", noindex: true },
+  "/compare": { file: "compare.html", title: "Compare Products — AyurVeda Store", description: "Compare Ayurvedic products side by side.", noindex: true },
 };
 for (const [url, meta] of Object.entries(STATIC_PAGES)) {
   router.get(url, trackPageView, async (req, res, next) => {
@@ -244,9 +511,25 @@ router.get("/sitemap.xml", async (req, res, next) => {
         { loc: "/", priority: "1.0" }, { loc: "/shop", priority: "0.9" },
         { loc: "/about", priority: "0.3" }, { loc: "/contact", priority: "0.3" },
         { loc: "/consult-vaidya", priority: "0.6" }, { loc: "/dosha-test", priority: "0.6" },
+        { loc: "/blog", priority: "0.5" }, { loc: "/faq", priority: "0.3" },
       ];
       const { data: products } = await supabaseAdmin().from("products").select("slug, updated_at").eq("status", "published");
       for (const p of products || []) urls.push({ loc: `/product/${p.slug}`, lastmod: p.updated_at, priority: "0.8" });
+
+      // Phase 3: discovery landing pages + Knowledge Hub posts - the whole
+      // point of these existing (Phase 0 §13's flagged gap) is that they be
+      // real, indexable pages, so they belong in the sitemap same as products.
+      const [concerns, benefits, goals] = await Promise.all([
+        listCategories({ type: "concern" }), listCategories({ type: "benefit" }), listCategories({ type: "goal" }),
+      ]);
+      for (const c of concerns) urls.push({ loc: `/concern/${c.slug}`, priority: "0.6" });
+      for (const b of benefits) urls.push({ loc: `/benefit/${b.slug}`, priority: "0.6" });
+      for (const g of goals) urls.push({ loc: `/goal/${g.slug}`, priority: "0.6" });
+      const { data: ingredients } = await supabaseAdmin().from("ingredients").select("slug");
+      for (const i of ingredients || []) urls.push({ loc: `/ingredient/${i.slug}`, priority: "0.5" });
+      const { data: posts } = await supabaseAdmin().from("blog_posts").select("slug, published_at").eq("status", "published");
+      for (const p of posts || []) urls.push({ loc: `/blog/${p.slug}`, lastmod: p.published_at, priority: "0.5" });
+
       const body = urls.map((u) => `
   <url><loc>${config.site.baseUrl}${u.loc}</loc>${u.lastmod ? `<lastmod>${u.lastmod.slice(0, 10)}</lastmod>` : ""}<priority>${u.priority}</priority></url>`).join("");
       return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}\n</urlset>`;
@@ -258,7 +541,7 @@ router.get("/sitemap.xml", async (req, res, next) => {
 });
 
 router.get("/robots.txt", (req, res) => {
-  res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /cart\nDisallow: /account\nSitemap: ${config.site.baseUrl}/sitemap.xml\n`);
+  res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /cart\nDisallow: /account\nDisallow: /compare\nSitemap: ${config.site.baseUrl}/sitemap.xml\n`);
 });
 
 // ============================= 404 =============================

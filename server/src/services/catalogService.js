@@ -62,6 +62,15 @@ async function resolveCategoryId(slug, type) {
   return data?.id ?? null; // null (not undefined) = "no such category" -> caller short-circuits to empty results
 }
 
+/** Same contract as resolveCategoryId, for the separate `ingredients` table
+ * (Phase 3A - not a `categories` row, since ingredients aren't a taxonomy
+ * "type", they're their own structured entity). */
+async function resolveIngredientId(slug) {
+  if (!slug) return undefined;
+  const { data } = await supabaseAdmin().from("ingredients").select("id").eq("slug", slug).maybeSingle();
+  return data?.id ?? null;
+}
+
 /**
  * Lists published products for the storefront/public API.
  *
@@ -83,31 +92,55 @@ async function resolveCategoryId(slug, type) {
  *   an availability filter would need a dedicated view - noted as a
  *   deferred item rather than built now.
  */
+// Phase 3A: one join table per discovery dimension (product_type stays the
+// single `products.category_id` FK - see the Phase 3 decisions doc, decision
+// #1 - concern/benefit/goal/ingredient are genuinely multi-valued so they
+// live in their own many-to-many tables instead). Unlike the old
+// `categorySlug`/`concern`/`benefit` exclusive if/else, these four can now
+// all be supplied at once and are AND-combined (a product must match every
+// filter given, not any) - each becomes one `!inner` embedded-table filter,
+// same PostgREST idiom already used for the existing `inStock` filter below.
+const RELATION_FILTERS = [
+  { param: "concern", table: "product_concerns", column: "concern_id", categoryType: "concern" },
+  { param: "benefit", table: "product_benefits", column: "benefit_id", categoryType: "benefit" },
+  { param: "goal", table: "product_goals", column: "goal_id", categoryType: "goal" },
+  { param: "ingredient", table: "product_ingredients", column: "ingredient_id", resolver: resolveIngredientId },
+];
+
 export async function listPublishedProducts({
   page = 1,
   pageSize = 12,
   categorySlug,
   concern,
   benefit,
+  goal,
+  ingredient,
   sort = DEFAULT_PRODUCT_SORT,
   q,
   inStock,
 } = {}) {
-  let categoryId;
-  if (categorySlug) categoryId = await resolveCategoryId(categorySlug);
-  else if (concern) categoryId = await resolveCategoryId(concern, "concern");
-  else if (benefit) categoryId = await resolveCategoryId(benefit, "benefit");
-
+  const categoryId = categorySlug ? await resolveCategoryId(categorySlug) : undefined;
   if (categoryId === null) return { items: [], total: 0 }; // filter named a category that doesn't exist
 
-  const columns = inStock
-    ? LIST_COLUMNS.replace("product_variants(", "product_variants!inner(")
-    : LIST_COLUMNS;
+  const inputs = { concern, benefit, goal, ingredient };
+  const activeFilters = [];
+  for (const filter of RELATION_FILTERS) {
+    const slug = inputs[filter.param];
+    if (!slug) continue;
+    const id = filter.resolver ? await filter.resolver(slug) : await resolveCategoryId(slug, filter.categoryType);
+    if (id === null) return { items: [], total: 0 }; // filter named a concern/benefit/goal/ingredient that doesn't exist
+    activeFilters.push({ ...filter, id });
+  }
+
+  let columns = LIST_COLUMNS;
+  if (inStock) columns = columns.replace("product_variants(", "product_variants!inner(");
+  for (const f of activeFilters) columns += `, ${f.table}!inner(${f.column})`;
 
   let query = supabaseAdmin().from("products").select(columns, { count: "exact" }).eq("status", "published");
   if (categoryId) query = query.eq("category_id", categoryId);
   if (q) query = query.ilike("title", `%${sanitizeSearchTerm(q)}%`);
   if (inStock) query = query.gt("product_variants.stock", 0);
+  for (const f of activeFilters) query = query.eq(`${f.table}.${f.column}`, f.id);
 
   const { field, ascending } = PRODUCT_SORT_MAP[sort] || PRODUCT_SORT_MAP[DEFAULT_PRODUCT_SORT];
   query = query.order(field, { ascending }).range((page - 1) * pageSize, page * pageSize - 1);
@@ -147,16 +180,148 @@ export async function getPublishedProductBySlug(slug) {
   const images = [...(product.product_images || [])].sort((a, b) => a.sort_order - b.sort_order);
   const variants = [...(product.product_variants || [])].sort((a, b) => a.sort_order - b.sort_order);
 
-  return { ...product, product_images: images, product_variants: variants, category, reviews: reviews || [] };
+  // Phase 3A: this product's discovery tags + its own FAQs, for the public
+  // detail response (catalogPublic.js's toDetail()) and the product page.
+  const relatedIngredients = await listRelatedEntities("product_ingredients", "ingredient_id", "ingredients", product.id);
+  const concerns = await listRelatedEntities("product_concerns", "concern_id", "categories", product.id);
+  const benefits = await listRelatedEntities("product_benefits", "benefit_id", "categories", product.id);
+  const goals = await listRelatedEntities("product_goals", "goal_id", "categories", product.id);
+  const { data: faqs } = await supabaseAdmin()
+    .from("faqs").select("id, question, answer, sort_order").eq("product_id", product.id).order("sort_order");
+
+  return {
+    ...product, product_images: images, product_variants: variants, category, reviews: reviews || [],
+    relatedIngredients, concerns, benefits, goals, faqs: faqs || [],
+  };
 }
 
-const CATEGORY_TYPES = ["concern", "benefit", "product_type"];
+/** Fetches the "other side" of a product's many-to-many join table as full
+ * rows (not just ids) - e.g. `listRelatedEntities("product_concerns",
+ * "concern_id", "categories", productId)` returns the actual concern
+ * category rows a product is tagged with. Two queries (join table, then the
+ * related table) rather than a PostgREST embed, since the join tables here
+ * have no FK PostgREST can auto-detect a reverse embed shorthand for beyond
+ * what's already used in listPublishedProducts' forward `!inner` filters. */
+export async function listRelatedEntities(joinTable, joinColumn, entityTable, productId) {
+  const { data: links } = await supabaseAdmin().from(joinTable).select(joinColumn).eq("product_id", productId);
+  const ids = (links || []).map((l) => l[joinColumn]);
+  if (!ids.length) return [];
+  const { data } = await supabaseAdmin().from(entityTable).select("id, name, slug").in("id", ids);
+  return data || [];
+}
 
-/** Lists categories for public consumption (nav menus, shop filters). */
+const CATEGORY_TYPES = ["concern", "benefit", "product_type", "goal"];
+const CATEGORY_PUBLIC_COLUMNS = "id, name, slug, type, sort_order, description, hero_image, seo_title, seo_description";
+
+/** Lists categories for public consumption (nav menus, shop filters,
+ * mega-menu). */
 export async function listCategories({ type } = {}) {
-  let query = supabaseAdmin().from("categories").select("id, name, slug, type, sort_order").order("sort_order", { ascending: true });
+  let query = supabaseAdmin().from("categories").select(CATEGORY_PUBLIC_COLUMNS).order("sort_order", { ascending: true });
   if (type && CATEGORY_TYPES.includes(type)) query = query.eq("type", type);
   const { data, error } = await query;
   if (error) throw error;
   return data || [];
+}
+
+/** One category by slug, for a concern/benefit/goal landing page - content
+ * fields included (Phase 3A) so the page can show more than just a filtered
+ * grid. Returns null for an unknown slug (caller sends 404), matching
+ * getPublishedProductBySlug's convention. */
+export async function getCategoryBySlug(slug) {
+  const { data } = await supabaseAdmin().from("categories").select(CATEGORY_PUBLIC_COLUMNS).eq("slug", slug).maybeSingle();
+  return data || null;
+}
+
+/** One ingredient by slug, for an ingredient landing page. */
+export async function getIngredientBySlug(slug) {
+  const { data } = await supabaseAdmin().from("ingredients").select("id, name, slug, description").eq("slug", slug).maybeSingle();
+  return data || null;
+}
+
+/**
+ * Deterministic, ILIKE-only search across products PLUS the structured
+ * discovery entities (Ingredients/Concerns/Benefits/Goals) - the "products,
+ * concerns, ingredients..." the storefront's search box has always
+ * (previously falsely) promised. No ranking model, no AI - a product
+ * matches if its own title matches, OR it's tagged with an
+ * ingredient/concern/benefit/goal whose name matches. The two match sources
+ * are combined into one id set before a single paginated fetch, so a
+ * product that matches on both a title word and a tag is never duplicated.
+ */
+export async function searchCatalog({ q, page = 1, pageSize = 12, sort = DEFAULT_PRODUCT_SORT }) {
+  const term = sanitizeSearchTerm(q);
+  if (!term) return { items: [], total: 0 };
+
+  const { data: titleMatches } = await supabaseAdmin()
+    .from("products").select("id").eq("status", "published").ilike("title", `%${term}%`);
+  const idSet = new Set((titleMatches || []).map((p) => p.id));
+
+  const { data: matchedIngredients } = await supabaseAdmin().from("ingredients").select("id").ilike("name", `%${term}%`);
+  const { data: matchedCategories } = await supabaseAdmin()
+    .from("categories").select("id").in("type", ["concern", "benefit", "goal"]).ilike("name", `%${term}%`);
+
+  const tagLookups = [
+    { table: "product_ingredients", column: "ingredient_id", ids: (matchedIngredients || []).map((r) => r.id) },
+    { table: "product_concerns", column: "concern_id", ids: (matchedCategories || []).map((r) => r.id) },
+    { table: "product_benefits", column: "benefit_id", ids: (matchedCategories || []).map((r) => r.id) },
+    { table: "product_goals", column: "goal_id", ids: (matchedCategories || []).map((r) => r.id) },
+  ];
+  for (const lookup of tagLookups) {
+    if (!lookup.ids.length) continue;
+    const { data: rows } = await supabaseAdmin().from(lookup.table).select("product_id").in(lookup.column, lookup.ids);
+    for (const r of rows || []) idSet.add(r.product_id);
+  }
+
+  if (!idSet.size) return { items: [], total: 0 };
+
+  const { field, ascending } = PRODUCT_SORT_MAP[sort] || PRODUCT_SORT_MAP[DEFAULT_PRODUCT_SORT];
+  const { data, error, count } = await supabaseAdmin()
+    .from("products")
+    .select(LIST_COLUMNS, { count: "exact" })
+    .eq("status", "published")
+    .in("id", [...idSet])
+    .order(field, { ascending })
+    .range((page - 1) * pageSize, page * pageSize - 1);
+  if (error) throw error;
+  return { items: data || [], total: count || 0 };
+}
+
+// Cross-product comparison is bounded to a small, fixed count - a
+// comparison table wider than this stops being useful to a shopper and
+// starts being an unbounded-response-size vector, same reasoning as the
+// public list endpoints' MAX_PAGE_SIZE (catalogPublic.js).
+export const MAX_COMPARE_PRODUCTS = 4;
+
+/**
+ * Fetches the comparable-attribute set for a fixed list of published
+ * product ids (Phase 3 decision #4: price/MRP/pack size/stock/rating/
+ * review count, plus structured ingredients/concerns/benefits/goals once
+ * Phase 3A's tables have data). Single-brand only by construction - there
+ * is no seller/vendor field anywhere in this schema to compare across, so
+ * "cross-product" here always means within this store's own catalog.
+ * Silently drops any id that doesn't resolve to a published product rather
+ * than erroring, so a stale/typo'd id in a shared comparison link degrades
+ * gracefully instead of failing the whole comparison.
+ */
+export async function compareProducts(ids) {
+  const uniqueIds = [...new Set(ids)].slice(0, MAX_COMPARE_PRODUCTS);
+  if (!uniqueIds.length) return [];
+
+  const { data: products } = await supabaseAdmin()
+    .from("products")
+    .select(DETAIL_COLUMNS)
+    .in("id", uniqueIds)
+    .eq("status", "published");
+
+  const results = [];
+  for (const product of products || []) {
+    const relatedIngredients = await listRelatedEntities("product_ingredients", "ingredient_id", "ingredients", product.id);
+    const concerns = await listRelatedEntities("product_concerns", "concern_id", "categories", product.id);
+    const benefits = await listRelatedEntities("product_benefits", "benefit_id", "categories", product.id);
+    const variants = [...(product.product_variants || [])].sort((a, b) => a.sort_order - b.sort_order);
+    results.push({ ...product, product_variants: variants, relatedIngredients, concerns, benefits });
+  }
+  // Preserve the order the caller asked for (e.g. `?ids=b,a` -> b before a),
+  // not whatever order the DB happened to return them in.
+  return uniqueIds.map((id) => results.find((p) => p.id === id)).filter(Boolean);
 }

@@ -3,9 +3,20 @@ import multer from "multer";
 import { supabaseAdmin } from "../db/supabaseClient.js";
 import { requireStaffAuth } from "../auth/adminAuth.js";
 import { requirePermission } from "../auth/rbac.js";
-import { validateProductPayload, validateVariant, sanitizeText, parsePagination, sanitizeSearchTerm } from "../validation/validators.js";
+import { validateProductPayload, validateVariant, sanitizeText, parsePagination, sanitizeSearchTerm, isValidUUID } from "../validation/validators.js";
 import { slugify } from "../seo/seoHelpers.js";
 import { uploadProductImage } from "../storage/imageUpload.js";
+
+// Phase 3A discovery relationships: one join table per dimension, all
+// shaped identically (product_id, <dimension>_id) - see
+// supabase/migrations/0003_phase3a_discovery_foundation.sql. Centralised
+// here so GET/PUT stay in sync with exactly one list of dimensions.
+const RELATIONSHIP_DIMENSIONS = [
+  { key: "ingredient_ids", table: "product_ingredients", column: "ingredient_id" },
+  { key: "concern_ids", table: "product_concerns", column: "concern_id" },
+  { key: "benefit_ids", table: "product_benefits", column: "benefit_id" },
+  { key: "goal_ids", table: "product_goals", column: "goal_id" },
+];
 
 const router = Router();
 const PRODUCT_STATUSES = ["draft", "published", "archived"];
@@ -71,7 +82,55 @@ router.get("/:id", requireStaffAuth, async (req, res, next) => {
     if (error) return res.status(404).json({ error: "Not found" });
     const { data: activity } = await supabaseAdmin()
       .from("activity_log").select("*").eq("entity_type", "product").eq("entity_id", req.params.id).order("at", { ascending: false });
-    res.json({ item: data, activity: activity || [] });
+
+    // Phase 3A: current discovery-tag selections, so the admin product form
+    // can pre-check the right Ingredient/Concern/Benefit/Goal chips.
+    const relationships = {};
+    for (const dim of RELATIONSHIP_DIMENSIONS) {
+      const { data: rows } = await supabaseAdmin().from(dim.table).select(dim.column).eq("product_id", req.params.id);
+      relationships[dim.key] = (rows || []).map((r) => r[dim.column]);
+    }
+
+    res.json({ item: data, activity: activity || [], relationships });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ---- DISCOVERY RELATIONSHIPS (Phase 3A) ----
+// Replaces the FULL set for whichever dimension(s) are present in the body -
+// a dimension omitted from the body is left untouched, so the admin form can
+// save one chip group at a time or all four together. Each dimension's
+// existing rows for this product are deleted then the new set inserted -
+// the same "replace the whole set" shape the admin UI's multi-select chips
+// naturally produce, and the join tables' own `unique(product_id, X_id)`
+// constraint (migration 0003) guards against any accidental duplicate even
+// if the same id were sent twice in one request.
+router.put("/:id/relationships", requireStaffAuth, requirePermission("manageProducts"), async (req, res, next) => {
+  try {
+    const productId = req.params.id;
+    const { data: product } = await supabaseAdmin().from("products").select("id").eq("id", productId).maybeSingle();
+    if (!product) return res.status(404).json({ error: "Product not found" });
+
+    const result = {};
+    for (const dim of RELATIONSHIP_DIMENSIONS) {
+      if (!Object.prototype.hasOwnProperty.call(req.body || {}, dim.key)) continue;
+      const ids = Array.isArray(req.body[dim.key]) ? req.body[dim.key] : [];
+      const cleanIds = [...new Set(ids.filter((id) => isValidUUID(id)))];
+
+      const { error: delError } = await supabaseAdmin().from(dim.table).delete().eq("product_id", productId);
+      if (delError) throw delError;
+
+      if (cleanIds.length) {
+        const { error: insError } = await supabaseAdmin()
+          .from(dim.table).insert(cleanIds.map((id) => ({ product_id: productId, [dim.column]: id })));
+        if (insError) throw insError;
+      }
+      result[dim.key] = cleanIds;
+    }
+
+    await logActivity(productId, "discovery tags updated", req.staff.email);
+    res.json({ relationships: result });
   } catch (e) {
     next(e);
   }

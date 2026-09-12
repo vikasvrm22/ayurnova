@@ -16,18 +16,32 @@
  * test suite) only ever need to know this one contract.
  */
 import { Router } from "express";
+import { supabaseAdmin } from "../db/supabaseClient.js";
 import {
   listPublishedProducts,
   getPublishedProductBySlug,
   listCategories,
+  getCategoryBySlug,
+  getIngredientBySlug,
+  searchCatalog,
+  compareProducts,
+  MAX_COMPARE_PRODUCTS,
   PRODUCT_SORT_MAP,
 } from "../services/catalogService.js";
-import { parsePagination, isValidSlug } from "../validation/validators.js";
+import { parsePagination, isValidSlug, isValidUUID } from "../validation/validators.js";
 import { AppError, sendOk, asyncRoute, catalogErrorHandler } from "../utils/apiResponse.js";
 
 const router = Router();
 
 const MAX_PAGE_SIZE = 50; // a mobile client on a normal connection should never need more per request
+
+/** Maps a structured-entity row (ingredient or concern/benefit/goal
+ * category) to its public card shape - just enough to link to its landing
+ * page (`/ingredient/:slug`, `/concern/:slug`, etc.) from a product's
+ * detail response or a listing. */
+function toTagCard(row) {
+  return { id: row.id, name: row.name, slug: row.slug };
+}
 
 function toCard(row) {
   const variant = row.product_variants?.[0];
@@ -81,6 +95,33 @@ function toDetail(row) {
       body: r.body || null,
       createdAt: r.created_at,
     })),
+    // Phase 3A: structured discovery tags (distinct from the free-text
+    // `ingredients` field above, which is left exactly as it was) and this
+    // product's own FAQs. `relatedIngredients` is named to avoid any
+    // ambiguity with the pre-existing `ingredients` string field.
+    relatedIngredients: (row.relatedIngredients || []).map(toTagCard),
+    concerns: (row.concerns || []).map(toTagCard),
+    benefits: (row.benefits || []).map(toTagCard),
+    goals: (row.goals || []).map(toTagCard),
+    faqs: (row.faqs || []).map((f) => ({ id: f.id, question: f.question, answer: f.answer })),
+  };
+}
+
+function toCompareCard(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    image: row.product_images?.[0]?.url || null,
+    avgRating: row.avg_rating,
+    reviewCount: row.review_count,
+    variants: (row.product_variants || []).map((v) => ({
+      id: v.id, label: v.label, price: Number(v.price), mrp: v.mrp ? Number(v.mrp) : null,
+      stock: v.stock, weightGrams: v.weight_grams || null,
+    })),
+    relatedIngredients: (row.relatedIngredients || []).map(toTagCard),
+    concerns: (row.concerns || []).map(toTagCard),
+    benefits: (row.benefits || []).map(toTagCard),
   };
 }
 
@@ -97,7 +138,7 @@ function parseListQuery(query) {
     sort = query.sort;
   }
 
-  for (const key of ["category", "concern", "benefit"]) {
+  for (const key of ["category", "concern", "benefit", "goal", "ingredient"]) {
     if (query[key] !== undefined && !isValidSlug(query[key])) {
       throw new AppError(`Invalid ${key}: must be a valid slug`, 400, "INVALID_SLUG");
     }
@@ -116,8 +157,12 @@ function parseListQuery(query) {
     pageSize,
     sort,
     categorySlug: query.category,
+    // Phase 3A: all four can be combined (AND) in one request - see
+    // catalogService.js's RELATION_FILTERS / listPublishedProducts.
     concern: query.concern,
     benefit: query.benefit,
+    goal: query.goal,
+    ingredient: query.ingredient,
     q: typeof query.q === "string" ? query.q.slice(0, 100) : undefined,
     inStock,
   };
@@ -137,7 +182,12 @@ router.get(
   })
 );
 
-// ---- GET /api/public/search (same contract as /products, `q` required) ----
+// ---- GET /api/public/search (`q` required) ----
+// Unlike /products?q= (title only, unchanged - see catalogService.js's
+// listPublishedProducts), this also matches structured Ingredients/
+// Concerns/Benefits/Goals by name and returns the products tagged with
+// whichever ones matched (searchCatalog) - the search box's placeholder
+// text ("Search products, concerns, ingredients...") is now actually true.
 router.get(
   "/search",
   asyncRoute(async (req, res) => {
@@ -145,8 +195,25 @@ router.get(
       throw new AppError("Query parameter 'q' is required", 400, "MISSING_QUERY");
     }
     const opts = parseListQuery(req.query);
-    const { items, total } = await listPublishedProducts(opts);
+    const { items, total } = await searchCatalog(opts);
     sendOk(res, { items: items.map(toCard), query: opts.q }, buildMeta(opts.page, opts.pageSize, total));
+  })
+);
+
+// ---- GET /api/public/products/compare?ids=a,b,c ----
+// Registered BEFORE /products/:slug so "compare" is never matched as a slug.
+router.get(
+  "/products/compare",
+  asyncRoute(async (req, res) => {
+    const raw = typeof req.query.ids === "string" ? req.query.ids.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    if (!raw.length) throw new AppError("Query parameter 'ids' is required (comma-separated product ids)", 400, "MISSING_IDS");
+    const invalid = raw.filter((id) => !isValidUUID(id));
+    if (invalid.length) throw new AppError("Invalid product id in 'ids'", 400, "INVALID_ID");
+    if (raw.length > MAX_COMPARE_PRODUCTS) {
+      throw new AppError(`At most ${MAX_COMPARE_PRODUCTS} products can be compared at once`, 400, "TOO_MANY_IDS");
+    }
+    const items = await compareProducts(raw);
+    sendOk(res, { items: items.map(toCompareCard) });
   })
 );
 
@@ -163,16 +230,84 @@ router.get(
   })
 );
 
+const CATEGORY_TYPES = ["concern", "benefit", "product_type", "goal"];
+
+function toCategoryCard(c) {
+  return {
+    id: c.id, name: c.name, slug: c.slug, type: c.type,
+    description: c.description || null, heroImage: c.hero_image || null,
+  };
+}
+
 // ---- GET /api/public/categories ----
 router.get(
   "/categories",
   asyncRoute(async (req, res) => {
     const { type } = req.query;
-    if (type !== undefined && !["concern", "benefit", "product_type"].includes(type)) {
-      throw new AppError("Invalid type: must be concern, benefit, or product_type", 400, "INVALID_PARAM");
+    if (type !== undefined && !CATEGORY_TYPES.includes(type)) {
+      throw new AppError(`Invalid type: must be one of ${CATEGORY_TYPES.join(", ")}`, 400, "INVALID_PARAM");
     }
     const items = await listCategories({ type });
-    sendOk(res, { items: items.map((c) => ({ id: c.id, name: c.name, slug: c.slug, type: c.type })) });
+    sendOk(res, { items: items.map(toCategoryCard) });
+  })
+);
+
+// ---- GET /api/public/categories/:slug ----
+// A concern/benefit/goal/product_type landing page: the category's own
+// content fields (Phase 3A) plus the published products tagged with it -
+// fixes the Phase 0 §10/§13 "mega-menu links all dead-end to /shop with no
+// distinct landing page" gap for real, now that categories carry content.
+router.get(
+  "/categories/:slug",
+  asyncRoute(async (req, res) => {
+    if (!isValidSlug(req.params.slug)) throw new AppError("Category not found", 404, "CATEGORY_NOT_FOUND");
+    const category = await getCategoryBySlug(req.params.slug);
+    if (!category) throw new AppError("Category not found", 404, "CATEGORY_NOT_FOUND");
+
+    const opts = parseListQuery(req.query);
+    const filterKey = category.type === "product_type" ? "categorySlug" : category.type;
+    const { items, total } = await listPublishedProducts({ ...opts, [filterKey]: category.slug });
+
+    sendOk(res, { category: toCategoryCard(category), products: items.map(toCard) }, buildMeta(opts.page, opts.pageSize, total));
+  })
+);
+
+// ---- GET /api/public/ingredients ----
+router.get(
+  "/ingredients",
+  asyncRoute(async (req, res) => {
+    const { data, error } = await supabaseAdmin().from("ingredients").select("id, name, slug, description").order("name");
+    if (error) throw error;
+    sendOk(res, { items: (data || []).map((i) => ({ id: i.id, name: i.name, slug: i.slug, description: i.description || null })) });
+  })
+);
+
+// ---- GET /api/public/ingredients/:slug ----
+router.get(
+  "/ingredients/:slug",
+  asyncRoute(async (req, res) => {
+    if (!isValidSlug(req.params.slug)) throw new AppError("Ingredient not found", 404, "INGREDIENT_NOT_FOUND");
+    const ingredient = await getIngredientBySlug(req.params.slug);
+    if (!ingredient) throw new AppError("Ingredient not found", 404, "INGREDIENT_NOT_FOUND");
+
+    const opts = parseListQuery(req.query);
+    const { items, total } = await listPublishedProducts({ ...opts, ingredient: ingredient.slug });
+    sendOk(
+      res,
+      { ingredient: { id: ingredient.id, name: ingredient.name, slug: ingredient.slug, description: ingredient.description || null }, products: items.map(toCard) },
+      buildMeta(opts.page, opts.pageSize, total)
+    );
+  })
+);
+
+// ---- GET /api/public/faqs (global site FAQs - product_id is null) ----
+router.get(
+  "/faqs",
+  asyncRoute(async (req, res) => {
+    const { data, error } = await supabaseAdmin()
+      .from("faqs").select("id, question, answer, sort_order").is("product_id", null).order("sort_order");
+    if (error) throw error;
+    sendOk(res, { items: (data || []).map((f) => ({ id: f.id, question: f.question, answer: f.answer })) });
   })
 );
 

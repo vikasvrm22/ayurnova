@@ -73,4 +73,42 @@ async function apiPost(path, body) {
   return data;
 }
 
+/**
+ * Phase 3: product comparison list - same localStorage/guest-friendly
+ * pattern as the cart above (no login required, nothing here needs to be
+ * trusted since /api/public/products/compare re-fetches everything
+ * server-side from real product ids). Capped at
+ * catalogService.js's MAX_COMPARE_PRODUCTS (4) to match the API's own
+ * limit - kept in sync manually since this is plain static JS, not built
+ * from the same source as the server.
+ */
+const COMPARE_KEY = "ayur_compare"; // [product_id, ...]
+const MAX_COMPARE = 4;
+
+function getCompareList() {
+  try {
+    return JSON.parse(localStorage.getItem(COMPARE_KEY) || "[]");
+  } catch (e) {
+    return [];
+  }
+}
+
+function isInCompare(productId) {
+  return getCompareList().includes(productId);
+}
+
+/** Returns { added, list } - `added` is false if the list was already at
+ * MAX_COMPARE and this id wasn't already in it. */
+function toggleCompare(productId) {
+  let list = getCompareList();
+  if (list.includes(productId)) {
+    list = list.filter((id) => id !== productId);
+  } else {
+    if (list.length >= MAX_COMPARE) return { added: false, list };
+    list.push(productId);
+  }
+  localStorage.setItem(COMPARE_KEY, JSON.stringify(list));
+  return { added: true, list };
+}
+
 document.addEventListener("DOMContentLoaded", updateCartBadge);
