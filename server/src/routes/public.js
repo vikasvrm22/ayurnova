@@ -117,13 +117,19 @@ router.post("/checkout", async (req, res, next) => {
       // COD: unchanged from before Phase 2 - decrement stock immediately,
       // since there is no payment gateway step that could fail/be abandoned.
       for (const item of pricedItems) {
-        await supabaseAdmin().rpc("decrement_variant_stock", { variant_id: item.variant_id, qty: item.qty }).catch(async () => {
+        // supabase-js's .rpc() builder is thenable (awaitable) but does NOT
+        // implement .catch() as a method - calling .catch() on it throws a
+        // TypeError instead of ever reaching a fallback. Check the
+        // destructured `error` instead (Phase 5A post-migration verification
+        // fix - this crashed every real COD checkout).
+        const { error: rpcError } = await supabaseAdmin().rpc("decrement_variant_stock", { variant_id: item.variant_id, qty: item.qty });
+        if (rpcError) {
           // Fallback if the RPC function isn't installed (see SETUP.md) - a
           // plain read-then-write (fine at this traffic scale; a race here
           // would only ever slightly oversell, not corrupt data).
           const { data: v } = await supabaseAdmin().from("product_variants").select("stock").eq("id", item.variant_id).single();
           if (v) await supabaseAdmin().from("product_variants").update({ stock: Math.max(0, v.stock - item.qty) }).eq("id", item.variant_id);
-        });
+        }
       }
     }
     // Phase 2: for "prepaid", stock is intentionally NOT decremented here.

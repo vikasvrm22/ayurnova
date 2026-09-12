@@ -198,10 +198,15 @@ async function decrementStockForOrder(orderId) {
   const { data: items } = await supabaseAdmin().from("order_items").select("variant_id, qty").eq("order_id", orderId);
   for (const item of items || []) {
     if (!item.variant_id) continue;
-    await supabaseAdmin().rpc("decrement_variant_stock", { variant_id: item.variant_id, qty: item.qty }).catch(async () => {
+    // supabase-js's .rpc() builder is thenable but has no .catch() method -
+    // calling .catch() on it threw instead of ever reaching the fallback,
+    // contradicting this function's own "never throw" comment above (Phase
+    // 5A post-migration verification fix).
+    const { error: rpcError } = await supabaseAdmin().rpc("decrement_variant_stock", { variant_id: item.variant_id, qty: item.qty });
+    if (rpcError) {
       const { data: v } = await supabaseAdmin().from("product_variants").select("stock").eq("id", item.variant_id).single();
       if (v) await supabaseAdmin().from("product_variants").update({ stock: Math.max(0, v.stock - item.qty) }).eq("id", item.variant_id);
-    });
+    }
   }
 }
 
