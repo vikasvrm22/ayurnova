@@ -205,12 +205,23 @@ async function decrementStockForOrder(orderId) {
   }
 }
 
+// Explicit event-type classification - deliberately NOT "anything that
+// isn't captured counts as failed". That fallback (the pre-audit
+// behaviour) would have wrongly classified an unrelated payment.* event
+// (e.g. payment.authorized under a manual-capture flow) as a failure.
+// Only these named sets ever drive a state transition; anything else is
+// recorded (in webhook_events, above) but explicitly IGNORED, not guessed at.
+const PAYMENT_SUCCESS_EVENT_TYPES = new Set(["payment.captured"]);
+const PAYMENT_FAILURE_EVENT_TYPES = new Set(["payment.failed"]);
+const REFUND_EVENT_TYPES = new Set(["refund.created", "refund.processed", "refund.failed"]);
+
 /**
  * Records a webhook event and processes it idempotently. The unique
  * (gateway, event_id) constraint on webhook_events is the actual
  * idempotency guard: a duplicate delivery fails the insert with a unique
  * violation, which is treated as "already processed" rather than an
- * error (Phase 2 §5/§9: duplicate webhook protection).
+ * error (Phase 2 §5/§9: duplicate webhook protection). This guard runs
+ * for every event type below, before any business-state logic.
  */
 export async function processWebhookEvent({ eventId, eventType, payload, signatureValid }) {
   const { error: insertError } = await supabaseAdmin().from("webhook_events").insert({
@@ -227,6 +238,12 @@ export async function processWebhookEvent({ eventId, eventType, payload, signatu
     return { duplicate: false, processed: false, reason: "invalid_signature" };
   }
 
+  if (REFUND_EVENT_TYPES.has(eventType)) {
+    const result = await processRefundWebhookEvent({ eventType, payload });
+    await updateWebhookStatus(eventId, result.handled ? "PROCESSED" : "IGNORED", result.handled ? null : result.reason);
+    return { duplicate: false, processed: result.handled, reason: result.handled ? undefined : result.reason };
+  }
+
   const gatewayOrderId = payload?.payload?.payment?.entity?.order_id;
   if (!gatewayOrderId) {
     await updateWebhookStatus(eventId, "IGNORED", `Unhandled event type or missing order id: ${eventType}`);
@@ -240,16 +257,99 @@ export async function processWebhookEvent({ eventId, eventType, payload, signatu
   }
 
   const entity = payload.payload.payment.entity;
-  const success = eventType === "payment.captured" || entity.status === "captured";
+  const isSuccess = PAYMENT_SUCCESS_EVENT_TYPES.has(eventType) || entity.status === "captured";
+  const isFailure = PAYMENT_FAILURE_EVENT_TYPES.has(eventType) || entity.status === "failed";
+  if (!isSuccess && !isFailure) {
+    // A payment.* event with no explicit success/failure meaning for us
+    // (e.g. payment.authorized) - recorded above for audit visibility,
+    // but never used to guess at an attempt's outcome.
+    await updateWebhookStatus(eventId, "IGNORED", `Unhandled payment event type: ${eventType} (payment status: ${entity.status})`);
+    return { duplicate: false, processed: false, reason: "unhandled_event_type" };
+  }
+
   await markAttemptOutcome(attempt, {
-    success,
+    success: isSuccess,
     gatewayPaymentId: entity.id,
     method: entity.method,
     rawEvent: { source: "webhook", event_type: eventType },
-    failureReason: success ? undefined : entity.error_description || "Payment failed",
+    failureReason: isSuccess ? undefined : entity.error_description || "Payment failed",
   });
   await updateWebhookStatus(eventId, "PROCESSED", null);
   return { duplicate: false, processed: true };
+}
+
+/**
+ * Handles refund.created / refund.processed / refund.failed. Razorpay's
+ * refund webhook payload carries the refund entity itself
+ * (payload.refund.entity: id, payment_id, amount in paise, status) -
+ * that `payment_id` is used directly to find the local payment via the
+ * attempt whose gateway_payment_id matches, rather than depending on an
+ * accompanying payment entity also being present.
+ *
+ * Idempotent per gateway_refund_id, NOT merely per webhook event_id: two
+ * different events for the same refund (refund.created then
+ * refund.processed) must not double-apply the amount. The first sighting
+ * of a gateway_refund_id in a PROCESSED state - whether via our own
+ * admin-initiated createRefund() (which records it synchronously) or via
+ * this webhook - applies payments.refunded_amount exactly once; every
+ * later event for that same refund only updates its status.
+ *
+ * Fixes a real Phase 2 gap found by audit: a refund issued directly via
+ * the Razorpay Dashboard (not through /api/admin/payments/:id/refund)
+ * previously left no trace anywhere in this app's database at all.
+ */
+async function processRefundWebhookEvent({ eventType, payload }) {
+  const refundEntity = payload?.payload?.refund?.entity;
+  if (!refundEntity?.payment_id) {
+    return { handled: false, reason: "no_refund_entity" };
+  }
+
+  const { data: attempt } = await supabaseAdmin()
+    .from("payment_attempts").select("*, payments(*)").eq("gateway_payment_id", refundEntity.payment_id).maybeSingle();
+  if (!attempt) {
+    return { handled: false, reason: "payment_not_found" };
+  }
+  const payment = attempt.payments;
+
+  const STATUS_BY_EVENT = { "refund.created": "INITIATED", "refund.processed": "PROCESSED", "refund.failed": "FAILED" };
+  const refundStatus = STATUS_BY_EVENT[eventType] || "INITIATED";
+  const amountRupees = Number(refundEntity.amount) / 100;
+
+  const { data: existingRefund } = await supabaseAdmin()
+    .from("refunds").select("*").eq("gateway_refund_id", refundEntity.id).maybeSingle();
+
+  if (existingRefund) {
+    await supabaseAdmin().from("refunds").update({ status: refundStatus, updated_at: new Date().toISOString() }).eq("id", existingRefund.id);
+  } else {
+    await supabaseAdmin().from("refunds").insert({
+      payment_id: payment.id, attempt_id: attempt.id, gateway_refund_id: refundEntity.id,
+      amount: amountRupees, reason: "Initiated outside the admin panel (recorded via Razorpay webhook)",
+      status: refundStatus, created_by: "system(webhook)",
+    });
+  }
+
+  // Apply to payments/orders exactly once - only on the transition INTO
+  // PROCESSED, and only if this gateway_refund_id hasn't already reached
+  // PROCESSED before (covers both "webhook arrives twice for the same
+  // refund" and "we already recorded this refund as PROCESSED ourselves").
+  if (refundStatus === "PROCESSED" && existingRefund?.status !== "PROCESSED") {
+    const newRefundedAmount = Number(payment.refunded_amount) + amountRupees;
+    const fullyRefunded = newRefundedAmount >= Number(payment.amount) - 0.005;
+    await supabaseAdmin().from("payments").update({
+      refunded_amount: newRefundedAmount,
+      status: fullyRefunded ? "REFUNDED" : "PARTIALLY_REFUNDED",
+      updated_at: new Date().toISOString(),
+    }).eq("id", payment.id);
+    await supabaseAdmin().from("orders").update({
+      payment_status: fullyRefunded ? "refunded" : "partially_refunded", updated_at: new Date().toISOString(),
+    }).eq("id", payment.order_id);
+    await supabaseAdmin().from("activity_log").insert({
+      entity_type: "payment", entity_id: payment.id, action: "refund_confirmed_via_webhook", actor: "system",
+      note: `₹${amountRupees} (${eventType})`,
+    });
+  }
+
+  return { handled: true };
 }
 
 async function updateWebhookStatus(eventId, status, note) {
