@@ -188,25 +188,29 @@ export async function markAttemptOutcome(attempt, { success, gatewayPaymentId, m
 }
 
 /** Decrements stock for every item in an order - the prepaid-flow
- * counterpart to the COD flow's immediate decrement in public.js's
- * checkout route. Shares the same RPC + fallback pattern. Only ever
- * called once per order in practice (guarded by markAttemptOutcome's
- * conditional payment-status update above), but written so a stray
- * extra call would only ever slightly under/over-decrement, never throw -
- * same risk tolerance already documented elsewhere in this codebase. */
+ * counterpart to the COD flow's immediate allocation in public.js's
+ * checkout route. Only ever called once per order in practice (guarded by
+ * markAttemptOutcome's conditional payment-status update above).
+ *
+ * Phase 5B: uses the same atomic allocate_fefo_stock_for_order() RPC COD
+ * uses, instead of a parallel decrement path. Unlike COD (which can still
+ * cleanly fail/roll back the order before anything irreversible has
+ * happened), payment has ALREADY succeeded by the time this runs - there
+ * is no "fail the checkout" option any more. So an allocation shortfall
+ * here is logged to activity_log for manual reconciliation rather than
+ * thrown, preserving this function's pre-existing "never throw" contract
+ * (same risk tolerance already documented elsewhere in this codebase, and
+ * consistent with reconcilePayment()'s own "surface findings, don't
+ * silently auto-repair" philosophy). */
 async function decrementStockForOrder(orderId) {
-  const { data: items } = await supabaseAdmin().from("order_items").select("variant_id, qty").eq("order_id", orderId);
-  for (const item of items || []) {
-    if (!item.variant_id) continue;
-    // supabase-js's .rpc() builder is thenable but has no .catch() method -
-    // calling .catch() on it threw instead of ever reaching the fallback,
-    // contradicting this function's own "never throw" comment above (Phase
-    // 5A post-migration verification fix).
-    const { error: rpcError } = await supabaseAdmin().rpc("decrement_variant_stock", { variant_id: item.variant_id, qty: item.qty });
-    if (rpcError) {
-      const { data: v } = await supabaseAdmin().from("product_variants").select("stock").eq("id", item.variant_id).single();
-      if (v) await supabaseAdmin().from("product_variants").update({ stock: Math.max(0, v.stock - item.qty) }).eq("id", item.variant_id);
-    }
+  const { error: allocError } = await supabaseAdmin().rpc("allocate_fefo_stock_for_order", {
+    p_order_id: orderId, p_actor: "system(payment)", p_reason: "sale",
+  });
+  if (allocError) {
+    await supabaseAdmin().from("activity_log").insert({
+      entity_type: "order", entity_id: orderId, action: "stock_allocation_failed", actor: "system",
+      note: (allocError.message || "FEFO allocation failed after payment success").slice(0, 500),
+    });
   }
 }
 

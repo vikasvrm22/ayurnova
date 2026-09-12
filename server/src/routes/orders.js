@@ -39,6 +39,21 @@ router.get("/:id", requireStaffAuth, async (req, res, next) => {
     if (error) return res.status(404).json({ error: "Not found" });
     const { data: items } = await supabaseAdmin().from("order_items").select("*").eq("order_id", req.params.id);
 
+    // Phase 5B: attach each item's batch-allocation trail (which batch(es)
+    // fulfilled it, and how much from each) for traceability - read-only,
+    // same JSON envelope, no new endpoint needed.
+    const itemIds = (items || []).map((i) => i.id);
+    let allocationsByItem = {};
+    if (itemIds.length) {
+      const { data: allocations } = await supabaseAdmin()
+        .from("order_item_batch_allocations").select("*").in("order_item_id", itemIds);
+      allocationsByItem = (allocations || []).reduce((acc, a) => {
+        (acc[a.order_item_id] = acc[a.order_item_id] || []).push(a);
+        return acc;
+      }, {});
+    }
+    const itemsWithAllocations = (items || []).map((i) => ({ ...i, batch_allocations: allocationsByItem[i.id] || [] }));
+
     // Phase 2: surface payment + attempt history alongside the order, so
     // the admin order-detail page doesn't need a second round trip. Only
     // present for prepaid orders that have actually started a payment -
@@ -53,7 +68,7 @@ router.get("/:id", requireStaffAuth, async (req, res, next) => {
       payment = { ...paymentRow, attempts: attempts || [], refunds: refunds || [] };
     }
 
-    res.json({ order, items: items || [], payment });
+    res.json({ order, items: itemsWithAllocations, payment });
   } catch (e) {
     next(e);
   }
@@ -63,6 +78,34 @@ router.put("/:id/status", requireStaffAuth, requirePermission("manageOrders"), a
   try {
     const { status, tracking_number } = req.body || {};
     if (!ORDER_STATUSES.includes(status)) return res.status(400).json({ error: `Status must be one of: ${ORDER_STATUSES.join(", ")}` });
+
+    const { data: existing } = await supabaseAdmin().from("orders").select("status").eq("id", req.params.id).single();
+
+    // Phase 5B: cancelling an order restocks exactly the batch(es)
+    // originally allocated to it (never re-derived via FEFO), each
+    // producing its own auditable ledger entry - see restock_order() in
+    // 0007_phase5b_fefo_allocation.sql. Only on a genuine transition INTO
+    // cancelled (never on a no-op re-save of an already-cancelled order),
+    // so this can never double-restock. An order that was never allocated
+    // (e.g. a prepaid order cancelled before payment ever succeeded) has
+    // no allocation rows, so restock_order() is correctly a no-op for it.
+    //
+    // A restock failure is logged, not thrown - cancelling an order is
+    // pre-existing Phase 1 functionality staff already rely on working;
+    // an inventory-accounting side effect (or, pre-migration, the RPC not
+    // existing yet) must never block the cancellation itself, same risk
+    // tolerance as decrementStockForOrder's post-payment accounting.
+    if (status === "cancelled" && existing?.status !== "cancelled") {
+      const { error: restockError } = await supabaseAdmin().rpc("restock_order", {
+        p_order_id: req.params.id, p_actor: req.staff.email, p_reason: "order_cancelled",
+      });
+      if (restockError) {
+        await supabaseAdmin().from("activity_log").insert({
+          entity_type: "order", entity_id: req.params.id, action: "restock_failed", actor: req.staff.email,
+          note: (restockError.message || "restock_order RPC failed").slice(0, 500),
+        });
+      }
+    }
 
     const patch = { status, updated_at: new Date().toISOString() };
     if (tracking_number !== undefined) patch.tracking_number = tracking_number;

@@ -114,22 +114,24 @@ router.post("/checkout", async (req, res, next) => {
     if (itemsError) throw itemsError;
 
     if (payment_method === "cod") {
-      // COD: unchanged from before Phase 2 - decrement stock immediately,
-      // since there is no payment gateway step that could fail/be abandoned.
-      for (const item of pricedItems) {
-        // supabase-js's .rpc() builder is thenable (awaitable) but does NOT
-        // implement .catch() as a method - calling .catch() on it throws a
-        // TypeError instead of ever reaching a fallback. Check the
-        // destructured `error` instead (Phase 5A post-migration verification
-        // fix - this crashed every real COD checkout).
-        const { error: rpcError } = await supabaseAdmin().rpc("decrement_variant_stock", { variant_id: item.variant_id, qty: item.qty });
-        if (rpcError) {
-          // Fallback if the RPC function isn't installed (see SETUP.md) - a
-          // plain read-then-write (fine at this traffic scale; a race here
-          // would only ever slightly oversell, not corrupt data).
-          const { data: v } = await supabaseAdmin().from("product_variants").select("stock").eq("id", item.variant_id).single();
-          if (v) await supabaseAdmin().from("product_variants").update({ stock: Math.max(0, v.stock - item.qty) }).eq("id", item.variant_id);
-        }
+      // COD: decrement stock immediately, since there is no payment gateway
+      // step that could fail/be abandoned - unchanged in spirit from before
+      // Phase 2. Phase 5B replaces the old flat decrement_variant_stock RPC
+      // call with atomic FEFO batch allocation (earliest-expiry-first,
+      // across as many batches as needed) - one RPC call allocates every
+      // line of this order inside a single DB transaction, so a shortfall
+      // on any line (e.g. a race against another checkout) rolls back
+      // every line's allocation, never leaving a partially-fulfilled order.
+      const { error: allocError } = await supabaseAdmin().rpc("allocate_fefo_stock_for_order", {
+        p_order_id: order.id, p_actor: "system(checkout)", p_reason: "sale",
+      });
+      if (allocError) {
+        // Nothing was decremented (the allocation transaction rolled back
+        // in full) - only the order/order_items rows created earlier in
+        // THIS request need cleaning up.
+        await supabaseAdmin().from("order_items").delete().eq("order_id", order.id);
+        await supabaseAdmin().from("orders").delete().eq("id", order.id);
+        return res.status(409).json({ error: "One or more items in your cart just went out of stock. Please review your cart and try again." });
       }
     }
     // Phase 2: for "prepaid", stock is intentionally NOT decremented here.
