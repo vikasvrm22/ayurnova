@@ -24,8 +24,8 @@
     <div class="page-header"><h2>FAQs</h2><button class="btn btn-primary" id="new-btn">+ New FAQ</button></div>
     <p style="font-size:12.5px; color:#666; margin-top:-6px;">Global FAQs (no product) show on the site-wide FAQ page. Product FAQs show on that product's page only.</p>
     <table class="data-table">
-      <thead><tr><th>Question</th><th>Scope</th><th></th></tr></thead>
-      <tbody id="rows"><tr><td colspan="3">Loading...</td></tr></tbody>
+      <thead><tr><th>Question</th><th>Scope</th><th>Status</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="4">Loading...</td></tr></tbody>
     </table>
   </main>
 </div>
@@ -38,14 +38,21 @@
         <tr>
           <td><b>${f.question}</b></td>
           <td>${f.product_id ? `Product: ${f.products?.title || f.product_id}` : `<span style="color:#0e7a33;">Global</span>`}</td>
+          <td><span class="badge badge-${f.status === 'published' ? 'delivered' : 'pending'}">${f.status}</span></td>
           <td>
+            ${f.status !== "published" ? `<button class="btn btn-primary" onclick="publish('${f.id}')">Publish</button>` : ""}
             <button class="btn btn-outline" onclick='openForm(${JSON.stringify(f).replace(/'/g, "&#39;")})'>Edit</button>
             <button class="btn btn-danger" onclick="remove('${f.id}')">Delete</button>
           </td>
-        </tr>`).join("") : `<tr><td colspan="3">No FAQs yet.</td></tr>`;
+        </tr>`).join("") : `<tr><td colspan="4">No FAQs yet.</td></tr>`;
     } catch (e) {
-      document.getElementById("rows").innerHTML = `<tr><td colspan="3">Could not load: ${e.message}</td></tr>`;
+      document.getElementById("rows").innerHTML = `<tr><td colspan="4">Could not load: ${e.message}</td></tr>`;
     }
+  }
+
+  async function publish(id) {
+    try { await Api.post(`/faqs/${id}/publish`, {}); Toast.show("Published", "success"); load(); }
+    catch (e) { Toast.show(e.message, "error"); }
   }
 
   async function remove(id) {
@@ -69,7 +76,7 @@
         <div id="f-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
         <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
           <button class="btn btn-outline" id="f-cancel">Cancel</button>
-          <button class="btn btn-primary" id="f-save">${item ? "Save" : "Create"}</button>
+          <button class="btn btn-primary" id="f-save">${item ? "Save" : "Create Draft"}</button>
         </div>
       </div>`;
     document.body.appendChild(backdrop);

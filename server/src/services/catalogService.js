@@ -187,7 +187,7 @@ export async function getPublishedProductBySlug(slug) {
   const benefits = await listRelatedEntities("product_benefits", "benefit_id", "categories", product.id);
   const goals = await listRelatedEntities("product_goals", "goal_id", "categories", product.id);
   const { data: faqs } = await supabaseAdmin()
-    .from("faqs").select("id, question, answer, sort_order").eq("product_id", product.id).order("sort_order");
+    .from("faqs").select("id, question, answer, sort_order").eq("product_id", product.id).eq("status", "published").order("sort_order");
 
   return {
     ...product, product_images: images, product_variants: variants, category, reviews: reviews || [],

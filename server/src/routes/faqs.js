@@ -1,8 +1,11 @@
 /**
- * Admin CRUD for `faqs` (Phase 3A migration). Nullable `product_id`: NULL =
- * global/site FAQ, set = that product's own FAQ - one table, both scopes,
- * per docs/AYURVEDICSTORE-PHASE-3-DECISIONS.md decision #3. Same
- * auth/RBAC/sanitize conventions as categories.js/ingredients.js.
+ * Admin CRUD for `faqs` (Phase 3A migration, status added in
+ * 0004_phase3_faq_status.sql). Nullable `product_id`: NULL = global/site
+ * FAQ, set = that product's own FAQ - one table, both scopes, per
+ * docs/AYURVEDICSTORE-PHASE-3-DECISIONS.md decision #3. Same auth/RBAC/
+ * sanitize conventions as categories.js/ingredients.js. Status workflow
+ * (draft -> published, via POST /:id/publish) mirrors blog.js's - a new
+ * FAQ always starts 'draft'; only a published one is ever public.
  */
 import { Router } from "express";
 import { supabaseAdmin } from "../db/supabaseClient.js";
@@ -32,6 +35,9 @@ router.get("/", requireStaffAuth, async (req, res, next) => {
   }
 });
 
+// New FAQs always start 'draft', same convention as blog_posts (blog.js's
+// own POST ignores any client-sent status the same way) - publishing is a
+// separate, explicit action below.
 router.post("/", requireStaffAuth, requirePermission("manageProducts"), async (req, res, next) => {
   try {
     const { question, answer, product_id, sort_order = 0 } = req.body || {};
@@ -40,7 +46,7 @@ router.post("/", requireStaffAuth, requirePermission("manageProducts"), async (r
     if (product_id && !isValidUUID(product_id)) return res.status(400).json({ error: "Invalid product_id" });
     const { data, error } = await supabaseAdmin().from("faqs").insert({
       question: sanitizeText(question.trim()), answer: sanitizeText(answer.trim()),
-      product_id: product_id || null, sort_order,
+      product_id: product_id || null, sort_order, status: "draft",
     }).select().single();
     if (error) throw error;
     res.status(201).json({ item: data });
@@ -67,6 +73,18 @@ router.put("/:id", requireStaffAuth, requirePermission("manageProducts"), async 
     }
     if (sort_order !== undefined) patch.sort_order = sort_order;
     const { data, error } = await supabaseAdmin().from("faqs").update(patch).eq("id", req.params.id).select().single();
+    if (error) throw error;
+    res.json({ item: data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/:id/publish", requireStaffAuth, requirePermission("manageProducts"), async (req, res, next) => {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("faqs").update({ status: "published", updated_at: new Date().toISOString() })
+      .eq("id", req.params.id).select().single();
     if (error) throw error;
     res.json({ item: data });
   } catch (e) {

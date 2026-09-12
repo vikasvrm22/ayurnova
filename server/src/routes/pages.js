@@ -282,7 +282,7 @@ router.get("/product/:slug", trackPageView, async (req, res, next) => {
       listRelatedEntities("product_goals", "goal_id", "categories", product.id),
     ]);
     const { data: faqs } = await supabaseAdmin()
-      .from("faqs").select("question, answer").eq("product_id", product.id).order("sort_order");
+      .from("faqs").select("question, answer").eq("product_id", product.id).eq("status", "published").order("sort_order");
 
     const tagPill = (label, href, name) =>
       `<a href="${href}" style="display:inline-block; background:#f2f5ee; color:#2F5233; border-radius:12px; padding:3px 10px; font-size:11.5px; text-decoration:none;">${escapeHtml(label)}: ${escapeHtml(name)}</a>`;
@@ -462,7 +462,7 @@ router.get("/faq", trackPageView, async (req, res, next) => {
   try {
     const html = await cached("faq", async () => {
       const { data: faqs } = await supabaseAdmin()
-        .from("faqs").select("question, answer").is("product_id", null).order("sort_order");
+        .from("faqs").select("question, answer").is("product_id", null).eq("status", "published").order("sort_order");
       let template = getTemplate("faq.html");
       const listHtml = (faqs || []).length
         ? faqs.map((f) => `<div style="margin-bottom:18px; border-bottom:1px solid var(--hairline); padding-bottom:14px;"><h4 style="margin:0 0 6px;">${escapeHtml(f.question)}</h4><p style="margin:0; color:#555;">${escapeHtml(f.answer)}</p></div>`).join("")

@@ -44,7 +44,7 @@
       <div class="card">
         <div class="form-grid">
           <div class="form-field full"><label>Product Title *</label><input id="f-title"><div class="field-error" id="err-title"></div></div>
-          <div class="form-field"><label>Category</label><select id="f-category"><option value="">— None —</option></select></div>
+          <div class="form-field"><label>Product Type</label><select id="f-category"><option value="">— None —</option></select></div>
           <div class="form-field"><label>Brand</label><input id="f-brand"></div>
 
           <div class="form-field full"><label>Short Description (bullets, one per line)</label><textarea id="f-short-desc"></textarea></div>
@@ -148,13 +148,19 @@
     await Api.put(`/products/${id}/relationships`, body).catch(err => Toast.show(err.message, "error"));
   }
 
+  // Phase 3 audit fix: `category_id` is the product's single Product Type
+  // (Tablet/Oil/Churna/Syrup - see docs/AYURVEDICSTORE-PHASE-3-DECISIONS.md
+  // decision #1). Concern/Benefit/Goal are multi-valued and managed via the
+  // Discovery Tags panel below, not this dropdown - only offer product_type
+  // categories here so a category_id can never be assigned a type the
+  // server itself will reject (see PUT/POST /products' server-side check).
   async function loadCategories() {
     try {
-      const { items } = await Api.get("/categories");
+      const { items } = await Api.get("/categories?type=product_type");
       const sel = document.getElementById("f-category");
       items.forEach(c => {
         const opt = document.createElement("option");
-        opt.value = c.id; opt.textContent = `${c.name} (${c.type})`;
+        opt.value = c.id; opt.textContent = c.name;
         sel.appendChild(opt);
       });
     } catch (e) { /* non-fatal */ }

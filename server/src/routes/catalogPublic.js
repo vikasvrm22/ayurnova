@@ -305,7 +305,7 @@ router.get(
   "/faqs",
   asyncRoute(async (req, res) => {
     const { data, error } = await supabaseAdmin()
-      .from("faqs").select("id, question, answer, sort_order").is("product_id", null).order("sort_order");
+      .from("faqs").select("id, question, answer, sort_order").is("product_id", null).eq("status", "published").order("sort_order");
     if (error) throw error;
     sendOk(res, { items: (data || []).map((f) => ({ id: f.id, question: f.question, answer: f.answer })) });
   })

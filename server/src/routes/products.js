@@ -35,6 +35,19 @@ async function logActivity(entityId, action, actor, note = "") {
   await supabaseAdmin().from("activity_log").insert({ entity_type: "product", entity_id: entityId, action, actor, note });
 }
 
+// Phase 3 audit fix: `products.category_id` is meant to be the product's
+// single Product Type (Tablet/Oil/Churna/Syrup - see
+// docs/AYURVEDICSTORE-PHASE-3-DECISIONS.md decision #1); Concern/Benefit/
+// Goal are multi-valued and live in the separate product_concerns/benefits/
+// goals join tables instead. Nothing previously stopped a category_id of
+// any type being assigned here - this closes that gap server-side (the
+// admin form's category dropdown is also now filtered to product_type
+// categories, but that's a UI nicety, not the actual guarantee).
+async function isProductTypeCategory(categoryId) {
+  const { data } = await supabaseAdmin().from("categories").select("type").eq("id", categoryId).maybeSingle();
+  return data?.type === "product_type";
+}
+
 async function uniqueSlug(title, excludeId) {
   const base = slugify(title);
   let candidate = base;
@@ -146,6 +159,11 @@ router.post("/", requireStaffAuth, requirePermission("manageProducts"), async (r
     for (const [k, v] of Object.entries(req.body)) {
       clean[k] = typeof v === "string" ? sanitizeText(v.trim()) : v;
     }
+
+    if (clean.category_id && !(await isProductTypeCategory(clean.category_id))) {
+      return res.status(400).json({ error: "Validation failed", fields: { category_id: "Category must be a Product Type category" } });
+    }
+
     const slug = await uniqueSlug(clean.title);
     const now = new Date().toISOString();
 
@@ -172,6 +190,10 @@ router.put("/:id", requireStaffAuth, requirePermission("manageProducts"), async 
     for (const [k, v] of Object.entries(req.body)) {
       if (k === "expected_updated_at") continue;
       clean[k] = typeof v === "string" ? sanitizeText(v.trim()) : v;
+    }
+
+    if (clean.category_id && !(await isProductTypeCategory(clean.category_id))) {
+      return res.status(400).json({ error: "Validation failed", fields: { category_id: "Category must be a Product Type category" } });
     }
 
     if (req.body.expected_updated_at) {
