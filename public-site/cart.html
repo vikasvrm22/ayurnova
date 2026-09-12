@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/css/style.css"><!--SSR_HEAD-->
+</head>
+<body>
+<div class="announce-strip"><div class="container"><span>COD AVAILABLE</span><span>FREE SHIPPING ABOVE ₹599</span></div></div>
+<header class="site-header"><div class="container">
+  <div class="brand"><div class="brand-mark">AV</div><div class="brand-text"><h1>AyurVeda Store</h1><span>Authentic Ayurvedic Wellness</span></div></div>
+  <form class="header-search"><input type="text" placeholder="Search products..."><button type="button">Search</button></form>
+  <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/cart">🛒<span class="cart-count">0</span></a></div>
+</div></header>
+<nav class="main-nav"><div class="container">
+  <a href="/">Home</a><a href="/shop">Shop All</a><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a>
+</div></nav>
+
+<div class="container" style="padding:24px 16px;">
+  <h3 class="section-title" style="text-align:left; margin-top:0;" id="cart-heading">Your Cart</h3>
+
+  <div id="cart-empty" style="display:none; text-align:center; padding:40px;">
+    <p style="color:#888;">Your cart is empty.</p>
+    <a href="/shop" class="pill">Continue Shopping</a>
+  </div>
+
+  <div id="cart-body" class="page-layout" style="grid-template-columns: 2fr 1fr;">
+    <table class="cart-table">
+      <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Subtotal</th><th></th></tr></thead>
+      <tbody id="cart-rows"></tbody>
+    </table>
+    <div class="cart-summary">
+      <h4 style="margin-top:0;">Order Summary</h4>
+      <div class="row"><span>Subtotal</span><span id="sum-subtotal">₹0</span></div>
+      <div class="row"><span>Shipping</span><span id="sum-shipping">FREE</span></div>
+      <div class="row" id="sum-discount-row" style="display:none;"><span>Discount</span><span id="sum-discount">−₹0</span></div>
+      <div class="row total"><span>Total</span><span id="sum-total">₹0</span></div>
+
+      <div style="margin:14px 0; display:flex; gap:6px;">
+        <input type="text" id="coupon-input" placeholder="Coupon code" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px;">
+        <button id="coupon-apply" style="padding:9px 14px; border:1px solid var(--hairline); background:#fff; border-radius:6px;">Apply</button>
+      </div>
+      <div id="coupon-msg" style="font-size:12px; margin-bottom:10px;"></div>
+
+      <div id="checkout-form">
+        <label style="font-size:12.5px; font-weight:700;">Full Name</label>
+        <input type="text" id="addr-name" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+        <label style="font-size:12.5px; font-weight:700;">Phone</label>
+        <input type="text" id="addr-phone" placeholder="+91XXXXXXXXXX" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+        <label style="font-size:12.5px; font-weight:700;">Address Line</label>
+        <input type="text" id="addr-line1" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="addr-city" placeholder="City" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+          <input type="text" id="addr-state" placeholder="State" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+        </div>
+        <input type="text" id="addr-pincode" placeholder="Pincode" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+
+        <div style="display:flex; gap:10px; margin:10px 0; font-size:13px;">
+          <label><input type="radio" name="pay" value="cod" checked> Cash on Delivery</label>
+          <label><input type="radio" name="pay" value="prepaid"> Prepaid (2% off)</label>
+        </div>
+        <p style="font-size:11px; color:#999;">Note: Prepaid payment gateway integration is a placeholder in this build - see SETUP.md.</p>
+
+        <div id="checkout-error" style="color:#B23A2E; font-size:12.5px; margin:6px 0;"></div>
+        <button id="checkout-btn" style="width:100%; padding:11px; background:var(--green); color:#fff; border:none; border-radius:22px; font-weight:700;">Place Order</button>
+      </div>
+
+      <p id="trust-badges" style="font-size:11.5px; color:#888; text-align:center; margin-top:12px;"></p>
+    </div>
+  </div>
+
+  <div id="order-success" style="display:none; text-align:center; padding:40px;">
+    <h3 style="color:var(--green-dark);">✅ Order Placed!</h3>
+    <p>Your order <b id="success-order-number"></b> has been placed successfully.</p>
+    <a href="/shop" class="pill">Continue Shopping</a>
+  </div>
+</div>
+
+<footer class="mega-footer"><div class="container">
+  <div><h5>Top Categories</h5><a href="/shop">Immunity</a><a href="/shop">Sleep &amp; Stress</a></div>
+  <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a></div>
+  <div><h5>Policies</h5><a href="#">Return &amp; Refund</a><a href="#">Privacy Policy</a></div>
+  <div><h5>Quick Links</h5><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a></div>
+  <div><h5>Newsletter</h5><input type="email" placeholder="Your email" style="width:100%;padding:8px;border-radius:6px;border:none;margin-bottom:8px;"><button style="width:100%;padding:8px;background:var(--gold);color:#fff;border:none;border-radius:6px;">Subscribe</button></div>
+</div><div class="footer-bottom">© 2026 AyurVeda Store</div></footer>
+
+<script>
+  fetch("/api/public/settings").then(r => r.json()).then(({ settings }) => {
+    const b = settings.trust_badges || { cod: true, shipping: true, return: true };
+    const badges = [
+      b.cod ? "✅ COD Available" : null,
+      b.shipping ? "🚚 Free shipping above ₹599" : null,
+      b.return ? "🔄 Easy 7-day return" : null,
+    ].filter(Boolean);
+    document.getElementById("trust-badges").innerHTML = badges.join(" &nbsp;|&nbsp; ");
+  }).catch(() => {});
+
+  let appliedDiscount = 0;
+  let appliedCoupon = "";
+
+  function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
+
+  async function renderCart() {
+    const cart = getCart();
+    document.getElementById("cart-heading").textContent = `Your Cart (${cart.reduce((s,i)=>s+i.qty,0)} items)`;
+    if (!cart.length) {
+      document.getElementById("cart-empty").style.display = "block";
+      document.getElementById("cart-body").style.display = "none";
+      return;
+    }
+    document.getElementById("cart-empty").style.display = "none";
+    document.getElementById("cart-body").style.display = "grid";
+
+    const ids = cart.map(i => i.variant_id).join(",");
+    let items = [];
+    try {
+      const data = await apiGet(`/api/public/cart-items?ids=${encodeURIComponent(ids)}`);
+      items = data.items;
+    } catch (e) {
+      document.getElementById("cart-rows").innerHTML = `<tr><td colspan="5">Could not load cart: ${e.message}</td></tr>`;
+      return;
+    }
+
+    let subtotal = 0;
+    const rows = cart.map(line => {
+      const v = items.find(i => i.id === line.variant_id);
+      if (!v) return "";
+      const lineTotal = v.price * line.qty;
+      subtotal += lineTotal;
+      const img = v.products?.product_images?.[0]?.url;
+      return `<tr>
+        <td>${img ? `<img src="${img}" class="cart-thumb" style="object-fit:cover;">` : `<span class="cart-thumb"></span>`}${v.products.title} (${v.label})</td>
+        <td>${fmt(v.price)}</td>
+        <td><div class="qty-box"><button onclick="changeQty('${v.id}',-1)">−</button><span>${line.qty}</span><button onclick="changeQty('${v.id}',1)">+</button></div></td>
+        <td>${fmt(lineTotal)}</td>
+        <td><a href="#" style="color:#B23A2E;" onclick="removeFromCart('${v.id}'); renderCart(); return false;">Remove</a></td>
+      </tr>`;
+    }).join("");
+    document.getElementById("cart-rows").innerHTML = rows;
+
+    const settingsResp = await fetch("/api/public/settings").then(r => r.json()).catch(() => ({ settings: {} }));
+    const shippingCfg = settingsResp.settings?.shipping || { free_shipping_threshold: 599, prepaid_discount_percent: 2 };
+    const shippingFee = subtotal >= shippingCfg.free_shipping_threshold ? 0 : 60;
+    const total = subtotal + shippingFee - appliedDiscount;
+
+    document.getElementById("sum-subtotal").textContent = fmt(subtotal);
+    document.getElementById("sum-shipping").textContent = shippingFee === 0 ? "FREE" : fmt(shippingFee);
+    document.getElementById("sum-total").textContent = fmt(total);
+    if (appliedDiscount > 0) {
+      document.getElementById("sum-discount-row").style.display = "flex";
+      document.getElementById("sum-discount").textContent = "−" + fmt(appliedDiscount);
+    }
+    window.__cartSubtotal = subtotal;
+  }
+
+  function changeQty(variantId, delta) {
+    const cart = getCart();
+    const item = cart.find(i => i.variant_id === variantId);
+    if (!item) return;
+    setCartQty(variantId, Math.max(1, item.qty + delta));
+    renderCart();
+  }
+
+  document.getElementById("coupon-apply").addEventListener("click", async () => {
+    const code = document.getElementById("coupon-input").value.trim();
+    const msgEl = document.getElementById("coupon-msg");
+    msgEl.textContent = "";
+    if (!code) return;
+    try {
+      const res = await apiPost("/api/public/coupons/validate", { code, subtotal: window.__cartSubtotal || 0 });
+      appliedDiscount = res.discount;
+      appliedCoupon = code;
+      msgEl.style.color = "#0e7a33";
+      msgEl.textContent = `Coupon applied! You saved ${fmt(res.discount)}.`;
+      renderCart();
+    } catch (e) {
+      msgEl.style.color = "#B23A2E";
+      msgEl.textContent = e.message;
+    }
+  });
+
+  document.getElementById("checkout-btn").addEventListener("click", async () => {
+    const errEl = document.getElementById("checkout-error");
+    errEl.textContent = "";
+    const cart = getCart();
+    if (!cart.length) return;
+
+    const address = {
+      full_name: document.getElementById("addr-name").value.trim(),
+      phone: document.getElementById("addr-phone").value.trim(),
+      line1: document.getElementById("addr-line1").value.trim(),
+      city: document.getElementById("addr-city").value.trim(),
+      state: document.getElementById("addr-state").value.trim(),
+      pincode: document.getElementById("addr-pincode").value.trim(),
+    };
+    const payment_method = document.querySelector('input[name="pay"]:checked').value;
+
+    try {
+      const res = await apiPost("/api/public/checkout", {
+        items: cart, address, payment_method,
+        coupon_code: appliedCoupon || undefined,
+        guest_email: "", guest_phone: address.phone,
+      });
+      localStorage.removeItem("ayur_cart");
+      document.getElementById("cart-body").style.display = "none";
+      document.getElementById("order-success").style.display = "block";
+      document.getElementById("success-order-number").textContent = res.order_number;
+      updateCartBadge();
+    } catch (e) {
+      errEl.textContent = e.message;
+    }
+  });
+
+  renderCart();
+</script>
+</body>
+</html>

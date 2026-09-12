@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/css/style.css">
+<!--SSR_HEAD-->
+</head>
+<body>
+
+<div class="announce-strip"><div class="container"><span>COD AVAILABLE</span><span>FREE SHIPPING ABOVE ₹599</span><span>Use Code <b>NEW10</b> for 10% Off</span></div></div>
+
+<header class="site-header">
+  <div class="container">
+    <div class="brand"><div class="brand-mark">AV</div><div class="brand-text"><h1>AyurVeda Store</h1><span>Authentic Ayurvedic Wellness</span></div></div>
+    <form class="header-search"><input type="text" placeholder="Search products, concerns, ingredients..."><button type="button">Search</button></form>
+    <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/cart">🛒<span class="cart-count">2</span></a></div>
+  </div>
+</header>
+
+<nav class="main-nav">
+  <div class="container">
+    <a href="/">Home</a><a href="/shop">Shop All</a>
+    <a href="/shop?f=concern">Shop by Health Concern</a><a href="/shop?f=benefit">Shop by Benefit</a>
+    <a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a><a href="/blog">Blog</a>
+  </div>
+</nav>
+
+<div class="container">
+  <p style="font-size:12.5px; color:#888; margin:14px 0 0;"><a href="/">Home</a> &rsaquo; <a href="/shop">Digestive Health</a> &rsaquo; Amlant Tablet</p>
+
+  <div class="product-detail" style="margin-top:14px;">
+    <div>
+      <div class="gallery-main">Main Product Image</div>
+      <div class="gallery-thumbs"><div></div><div></div><div></div><div></div></div>
+    </div>
+    <div>
+      <h2 class="pd-title">Maharishi Ayurveda Amlant Tablet — Ayurvedic Support for Recurring Acidity</h2>
+      <div class="stars">★★★★★ <span class="reviews">313 reviews</span></div>
+      <div class="pd-price-row"><span class="pd-price">₹380</span></div>
+
+      <ul class="pd-benefits">
+        <li>Natural acid balancer</li>
+        <li>Reduces reoccurrence of acidity</li>
+        <li>Reduces stomach bloating and constipation</li>
+      </ul>
+
+      <div style="font-size:13px; font-weight:700; margin-top:14px;">Select Pack Size:</div>
+      <div class="pd-packs">
+        <span class="pack-pill sel">Pack of 60 Tablets — ₹380</span>
+        <span class="pack-pill">Pack of 120 Tablets — ₹699</span>
+      </div>
+
+      <div class="qty-box" style="margin:14px 0;">
+        <button>−</button><span style="padding:0 8px;">1</span><button>+</button>
+      </div>
+
+      <div class="pd-actions">
+        <button class="btn-addcart" onclick="siteAddToCart(false)">Add to Cart</button>
+        <button class="btn-buynow" onclick="siteAddToCart(true)">Buy Now</button>
+      </div>
+      <div id="add-to-cart-msg" style="font-size:12.5px; color:#0e7a33; margin-top:6px;"></div>
+
+      <p style="font-size:12px; color:#888;" id="trust-badges"></p>
+
+      <div class="pd-tabs">
+        <button class="active" onclick="showTab(this,'desc')">Description</button>
+        <button onclick="showTab(this,'ingredients')">Ingredients</button>
+        <button onclick="showTab(this,'howto')">How to Use</button>
+        <button onclick="showTab(this,'reviews')">Reviews (313)</button>
+      </div>
+      <div id="tab-desc" class="pd-tab-content">Amlant Tablet is a classical Ayurvedic formulation that helps balance excess stomach acid naturally, reducing the frequency of acidity episodes while supporting healthy digestion and reducing bloating.</div>
+      <div id="tab-ingredients" class="pd-tab-content" style="display:none;">Shankh Bhasma, Kamdudha Ras, Praval Pishti, Mukta Shukti Bhasma, Yashad Bhasma.</div>
+      <div id="tab-howto" class="pd-tab-content" style="display:none;">Take 1–2 tablets twice daily after meals with water, or as directed by your physician.</div>
+      <div id="tab-reviews" class="pd-tab-content" style="display:none;">
+        <div class="review-item"><div class="stars">★★★★★</div><b>Rakesh M.</b> — Works well for my acidity issues, noticeable relief within a week.</div>
+        <div class="review-item"><div class="stars">★★★★☆</div><b>Neha S.</b> — Good product, natural and effective, no side effects so far.</div>
+        <div class="review-item"><div class="stars">★★★★★</div><b>Amit K.</b> — Highly recommend for anyone with recurring acidity problems.</div>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="section-title">You May Also Like</h3>
+  <div class="carousel-strip">
+    <div class="product-card"><div class="img">Image</div><div class="body"><div class="title">Dizomap — Gas &amp; Indigestion</div><div class="stars">★★★★★ <span class="reviews">(276)</span></div><div class="price-row"><span class="price">₹197</span></div><button class="add-btn" onclick="location.href='product.html'">View</button></div></div>
+    <div class="product-card"><div class="img">Image</div><div class="body"><div class="title">Livomap — Liver Health</div><div class="stars">★★★★★ <span class="reviews">(165)</span></div><div class="price-row"><span class="price">₹550</span></div><button class="add-btn" onclick="location.href='product.html'">View</button></div></div>
+    <div class="product-card"><div class="img">Image</div><div class="body"><div class="title">Triphala Tablets</div><div class="stars">★★★★★ <span class="reviews">(52)</span></div><div class="price-row"><span class="price">₹190</span></div><button class="add-btn" onclick="location.href='product.html'">View</button></div></div>
+  </div>
+</div>
+
+<footer class="mega-footer">
+  <div class="container">
+    <div><h5>Top Categories</h5><a href="/shop">Immunity</a><a href="/shop">Sleep &amp; Stress</a><a href="/shop">Digestive Health</a></div>
+    <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a><a href="#">FAQ</a></div>
+    <div><h5>Policies</h5><a href="#">Terms of Service</a><a href="#">Return &amp; Refund</a></div>
+    <div><h5>Quick Links</h5><a href="/shop">Shop by Product</a><a href="/consult-vaidya">Consult a Vaidya</a></div>
+    <div><h5>Newsletter</h5><input type="email" placeholder="Your email" style="width:100%;padding:8px;border-radius:6px;border:none;margin-bottom:8px;"><button style="width:100%;padding:8px;background:var(--gold);color:#fff;border:none;border-radius:6px;">Subscribe</button></div>
+  </div>
+  <div class="footer-bottom">© 2026 AyurVeda Store</div>
+</footer>
+
+<script>
+  // Trust badges: read from the real Settings API (set via Admin -> Settings).
+  fetch("/api/public/settings").then(r => r.json()).then(({ settings }) => {
+    const b = settings.trust_badges || { cod: true, shipping: true, return: true };
+    const badges = [
+      b.cod ? "✅ COD Available" : null,
+      b.shipping ? "🚚 Free shipping above ₹599" : null,
+      b.return ? "🔄 Easy 7-day return" : null,
+    ].filter(Boolean);
+    const el = document.getElementById("trust-badges");
+    if (el) el.innerHTML = badges.join(" &nbsp;|&nbsp; ");
+  }).catch(() => {});
+
+  function showTab(btn, id){
+    document.querySelectorAll('.pd-tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.pd-tab-content').forEach(c=>c.style.display='none');
+    btn.classList.add('active');
+    document.getElementById('tab-'+id).style.display='block';
+  }
+
+  // Pack-size selector: updates the displayed price and which variant
+  // Add to Cart/Buy Now will use (window.__PRODUCT__ is baked in by SSR).
+  let selectedVariantId = window.__PRODUCT__?.variants?.[0]?.id || null;
+  function fmtPrice(n){ return "₹" + Number(n).toLocaleString("en-IN"); }
+  document.querySelectorAll('.pd-packs .pack-pill').forEach(p=>{
+    p.addEventListener('click', ()=>{
+      document.querySelectorAll('.pd-packs .pack-pill').forEach(x=>x.classList.remove('sel'));
+      p.classList.add('sel');
+      selectedVariantId = p.dataset.variantId;
+      const price = p.dataset.price, mrp = p.dataset.mrp;
+      document.getElementById('pd-price-row').innerHTML =
+        `<span class="pd-price">${fmtPrice(price)}</span>` +
+        (mrp && Number(mrp) > Number(price) ? `<span class="pd-mrp">${fmtPrice(mrp)}</span>` : '');
+    });
+  });
+
+  function siteAddToCart(goToCart){
+    if (!selectedVariantId) return;
+    const qtyEl = document.querySelector('.qty-box span');
+    const qty = qtyEl ? Number(qtyEl.textContent) || 1 : 1;
+    addToCart(selectedVariantId, qty);
+    const msg = document.getElementById('add-to-cart-msg');
+    if (msg) msg.textContent = "Added to cart!";
+    if (goToCart) location.href = '/cart';
+  }
+
+  // Quantity +/- buttons
+  document.querySelectorAll('.qty-box button').forEach((btn, i) => {
+    btn.addEventListener('click', () => {
+      const span = btn.parentElement.querySelector('span');
+      let val = Number(span.textContent) || 1;
+      val = i === 0 ? Math.max(1, val - 1) : val + 1;
+      span.textContent = val;
+    });
+  });
+</script>
+</body>
+</html>

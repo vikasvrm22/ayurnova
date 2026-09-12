@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customers — AyurVeda Store Admin [WIREFRAME]</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
+      <a href="customers.html" class="active">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a><a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user"><div class="name">Vikas Sharma</div><div class="role-badge">Store Admin</div>
+      <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
+  </aside>
+  <main class="main-area">
+    <div class="page-header"><h2>Customers</h2></div>
+    <div class="filters-row"><input type="text" id="f-search" placeholder="Search email..."></div>
+    <table class="data-table">
+      <thead><tr><th>Email</th><th>Phone</th><th>Joined</th><th>Orders</th><th>Total Spent</th><th></th></tr></thead>
+      <tbody id="customers-rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+    </table>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
+  async function load() {
+    try {
+      const { items } = await Api.get("/customers");
+      const q = document.getElementById("f-search").value.toLowerCase();
+      const filtered = q ? items.filter(c => c.email.toLowerCase().includes(q)) : items;
+      document.getElementById("customers-rows").innerHTML = filtered.length
+        ? filtered.map(c => `
+          <tr>
+            <td>${c.email}</td><td>${c.phone || "-"}</td>
+            <td>${new Date(c.created_at).toLocaleDateString("en-IN")}</td>
+            <td>${c.order_count}</td><td>${fmt(c.total_spent)}</td>
+            <td>${c.order_count ? `<a href="orders-list.html?customer=${c.id}">View Orders →</a>` : "-"}</td>
+          </tr>`).join("")
+        : `<tr><td colspan="6">No customers found.</td></tr>`;
+    } catch (e) {
+      document.getElementById("customers-rows").innerHTML = `<tr><td colspan="6">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+  document.getElementById("f-search").addEventListener("input", load);
+  load();
+</script>
+</body>
+</html>

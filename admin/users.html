@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Users & Roles — AyurVeda Store Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a><a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html" class="active">Users &amp; Roles</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
+  </aside>
+  <main class="main-area">
+    <div class="page-header"><h2>Users &amp; Roles</h2><button class="btn btn-primary" id="invite-btn">+ Invite Staff</button></div>
+    <table class="data-table">
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+      <tbody id="staff-rows"><tr><td colspan="5">Loading...</td></tr></tbody>
+    </table>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  const ROLES = ["Viewer", "Editor", "Admin", "SuperAdmin"];
+
+  async function load() {
+    try {
+      const { items } = await Api.get("/staff");
+      document.getElementById("staff-rows").innerHTML = items.map(u => `
+        <tr>
+          <td>${u.name}</td><td>${u.email}</td>
+          <td><select onchange="updateRole('${u.id}', this.value)">${ROLES.map(r => `<option value="${r}" ${r===u.role?"selected":""}>${r}</option>`).join("")}</select></td>
+          <td><span class="badge badge-${u.status === "active" ? "delivered" : u.status === "invited" ? "pending" : "cancelled"}">${u.status}</span></td>
+          <td>${u.status !== "deactivated" ? `<button class="btn btn-danger" onclick="deactivate('${u.id}')">Deactivate</button>` : ""}</td>
+        </tr>`).join("");
+    } catch (e) {
+      document.getElementById("staff-rows").innerHTML = `<tr><td colspan="5">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+  async function updateRole(id, role) {
+    try { await Api.put(`/staff/${id}`, { role }); Toast.show("Role updated", "success"); }
+    catch (e) { Toast.show(e.message, "error"); load(); }
+  }
+  async function deactivate(id) {
+    if (!confirm("Deactivate this account?")) return;
+    try { await Api.post(`/staff/${id}/deactivate`, {}); Toast.show("Deactivated", "success"); load(); }
+    catch (e) { Toast.show(e.message, "error"); }
+  }
+
+  document.getElementById("invite-btn").addEventListener("click", () => {
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;";
+    backdrop.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:22px;width:360px;">
+        <h3 style="margin-top:0;">Invite Staff</h3>
+        <div class="form-field"><label>Name</label><input id="inv-name"></div>
+        <div class="form-field" style="margin-top:8px;"><label>Email</label><input id="inv-email" type="email"></div>
+        <div class="form-field" style="margin-top:8px;"><label>Role</label><select id="inv-role">${ROLES.map(r => `<option value="${r}">${r}</option>`).join("")}</select></div>
+        <div id="inv-link" style="font-size:12px; word-break:break-all; margin-top:8px;"></div>
+        <div id="inv-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+          <button class="btn btn-outline" id="inv-cancel">Close</button>
+          <button class="btn btn-primary" id="inv-save">Send Invite</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    backdrop.querySelector("#inv-cancel").onclick = () => { backdrop.remove(); load(); };
+    backdrop.querySelector("#inv-save").onclick = async () => {
+      try {
+        const res = await Api.post("/staff/invite", {
+          name: backdrop.querySelector("#inv-name").value.trim(),
+          email: backdrop.querySelector("#inv-email").value.trim(),
+          role: backdrop.querySelector("#inv-role").value,
+        });
+        backdrop.querySelector("#inv-link").innerHTML = `Share this setup link:<br><code>${location.origin}/admin/${res.setupLink}</code>`;
+        Toast.show("Invite created", "success");
+      } catch (e) { backdrop.querySelector("#inv-error").textContent = e.message; }
+    };
+  });
+
+  load();
+</script>
+</body>
+</html>

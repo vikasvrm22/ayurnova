@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/css/style.css"><!--SSR_HEAD-->
+</head>
+<body>
+<div class="announce-strip"><div class="container"><span>COD AVAILABLE</span><span>FREE SHIPPING ABOVE ₹599</span></div></div>
+<header class="site-header"><div class="container">
+  <div class="brand"><div class="brand-mark">AV</div><div class="brand-text"><h1>AyurVeda Store</h1><span>Authentic Ayurvedic Wellness</span></div></div>
+  <form class="header-search"><input type="text" placeholder="Search products..."><button type="button">Search</button></form>
+  <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/cart">🛒<span class="cart-count">0</span></a></div>
+</div></header>
+<nav class="main-nav"><div class="container">
+  <a href="/">Home</a><a href="/shop">Shop All</a><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a>
+</div></nav>
+
+<div class="container" style="padding:40px 16px;">
+  <div class="form-card" id="auth-forms">
+    <div style="display:flex; gap:0; margin-bottom:16px; border-bottom:1px solid var(--hairline);">
+      <button id="tab-login-btn" style="flex:1; padding:10px; border:none; background:none; font-weight:700; border-bottom:2px solid var(--green);">Login</button>
+      <button id="tab-signup-btn" style="flex:1; padding:10px; border:none; background:none; font-weight:700; color:#999;">Sign Up</button>
+    </div>
+
+    <div id="login-panel">
+      <label>Email</label><input type="email" id="login-email" placeholder="you@example.com">
+      <label>Password</label><input type="password" id="login-password" placeholder="••••••••">
+      <div id="login-error" style="color:#B23A2E; font-size:12.5px; margin-top:6px;"></div>
+      <button type="button" id="login-btn">Login</button>
+    </div>
+
+    <div id="signup-panel" style="display:none;">
+      <label>Full Name</label><input type="text" id="signup-name" placeholder="Your name">
+      <label>Email</label><input type="email" id="signup-email" placeholder="you@example.com">
+      <label>Password</label><input type="password" id="signup-password" placeholder="At least 6 characters">
+      <div id="signup-error" style="color:#B23A2E; font-size:12.5px; margin-top:6px;"></div>
+      <div id="signup-msg" style="color:#0e7a33; font-size:12.5px; margin-top:6px;"></div>
+      <button type="button" id="signup-btn">Create Account</button>
+    </div>
+  </div>
+
+  <div id="account-panel" style="display:none;">
+    <div class="form-card" style="max-width:700px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 class="section-title" style="margin:0; text-align:left;">My Orders</h3>
+        <button id="logout-btn" style="background:#fff; border:1px solid var(--hairline); padding:8px 16px; border-radius:20px; width:auto;">Log Out</button>
+      </div>
+      <div id="orders-list" style="margin-top:16px;"></div>
+    </div>
+  </div>
+</div>
+
+<footer class="mega-footer"><div class="container">
+  <div><h5>Top Categories</h5><a href="/shop">Immunity</a><a href="/shop">Sleep &amp; Stress</a></div>
+  <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a></div>
+  <div><h5>Policies</h5><a href="#">Return &amp; Refund</a><a href="#">Privacy Policy</a></div>
+  <div><h5>Quick Links</h5><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a></div>
+  <div><h5>Newsletter</h5><input type="email" placeholder="Your email" style="width:100%;padding:8px;border-radius:6px;border:none;margin-bottom:8px;"><button style="width:100%;padding:8px;background:var(--gold);color:#fff;border:none;border-radius:6px;">Subscribe</button></div>
+</div><div class="footer-bottom">© 2026 AyurVeda Store</div></footer>
+
+<script>
+  document.getElementById("tab-login-btn").addEventListener("click", () => {
+    document.getElementById("login-panel").style.display = "block";
+    document.getElementById("signup-panel").style.display = "none";
+    document.getElementById("tab-login-btn").style.borderBottom = "2px solid var(--green)";
+    document.getElementById("tab-signup-btn").style.borderBottom = "none";
+  });
+  document.getElementById("tab-signup-btn").addEventListener("click", () => {
+    document.getElementById("signup-panel").style.display = "block";
+    document.getElementById("login-panel").style.display = "none";
+    document.getElementById("tab-signup-btn").style.borderBottom = "2px solid var(--green)";
+    document.getElementById("tab-login-btn").style.borderBottom = "none";
+  });
+
+  document.getElementById("login-btn").addEventListener("click", async () => {
+    const errEl = document.getElementById("login-error");
+    errEl.textContent = "";
+    if (!window.supabaseClient) { errEl.textContent = "Login is not configured yet (Supabase not set up)."; return; }
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
+    const { error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) { errEl.textContent = error.message; return; }
+    checkSession();
+  });
+
+  document.getElementById("signup-btn").addEventListener("click", async () => {
+    const errEl = document.getElementById("signup-error");
+    const msgEl = document.getElementById("signup-msg");
+    errEl.textContent = ""; msgEl.textContent = "";
+    if (!window.supabaseClient) { errEl.textContent = "Sign up is not configured yet (Supabase not set up)."; return; }
+    const name = document.getElementById("signup-name").value.trim();
+    const email = document.getElementById("signup-email").value.trim();
+    const password = document.getElementById("signup-password").value;
+    const { error } = await window.supabaseClient.auth.signUp({ email, password, options: { data: { full_name: name } } });
+    if (error) { errEl.textContent = error.message; return; }
+    msgEl.textContent = "Account created! Check your email to confirm, then log in.";
+  });
+
+  document.getElementById("logout-btn").addEventListener("click", async () => {
+    if (window.supabaseClient) await window.supabaseClient.auth.signOut();
+    location.reload();
+  });
+
+  function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
+
+  async function loadOrders() {
+    try {
+      const { items } = await apiGet("/api/public/my-orders");
+      const listEl = document.getElementById("orders-list");
+      if (!items.length) { listEl.innerHTML = `<p style="color:#888;">You haven't placed any orders yet.</p>`; return; }
+      listEl.innerHTML = items.map(o => `
+        <div style="border-bottom:1px solid var(--hairline); padding:12px 0; display:flex; justify-content:space-between; font-size:13.5px;">
+          <div><b>${o.order_number}</b><br><span style="color:#888; font-size:12px;">${new Date(o.created_at).toLocaleDateString("en-IN")}</span></div>
+          <div style="text-align:right;">${fmt(o.total)}<br><span class="badge-${o.status}" style="font-size:11px; text-transform:capitalize;">${o.status}</span></div>
+        </div>
+      `).join("");
+    } catch (e) {
+      document.getElementById("orders-list").innerHTML = `<p style="color:#B23A2E;">Could not load orders: ${e.message}</p>`;
+    }
+  }
+
+  async function checkSession() {
+    if (!window.supabaseClient) return;
+    const { data } = await window.supabaseClient.auth.getSession();
+    if (data?.session) {
+      document.getElementById("auth-forms").style.display = "none";
+      document.getElementById("account-panel").style.display = "block";
+      loadOrders();
+    } else {
+      document.getElementById("auth-forms").style.display = "block";
+      document.getElementById("account-panel").style.display = "none";
+    }
+  }
+
+  checkSession();
+</script>
+</body>
+</html>

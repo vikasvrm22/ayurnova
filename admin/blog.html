@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blog Posts — AyurVeda Store Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
+      <a href="blog.html" class="active">Blog Posts</a><a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
+  </aside>
+  <main class="main-area">
+    <div class="page-header"><h2>Blog Posts</h2><button class="btn btn-primary" id="new-post-btn">+ New Post</button></div>
+    <table class="data-table">
+      <thead><tr><th>Title</th><th>Status</th><th></th></tr></thead>
+      <tbody id="posts-rows"><tr><td colspan="3">Loading...</td></tr></tbody>
+    </table>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  async function load() {
+    try {
+      const { items } = await Api.get("/blog");
+      document.getElementById("posts-rows").innerHTML = items.length ? items.map(p => `
+        <tr><td>${p.title}</td><td><span class="badge badge-${p.status === 'published' ? 'delivered' : 'pending'}">${p.status}</span></td>
+        <td>
+          ${p.status !== "published" ? `<button class="btn btn-primary" onclick="publish('${p.id}')">Publish</button>` : ""}
+          <button class="btn btn-danger" onclick="remove('${p.id}')">Delete</button>
+        </td></tr>`).join("") : `<tr><td colspan="3">No posts yet.</td></tr>`;
+    } catch (e) {
+      document.getElementById("posts-rows").innerHTML = `<tr><td colspan="3">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+  async function publish(id) { try { await Api.post(`/blog/${id}/publish`, {}); Toast.show("Published","success"); load(); } catch(e){ Toast.show(e.message,"error"); } }
+  async function remove(id) { if(!confirm("Delete this post?")) return; try { await Api.del(`/blog/${id}`); Toast.show("Deleted","success"); load(); } catch(e){ Toast.show(e.message,"error"); } }
+
+  document.getElementById("new-post-btn").addEventListener("click", () => {
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;";
+    backdrop.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:22px;width:420px;">
+        <h3 style="margin-top:0;">New Blog Post</h3>
+        <div class="form-field"><label>Title</label><input id="np-title"></div>
+        <div class="form-field" style="margin-top:8px;"><label>Excerpt</label><textarea id="np-excerpt"></textarea></div>
+        <div class="form-field" style="margin-top:8px;"><label>Body</label><textarea id="np-body" style="min-height:120px;"></textarea></div>
+        <div id="np-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+          <button class="btn btn-outline" id="np-cancel">Cancel</button>
+          <button class="btn btn-primary" id="np-save">Create Draft</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    backdrop.querySelector("#np-cancel").onclick = () => backdrop.remove();
+    backdrop.querySelector("#np-save").onclick = async () => {
+      try {
+        await Api.post("/blog", {
+          title: backdrop.querySelector("#np-title").value.trim(),
+          excerpt: backdrop.querySelector("#np-excerpt").value,
+          body: backdrop.querySelector("#np-body").value,
+        });
+        backdrop.remove();
+        Toast.show("Draft created", "success");
+        load();
+      } catch (e) { backdrop.querySelector("#np-error").textContent = e.message; }
+    };
+  });
+
+  load();
+</script>
+</body>
+</html>

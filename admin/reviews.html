@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reviews — AyurVeda Store Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html" class="active">Reviews</a>
+      <a href="blog.html">Blog Posts</a><a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
+  </aside>
+  <main class="main-area">
+    <div class="page-header"><h2>Reviews</h2>
+      <select id="f-status"><option value="">All</option><option value="pending" selected>Pending</option><option value="approved">Approved</option><option value="rejected">Rejected</option></select>
+    </div>
+    <table class="data-table">
+      <thead><tr><th>Product</th><th>Rating</th><th>Review</th><th>By</th><th></th></tr></thead>
+      <tbody id="reviews-rows"><tr><td colspan="5">Loading...</td></tr></tbody>
+    </table>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  async function load() {
+    const status = document.getElementById("f-status").value;
+    try {
+      const { items } = await Api.get(`/reviews?status=${status}`);
+      document.getElementById("reviews-rows").innerHTML = items.length ? items.map(r => `
+        <tr>
+          <td>${r.products?.title || "-"}</td>
+          <td>${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</td>
+          <td>${r.title ? `<b>${r.title}</b><br>` : ""}${r.body || ""}</td>
+          <td>${r.customer_name}</td>
+          <td>${r.status === "pending" ? `
+            <button class="btn btn-primary" onclick="moderate('${r.id}','approve')">Approve</button>
+            <button class="btn btn-danger" onclick="moderate('${r.id}','reject')">Reject</button>` : `<span class="badge badge-${r.status === 'approved' ? 'delivered' : 'cancelled'}">${r.status}</span>`}</td>
+        </tr>`).join("") : `<tr><td colspan="5">No reviews found.</td></tr>`;
+    } catch (e) {
+      document.getElementById("reviews-rows").innerHTML = `<tr><td colspan="5">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+  async function moderate(id, action) {
+    try { await Api.post(`/reviews/${id}/${action}`, {}); Toast.show("Updated", "success"); load(); }
+    catch (e) { Toast.show(e.message, "error"); }
+  }
+  document.getElementById("f-status").addEventListener("change", load);
+  load();
+</script>
+</body>
+</html>

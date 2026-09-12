@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vaidya Bookings — AyurVeda Store Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a><a href="vaidya-bookings.html" class="active">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
+  </aside>
+  <main class="main-area">
+    <div class="page-header"><h2>Consult-a-Vaidya Bookings</h2></div>
+    <table class="data-table">
+      <thead><tr><th>Name</th><th>Phone</th><th>Concern</th><th>Preferred Vaidya</th><th>Status</th><th></th></tr></thead>
+      <tbody id="bookings-rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+    </table>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  async function load() {
+    try {
+      const { items } = await Api.get("/vaidya-bookings");
+      document.getElementById("bookings-rows").innerHTML = items.length ? items.map(b => `
+        <tr>
+          <td>${b.full_name}</td><td>${b.phone}</td><td>${b.concern || "-"}</td><td>${b.preferred_vaidya || "Any"}</td>
+          <td><select onchange="updateStatus('${b.id}', this.value)">
+            ${["pending","confirmed","completed","cancelled"].map(s => `<option value="${s}" ${b.status===s?"selected":""}>${s}</option>`).join("")}
+          </select></td>
+          <td>${b.description || "-"}</td>
+        </tr>`).join("") : `<tr><td colspan="6">No bookings yet.</td></tr>`;
+    } catch (e) {
+      document.getElementById("bookings-rows").innerHTML = `<tr><td colspan="6">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+  async function updateStatus(id, status) {
+    try { await Api.put(`/vaidya-bookings/${id}/status`, { status }); Toast.show("Updated", "success"); }
+    catch (e) { Toast.show(e.message, "error"); load(); }
+  }
+  load();
+</script>
+</body>
+</html>

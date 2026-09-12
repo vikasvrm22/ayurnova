@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings — AyurVeda Store Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a><a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a><a href="settings.html" class="active">Settings</a>
+    </nav>
+    <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
+  </aside>
+  <main class="main-area">
+    <div class="page-header"><h2>Settings</h2></div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Shipping &amp; Checkout</h3>
+      <div class="form-field"><label>Free Shipping Threshold (₹)</label><input type="number" id="f-free-shipping"></div>
+      <div class="form-field" style="margin-top:10px;"><label>Prepaid Discount (%)</label><input type="number" id="f-prepaid-discount"></div>
+      <button class="btn btn-primary" style="margin-top:10px;" id="save-shipping">Save</button>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Payment Gateway</h3>
+      <p style="font-size:13px; color:#666;">Razorpay / PayU keys configured via server .env — not editable here for security. See SETUP.md.</p>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Trust Badges (shown on Product &amp; Cart pages)</h3>
+      <p style="font-size:12.5px; color:#888; margin-top:-6px;">Turn these on/off site-wide — the storefront reads this live from the database.</p>
+      <div class="toggle-row">
+        <div><div class="label">✅ COD Available</div><div class="sub">Shows the "Cash on Delivery available" badge</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-cod"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="label">🚚 Free Shipping Badge</div><div class="sub">Shows the free-shipping badge</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-shipping"><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="label">🔄 Easy 7-Day Return</div><div class="sub">Shows the "Easy 7-day return" badge</div></div>
+        <label class="switch"><input type="checkbox" id="toggle-return"><span class="slider"></span></label>
+      </div>
+      <button class="btn btn-primary" style="margin-top:14px;" id="save-badges">Save</button>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Uploads &amp; Image Compression</h3>
+      <p style="font-size:12.5px; color:#888; margin-top:-6px;">Every uploaded product image is automatically converted to WebP and compressed to the target size below - this is what actually controls Storage/bandwidth cost, not just a reject-if-too-big limit.</p>
+      <div class="form-field"><label>Max Original File Size Accepted (MB)</label><input type="number" step="0.5" min="0.5" id="f-max-image-mb"></div>
+      <div class="form-field" style="margin-top:10px;"><label>Target Compressed Size (KB)</label><input type="number" step="10" min="50" id="f-target-kb"></div>
+      <button class="btn btn-primary" style="margin-top:10px;" id="save-uploads">Save</button>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Social Links</h3>
+      <div class="form-field"><label>WhatsApp Channel URL</label><input id="f-whatsapp"></div>
+      <div class="form-field" style="margin-top:10px;"><label>Telegram Channel URL</label><input id="f-telegram"></div>
+      <div class="form-field" style="margin-top:10px;"><label>Instagram URL</label><input id="f-instagram"></div>
+      <button class="btn btn-primary" style="margin-top:10px;" id="save-social">Save</button>
+    </div>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  async function loadSettings() {
+    try {
+      const { settings } = await Api.get("/settings");
+      const badges = settings.trust_badges || { cod: true, shipping: true, return: true };
+      document.getElementById("toggle-cod").checked = badges.cod;
+      document.getElementById("toggle-shipping").checked = badges.shipping;
+      document.getElementById("toggle-return").checked = badges.return;
+
+      const shipping = settings.shipping || { free_shipping_threshold: 599, prepaid_discount_percent: 2 };
+      document.getElementById("f-free-shipping").value = shipping.free_shipping_threshold;
+      document.getElementById("f-prepaid-discount").value = shipping.prepaid_discount_percent;
+
+      const uploads = settings.uploads || { max_image_mb: 5, target_kb: 200 };
+      document.getElementById("f-max-image-mb").value = uploads.max_image_mb;
+      document.getElementById("f-target-kb").value = uploads.target_kb;
+
+      const social = settings.social_links || {};
+      document.getElementById("f-whatsapp").value = social.whatsapp_channel || "";
+      document.getElementById("f-telegram").value = social.telegram || "";
+      document.getElementById("f-instagram").value = social.instagram || "";
+    } catch (e) {
+      Toast.show(`Could not load settings: ${e.message}`, "error");
+    }
+  }
+
+  document.getElementById("save-badges").addEventListener("click", async () => {
+    try {
+      await Api.put("/settings/trust_badges", {
+        value: {
+          cod: document.getElementById("toggle-cod").checked,
+          shipping: document.getElementById("toggle-shipping").checked,
+          return: document.getElementById("toggle-return").checked,
+        },
+      });
+      Toast.show("Trust badges saved", "success");
+    } catch (e) { Toast.show(e.message, "error"); }
+  });
+
+  document.getElementById("save-shipping").addEventListener("click", async () => {
+    try {
+      await Api.put("/settings/shipping", {
+        value: {
+          free_shipping_threshold: Number(document.getElementById("f-free-shipping").value),
+          prepaid_discount_percent: Number(document.getElementById("f-prepaid-discount").value),
+        },
+      });
+      Toast.show("Shipping settings saved", "success");
+    } catch (e) { Toast.show(e.message, "error"); }
+  });
+
+  document.getElementById("save-uploads").addEventListener("click", async () => {
+    try {
+      await Api.put("/settings/uploads", {
+        value: {
+          max_image_mb: Number(document.getElementById("f-max-image-mb").value),
+          target_kb: Number(document.getElementById("f-target-kb").value),
+        },
+      });
+      Toast.show("Upload settings saved", "success");
+    } catch (e) { Toast.show(e.message, "error"); }
+  });
+
+  document.getElementById("save-social").addEventListener("click", async () => {
+    try {
+      await Api.put("/settings/social_links", {
+        value: {
+          whatsapp_channel: document.getElementById("f-whatsapp").value.trim(),
+          telegram: document.getElementById("f-telegram").value.trim(),
+          instagram: document.getElementById("f-instagram").value.trim(),
+        },
+      });
+      Toast.show("Social links saved", "success");
+    } catch (e) { Toast.show(e.message, "error"); }
+  });
+
+  loadSettings();
+</script>
+</body>
+</html>

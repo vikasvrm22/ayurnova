@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order #AV-10412 — AyurVeda Store Admin [WIREFRAME]</title>
+<link rel="stylesheet" href="css/admin.css">
+<script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="products-list.html">Products</a>
+      <a href="orders-list.html" class="active">Orders</a>
+      <a href="customers.html">Customers</a>
+      <a href="coupons.html">Coupons</a>
+      <a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a>
+      <a href="users.html">Users &amp; Roles</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user">
+      <div class="name">Vikas Sharma</div>
+      <div class="role-badge">Store Admin</div>
+      <button id="change-password-btn">Change Password</button>
+      <button onclick="Api.clearSession(); location.href='login.html';">Log out</button>
+    </div>
+  </aside>
+
+  <main class="main-area">
+    <div class="page-header">
+      <h2 id="page-title">Order</h2>
+      <a class="btn btn-outline" href="orders-list.html">← Back to orders</a>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0;">Items</h3>
+          <table class="data-table">
+            <thead><tr><th>Product</th><th>Variant</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
+            <tbody id="items-rows"><tr><td colspan="5">Loading...</td></tr></tbody>
+          </table>
+          <div style="text-align:right; margin-top:10px; font-size:13.5px;" id="totals-block"></div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">Order Status</h3>
+          <div class="form-field"><label>Update Status</label>
+            <select id="f-status"><option value="pending">Pending</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select>
+          </div>
+          <div class="form-field" style="margin-top:10px;"><label>Tracking Number (if shipped)</label><input id="f-tracking" placeholder="e.g. DTDC123456789"></div>
+          <button class="btn btn-primary" style="margin-top:12px;" id="update-btn">Update Order</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0;">Customer</h3>
+          <div id="customer-block" style="font-size:13px; color:#666;">Loading...</div>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;">Shipping Address</h3>
+          <p style="font-size:13px; color:#666; line-height:1.6;" id="address-block"></p>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;">Payment</h3>
+          <p style="font-size:13px;" id="payment-block"></p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  const orderId = new URLSearchParams(location.search).get("id");
+  function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
+
+  async function load() {
+    if (!orderId) { document.getElementById("page-title").textContent = "No order selected"; return; }
+    try {
+      const { order, items } = await Api.get(`/orders/${orderId}`);
+      document.getElementById("page-title").textContent = `Order ${order.order_number}`;
+      document.getElementById("items-rows").innerHTML = items.map(i => `
+        <tr><td><span class="thumb"></span>${i.title_snapshot}</td><td>${i.variant_label_snapshot || "-"}</td><td>${i.qty}</td><td>${fmt(i.price_snapshot)}</td><td>${fmt(i.subtotal)}</td></tr>`).join("");
+      document.getElementById("totals-block").innerHTML = `
+        <div>Subtotal: ${fmt(order.subtotal)}</div>
+        <div>Shipping: ${order.shipping_fee === 0 ? "FREE" : fmt(order.shipping_fee)}</div>
+        ${order.discount ? `<div>Discount: −${fmt(order.discount)}</div>` : ""}
+        <div style="font-weight:800; font-size:16px;">Total: ${fmt(order.total)}</div>`;
+      document.getElementById("f-status").value = order.status;
+      document.getElementById("f-tracking").value = order.tracking_number || "";
+      const addr = order.shipping_address || {};
+      document.getElementById("customer-block").innerHTML = `
+        <p style="margin:4px 0;"><b>${addr.full_name || order.guest_email || "-"}</b></p>
+        <p style="margin:4px 0;">${order.guest_email || "-"}</p>
+        <p style="margin:4px 0;">${addr.phone || order.guest_phone || "-"}</p>`;
+      document.getElementById("address-block").textContent = `${addr.line1 || ""}, ${addr.city || ""}, ${addr.state || ""} — ${addr.pincode || ""}`;
+      document.getElementById("payment-block").innerHTML = `
+        Method: <b>${order.payment_method === "cod" ? "Cash on Delivery" : "Prepaid"}</b><br>
+        Status: <span class="badge badge-${order.payment_status === "paid" ? "delivered" : "pending"}">${order.payment_status}</span>`;
+    } catch (e) {
+      Toast.show(`Could not load order: ${e.message}`, "error");
+    }
+  }
+
+  document.getElementById("update-btn").addEventListener("click", async () => {
+    try {
+      await Api.put(`/orders/${orderId}/status`, {
+        status: document.getElementById("f-status").value,
+        tracking_number: document.getElementById("f-tracking").value.trim(),
+      });
+      Toast.show("Order updated", "success");
+      load();
+    } catch (e) {
+      Toast.show(e.message, "error");
+    }
+  });
+
+  load();
+</script>
+</body>
+</html>

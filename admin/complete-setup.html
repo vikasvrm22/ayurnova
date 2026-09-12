@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Set Your Password — AyurVeda Store Admin</title><link rel="stylesheet" href="css/admin.css">
+<script src="js/api.js"></script>
+</head>
+<body>
+<div class="login-screen">
+  <form class="login-box" id="setup-form">
+    <h1>Set Your Password</h1>
+    <p style="font-size:12px; color:#666; margin-top:-8px;">At least 10 characters, with a letter and a number.</p>
+    <label>New Password</label><input type="password" id="setup-password" required>
+    <label>Confirm Password</label><input type="password" id="setup-password2" required>
+    <div id="setup-error" style="color:#b91c1c; font-size:12.5px; margin-top:8px; min-height:14px;"></div>
+    <button type="submit">Set Password &amp; Continue</button>
+  </form>
+</div>
+<script>
+  function getToken() { return new URLSearchParams(location.search).get("token"); }
+  document.getElementById("setup-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById("setup-error");
+    errEl.textContent = "";
+    const token = getToken();
+    const p1 = document.getElementById("setup-password").value;
+    const p2 = document.getElementById("setup-password2").value;
+    if (!token) { errEl.textContent = "Missing setup token in the link."; return; }
+    if (p1 !== p2) { errEl.textContent = "Passwords do not match."; return; }
+    try {
+      await Api.post("/auth/complete-setup", { setupToken: token, password: p1 });
+      alert("Password set! You can now log in.");
+      location.href = "login.html";
+    } catch (err) {
+      errEl.textContent = err.message || "Could not set password.";
+    }
+  });
+</script>
+</body>
+</html>

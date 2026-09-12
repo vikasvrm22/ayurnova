@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product — AyurVeda Store Admin</title>
+<link rel="stylesheet" href="css/admin.css">
+<script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="products-list.html" class="active">Products</a>
+      <a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a>
+      <a href="coupons.html">Coupons</a>
+      <a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a>
+      <a href="users.html">Users &amp; Roles</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user">
+      <div class="name"></div>
+      <div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button>
+      <button onclick="Api.clearSession(); location.href='login.html';">Log out</button>
+    </div>
+  </aside>
+
+  <main class="main-area">
+    <div class="page-header">
+      <h2 id="page-title">New Product</h2>
+      <a class="btn btn-outline" href="products-list.html">← Back to list</a>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="form-grid">
+          <div class="form-field full"><label>Product Title *</label><input id="f-title"><div class="field-error" id="err-title"></div></div>
+          <div class="form-field"><label>Category</label><select id="f-category"><option value="">— None —</option></select></div>
+          <div class="form-field"><label>Brand</label><input id="f-brand"></div>
+
+          <div class="form-field full"><label>Short Description (bullets, one per line)</label><textarea id="f-short-desc"></textarea></div>
+          <div class="form-field full"><label>Full Description</label><textarea id="f-description"></textarea></div>
+          <div class="form-field full"><label>Ingredients</label><textarea id="f-ingredients"></textarea></div>
+          <div class="form-field full"><label>How to Use</label><textarea id="f-how-to-use"></textarea></div>
+
+          <div class="form-field full">
+            <label>Product Images</label>
+            <div class="img-upload-grid" id="image-grid"></div>
+            <input type="file" id="image-file-input" accept="image/jpeg,image/png,image/webp" style="margin-top:8px;">
+            <div id="image-note" style="font-size:11.5px; color:#888; margin-top:4px;"></div>
+          </div>
+
+          <div class="form-field full">
+            <label>Pack Size Variants</label>
+            <div id="variant-rows"></div>
+            <button type="button" class="btn btn-outline" id="add-variant-btn">+ Add Variant</button>
+          </div>
+
+          <div class="form-field full"><label>SEO Title</label><input id="f-seo-title"></div>
+          <div class="form-field full"><label>SEO Meta Description</label><textarea id="f-seo-description"></textarea></div>
+          <div class="form-field"><label>Status</label><input id="f-status" disabled></div>
+        </div>
+
+        <div style="margin-top:16px; display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-primary" id="save-btn">Save Changes</button>
+          <button class="btn btn-primary" id="publish-btn" style="background:#0e7a33; display:none;">Publish</button>
+          <button class="btn btn-outline" id="archive-btn" style="display:none;">Archive</button>
+          <button class="btn btn-danger" id="delete-btn" style="display:none;">Delete Product</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="preview-pane">
+          <h3 style="margin-top:0;">Live Preview</h3>
+          <div id="preview-body"></div>
+        </div>
+        <div class="card" style="margin-top:14px;">
+          <h3 style="margin-top:0;">Activity</h3>
+          <div id="activity-list" style="font-size:12px; color:#888;">No activity yet.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  let productId = params.get("id");
+  let variants = []; // {id?, label, price, mrp, stock}
+  let removedVariantIds = [];
+  let images = []; // {id, url}
+
+  async function loadCategories() {
+    try {
+      const { items } = await Api.get("/categories");
+      const sel = document.getElementById("f-category");
+      items.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.id; opt.textContent = `${c.name} (${c.type})`;
+        sel.appendChild(opt);
+      });
+    } catch (e) { /* non-fatal */ }
+  }
+
+  function renderVariantRows() {
+    document.getElementById("variant-rows").innerHTML = variants.map((v, i) => `
+      <div class="variant-row">
+        <input value="${v.label || ""}" placeholder="Label e.g. Pack of 60 Tablets" style="flex:2;" oninput="variants[${i}].label=this.value; updatePreview();">
+        <input value="${v.price || ""}" type="number" placeholder="Price" style="flex:1;" oninput="variants[${i}].price=this.value; updatePreview();">
+        <input value="${v.mrp || ""}" type="number" placeholder="MRP" style="flex:1;" oninput="variants[${i}].mrp=this.value;">
+        <input value="${v.stock ?? ""}" type="number" placeholder="Stock" style="flex:1;" oninput="variants[${i}].stock=this.value;">
+        <button type="button" class="btn btn-danger" onclick="removeVariantRow(${i})">Remove</button>
+      </div>`).join("");
+  }
+  function removeVariantRow(i) {
+    if (variants[i].id) removedVariantIds.push(variants[i].id);
+    variants.splice(i, 1);
+    renderVariantRows();
+    updatePreview();
+  }
+  document.getElementById("add-variant-btn").addEventListener("click", () => {
+    variants.push({ label: "", price: "", mrp: "", stock: 0 });
+    renderVariantRows();
+  });
+
+  function renderImages() {
+    const grid = document.getElementById("image-grid");
+    grid.innerHTML = images.map(img => `
+      <div class="img-upload-slot" style="background-image:url('${img.url}'); background-size:cover; position:relative;">
+        <button onclick="removeImage('${img.id}')" style="position:absolute; top:2px; right:2px; background:#b91c1c; color:#fff; border:none; border-radius:50%; width:18px; height:18px; font-size:10px; cursor:pointer;">×</button>
+      </div>`).join("") + `<div class="img-upload-slot" style="color:#98a1c2;">+ Add via file picker below</div>`;
+  }
+  async function removeImage(imageId) {
+    if (!productId) return;
+    await Api.del(`/products/${productId}/images/${imageId}`);
+    images = images.filter(i => i.id !== imageId);
+    renderImages();
+  }
+  document.getElementById("image-file-input").addEventListener("change", async (e) => {
+    if (!productId) { Toast.show("Save the product first, then add images.", "error"); return; }
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("image", file);
+    try {
+      const res = await Api.postForm(`/products/${productId}/images`, formData);
+      images.push(res.item);
+      renderImages();
+      updatePreview();
+    } catch (err) {
+      Toast.show(err.message, "error");
+    }
+  });
+
+  function collectPayload() {
+    return {
+      title: document.getElementById("f-title").value.trim(),
+      category_id: document.getElementById("f-category").value || null,
+      brand: document.getElementById("f-brand").value.trim(),
+      short_description: document.getElementById("f-short-desc").value,
+      description: document.getElementById("f-description").value,
+      ingredients: document.getElementById("f-ingredients").value,
+      how_to_use: document.getElementById("f-how-to-use").value,
+      seo_title: document.getElementById("f-seo-title").value,
+      seo_description: document.getElementById("f-seo-description").value,
+    };
+  }
+
+  function updatePreview() {
+    const p = collectPayload();
+    const bullets = (p.short_description || "").split("\n").filter(Boolean);
+    const firstVariant = variants[0];
+    document.getElementById("preview-body").innerHTML = `
+      <div style="height:140px; background:${images[0] ? `url('${images[0].url}') center/cover` : "linear-gradient(135deg,#eef3ea,#f7f1e0)"}; border-radius:8px; margin-bottom:10px;"></div>
+      <h4 style="margin:0 0 4px;">${p.title || "(untitled)"}</h4>
+      <ul style="font-size:12.5px; padding-left:18px; color:#666;">${bullets.map(b => `<li>${b}</li>`).join("")}</ul>
+      ${firstVariant ? `<div style="font-weight:800; font-size:16px; color:#2F5233;">₹${firstVariant.price || 0}</div>` : ""}
+      <div style="font-size:12px; color:#888; margin-top:6px;">${variants.map(v => v.label).filter(Boolean).join(" | ")}</div>
+    `;
+  }
+  ["f-title", "f-short-desc"].forEach(id => document.getElementById(id).addEventListener("input", updatePreview));
+
+  async function loadProduct() {
+    if (!productId) { renderVariantRows(); renderImages(); updatePreview(); return; }
+    document.getElementById("page-title").textContent = "Edit Product";
+    document.getElementById("publish-btn").style.display = "inline-block";
+    document.getElementById("archive-btn").style.display = "inline-block";
+    document.getElementById("delete-btn").style.display = "inline-block";
+    try {
+      const { item, activity } = await Api.get(`/products/${productId}`);
+      document.getElementById("f-title").value = item.title || "";
+      document.getElementById("f-category").value = item.category_id || "";
+      document.getElementById("f-brand").value = item.brand || "";
+      document.getElementById("f-short-desc").value = item.short_description || "";
+      document.getElementById("f-description").value = item.description || "";
+      document.getElementById("f-ingredients").value = item.ingredients || "";
+      document.getElementById("f-how-to-use").value = item.how_to_use || "";
+      document.getElementById("f-seo-title").value = item.seo_title || "";
+      document.getElementById("f-seo-description").value = item.seo_description || "";
+      document.getElementById("f-status").value = item.status;
+      variants = (item.product_variants || []).map(v => ({ ...v }));
+      images = (item.product_images || []).sort((a, b) => a.sort_order - b.sort_order);
+      renderVariantRows();
+      renderImages();
+      updatePreview();
+      document.getElementById("activity-list").innerHTML = (activity || []).length
+        ? activity.map(a => `<div style="padding:4px 0; border-bottom:1px solid #eee;"><b>${a.action}</b> by ${a.actor || "system"} — ${new Date(a.at).toLocaleString("en-IN")}</div>`).join("")
+        : "No activity yet.";
+    } catch (e) {
+      Toast.show(`Could not load product: ${e.message}`, "error");
+    }
+  }
+
+  async function saveVariants(id) {
+    for (const v of variants) {
+      const body = { label: v.label, price: Number(v.price), mrp: v.mrp ? Number(v.mrp) : null, stock: Number(v.stock || 0) };
+      if (v.id) await Api.put(`/products/${id}/variants/${v.id}`, body).catch(err => Toast.show(err.message, "error"));
+      else { const res = await Api.post(`/products/${id}/variants`, body).catch(err => { Toast.show(err.message, "error"); return null; }); if (res) v.id = res.item.id; }
+    }
+    for (const rid of removedVariantIds) await Api.del(`/products/${id}/variants/${rid}`).catch(() => {});
+    removedVariantIds = [];
+  }
+
+  document.getElementById("save-btn").addEventListener("click", async () => {
+    document.getElementById("err-title").textContent = "";
+    const payload = collectPayload();
+    if (!payload.title) { document.getElementById("err-title").textContent = "Title is required"; return; }
+    try {
+      if (productId) {
+        await Api.put(`/products/${productId}`, payload);
+      } else {
+        const res = await Api.post(`/products`, payload);
+        productId = res.item.id;
+        history.replaceState(null, "", `product-form.html?id=${productId}`);
+        document.getElementById("page-title").textContent = "Edit Product";
+        document.getElementById("publish-btn").style.display = "inline-block";
+        document.getElementById("archive-btn").style.display = "inline-block";
+        document.getElementById("delete-btn").style.display = "inline-block";
+      }
+      await saveVariants(productId);
+      Toast.show("Saved", "success");
+      loadProduct();
+    } catch (e) {
+      if (e.fields) {
+        for (const [k, msg] of Object.entries(e.fields)) {
+          const el = document.getElementById(`err-${k}`);
+          if (el) el.textContent = msg;
+        }
+      }
+      Toast.show(e.message, "error");
+    }
+  });
+
+  document.getElementById("publish-btn").addEventListener("click", async () => {
+    try { await Api.post(`/products/${productId}/publish`, {}); Toast.show("Published", "success"); loadProduct(); }
+    catch (e) { Toast.show(e.message, "error"); }
+  });
+  document.getElementById("archive-btn").addEventListener("click", async () => {
+    if (!confirm("Archive this product?")) return;
+    try { await Api.post(`/products/${productId}/archive`, {}); Toast.show("Archived", "success"); loadProduct(); }
+    catch (e) { Toast.show(e.message, "error"); }
+  });
+  document.getElementById("delete-btn").addEventListener("click", async () => {
+    if (!confirm("Delete this product permanently?")) return;
+    try { await Api.del(`/products/${productId}`); Toast.show("Deleted", "success"); location.href = "products-list.html"; }
+    catch (e) { Toast.show(e.message, "error"); }
+  });
+
+  loadCategories();
+  loadProduct();
+</script>
+</body>
+</html>
