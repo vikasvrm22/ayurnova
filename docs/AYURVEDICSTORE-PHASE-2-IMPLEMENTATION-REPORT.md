@@ -444,3 +444,47 @@ POST /api/public/payments/webhook/razorpay (refund.processed, no signature)  -> 
 npm run dev:healthcheck (post-fix)                                            -> 20/20 PASS
 npx playwright test (QA repo, full suite, post-fix)                            -> 85 passed, 0 skipped, 0 failed
 ```
+
+---
+
+## 23. Phase 2 Final Razorpay Verification & Closure (this session)
+
+Real Razorpay Test/Sandbox credentials (§17 #2's previously-recorded BLOCKED item) were provided and enabled by the user since the last update. This session's objective was narrow: use them to complete the remaining live E2E verification and close Phase 2 - not to rework any already-working functionality.
+
+**Order creation against Razorpay's real Test API - VERIFIED LIVE.** `POST /api/public/checkout` (prepaid) with a real, temporarily-published DEV-harness fixture product (`server/dev-harness/seed-test-data.js`, reverted to `draft` immediately after) produced a genuine Razorpay order; Checkout.js opened showing the correct real amount (₹61, matching the server-computed total) fetched live from `api.razorpay.com`, with the "Test Mode" banner Razorpay renders for sandbox keys. This is the one real-API-boundary item §17 #2 flagged as unverifiable without credentials - now VERIFIED.
+
+**Full browser-driven payment completion - BLOCKED (external, not a code defect).** Razorpay's hosted Test Mode Checkout UI runs active bot-detection (`client.px-cloud.net`, a third-party anti-automation script Razorpay embeds) that reliably breaks Playwright-driven interaction with their contact-details step, reproduced identically across multiple attempts in both headless and headed Chromium, using Razorpay's own documented Test Mode values (success card `4100 2800 0000 1007`, failure cards, OTP conventions). Per this task's own instruction not to fabricate a PASS and to mark provider limitations BLOCKED with evidence, further attempts to defeat Razorpay's own anti-automation protection were deliberately not pursued - that would cross from testing into evasion. Consequently, everything downstream of an actual completed payment is also BLOCKED for a *live* run this session, though each is otherwise fully implemented and was already schema/logic-verified in §4-§10 and §9.1:
+- Failed-payment scenario (real card decline -> `payments.status = FAILED`)
+- Full and partial refund against a real captured payment
+- Reconciliation (`fetchPayment`) against a real payment
+
+None of these are new gaps - they are the same "real Razorpay API call" boundary §17 #2 already named, just now blocked by the gateway's own bot defenses rather than by missing credentials.
+
+**Webhook delivery from Razorpay's real servers - BLOCKED (environment).** No public tunnel (zrok/ngrok) is running or configured in this session, so Razorpay's Dashboard has nowhere reachable to deliver a real webhook to `localhost:5100`. The webhook *business logic itself* (signature verification, idempotency, all 5 event types including both refund gaps found and fixed in §9.1) remains VERIFIED via the direct-function diagnostic (20/20) and HTTP-level dedup proof recorded earlier in this report - unaffected by this.
+
+**One genuine defect found and fixed.** A live checkout attempt logged a real CSP violation: Checkout.js injects a fraud/risk-detection script from `cdn.razorpay.com` at runtime, which `script-src` didn't allow (only `checkout.razorpay.com`, added when Checkout.js was first wired up, was). This doesn't stop checkout from opening, but silently starves Razorpay's own risk scoring of signal on every real payment - a payment-security-relevant gap squarely in this task's scope. Fixed with a one-line addition to `server/src/index.js`'s existing CSP config; verified live with a Playwright console listener (1 CSP violation before the fix, 0 after, on an identical checkout attempt); a focused DB-independent regression test was added (QA repo, `tests/regression/payments-regression.spec.js`) asserting the header. DEV healthcheck 21/21 and the full QA suite (86/86 before this session's new test, 87/87 after adding it) both stay green.
+
+**Test-data hygiene.** Diagnostic checkout attempts against the temporarily-published fixture product created 11 real `unpaid` orders (no stock impact - prepaid stock is only decremented on a verified `SUCCESS`, confirmed unchanged at 10 throughout). All 11 were set to `cancelled` via the existing admin order-status endpoint before closing this session, and the fixture product was returned to `draft` (never customer-visible).
+
+### Revised Acceptance Gate (supersedes §21 for the items below only)
+
+| Area | Status |
+|---|---|
+| Successful payment (order creation, real Test API) | **PASS** - live-verified against Razorpay's real Test servers |
+| Successful payment (full browser completion + verify) | **BLOCKED** - Razorpay Test Mode Checkout's own bot-detection blocks automated browser completion in this environment (evidence above); code path itself unchanged and previously reviewed correct |
+| Payment verification (signature logic) | **PASS** (§7, unit-verified; the HMAC comparison itself was never in question) |
+| Webhook / idempotency | **PASS** - business logic + dedup live-verified (§9, §9.1); real-provider delivery **BLOCKED** (no public tunnel this session) |
+| Failed payment | **BLOCKED** - downstream of the browser-completion blocker above |
+| Refund | **BLOCKED** - downstream (needs a real captured payment to refund) |
+| Partial refund | **BLOCKED** - downstream, same reason |
+| Reconciliation | **BLOCKED** - downstream (needs a real payment ID to fetch) |
+| Security / RBAC | **PASS** - re-verified, no regression |
+| Automated regression | **PASS** - DEV 21/21, QA 87/87 |
+
+### PHASE 2 - Verdict
+
+Not a clean **PHASE 2 - PASS**: three items (failed payment, refund/partial refund, reconciliation) remain genuinely unverified against Razorpay's live servers, and real webhook delivery remains unverified end-to-end from Razorpay's side - both for reasons external to this codebase (the gateway's own anti-automation defenses, and the lack of a public tunnel in this environment), not defects in the implementation, which was independently verified correct via schema-level and direct-function testing in §4-§10 and §9.1. Order creation against the real Test API, previously the single named BLOCKED item, is now VERIFIED. One genuine, unrelated defect (the CSP gap above) was found and fixed with a regression test added.
+
+**PHASE 2 - BLOCKED (partial PASS): all implemented functionality is verified correct at every layer this environment allows; full end-to-end confirmation against Razorpay's live payment/webhook infrastructure requires either a non-automated (manual, human-driven) browser session to get past Razorpay's bot detection, or a public tunnel + Dashboard webhook configuration - both outside what this session's tooling can do without crossing into anti-bot evasion or requiring the user's own Razorpay Dashboard access.**
+
+**Recommendation:** to close the remaining three BLOCKED items, either (a) have a human manually complete one Test Mode checkout in a real browser (not automated) using the documented test cards above, or (b) start a tunnel (zrok/ngrok) and add its URL to the Razorpay Dashboard's Test Mode webhook config, then re-run this same verification. Neither requires further code changes.
