@@ -43,16 +43,32 @@ export const config = {
     freeShippingThreshold: Number(process.env.FREE_SHIPPING_THRESHOLD || 599),
     prepaidDiscountPercent: Number(process.env.PREPAID_DISCOUNT_PERCENT || 2),
   },
+
+  // Phase 2: encrypts Razorpay (and any future provider's) credentials at
+  // rest in integration_configs - see server/src/integrations/crypto.js.
+  // The fallback is a clearly-labelled dev-only value, same pattern as
+  // jwtSecret above - set a real INTEGRATION_ENCRYPTION_KEY in production.
+  integrationEncryptionKey: process.env.INTEGRATION_ENCRYPTION_KEY || "dev-insecure-integration-key-change-me",
 };
 
 export const ROLES = ["SuperAdmin", "Admin", "Editor", "Viewer"];
 
 export const ROLE_PERMISSIONS = {
-  SuperAdmin: { manageProducts: true, manageOrders: true, manageUsers: true, manageSettings: true, viewCustomers: true, manageCoupons: true, moderateReviews: true },
-  Admin:      { manageProducts: true, manageOrders: true, manageUsers: false, manageSettings: true, viewCustomers: true, manageCoupons: true, moderateReviews: true },
-  Editor:     { manageProducts: true, manageOrders: false, manageUsers: false, manageSettings: false, viewCustomers: false, manageCoupons: false, moderateReviews: true },
-  Viewer:     { manageProducts: false, manageOrders: false, manageUsers: false, manageSettings: false, viewCustomers: true, manageCoupons: false, moderateReviews: false },
+  SuperAdmin: { manageProducts: true, manageOrders: true, manageUsers: true, manageSettings: true, viewCustomers: true, manageCoupons: true, moderateReviews: true, manageIntegrations: true, managePayments: true },
+  Admin:      { manageProducts: true, manageOrders: true, manageUsers: false, manageSettings: true, viewCustomers: true, manageCoupons: true, moderateReviews: true, manageIntegrations: true, managePayments: true },
+  Editor:     { manageProducts: true, manageOrders: false, manageUsers: false, manageSettings: false, viewCustomers: false, manageCoupons: false, moderateReviews: true, manageIntegrations: false, managePayments: false },
+  Viewer:     { manageProducts: false, manageOrders: false, manageUsers: false, manageSettings: false, viewCustomers: true, manageCoupons: false, moderateReviews: false, manageIntegrations: false, managePayments: false },
 };
+
+// Payment statuses - Phase 2. `payments.status`/`payment_attempts.status`
+// use the upper-case set (matches Razorpay's own vocabulary); the
+// pre-existing `orders.payment_status` keeps its lower-case values for
+// backward compatibility with existing admin/public-site code that already
+// checks for the literal strings "paid"/"unpaid"/"refunded" - see
+// supabase/migrations/0002_phase2_payments_and_integrations.sql.
+export const PAYMENT_STATUSES = ["INITIATED", "PENDING", "SUCCESS", "FAILED", "CANCELLED", "REFUNDED", "PARTIALLY_REFUNDED"];
+export const PAYMENT_ATTEMPT_STATUSES = ["INITIATED", "PENDING", "SUCCESS", "FAILED", "CANCELLED"];
+export const ORDER_PAYMENT_STATUSES = ["unpaid", "paid", "refunded", "partially_refunded", "failed"];
 
 // Product field schema - shared source of truth for admin form rendering
 // and server-side validation (mirrors the pattern used in the Jobs11 build).
