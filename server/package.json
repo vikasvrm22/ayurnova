@@ -7,7 +7,9 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "seed-admin": "node src/scripts/seedAdmin.js",
-    "reset-password": "node src/scripts/resetPassword.js"
+    "reset-password": "node src/scripts/resetPassword.js",
+    "dev:healthcheck": "node dev-harness/healthcheck.js",
+    "dev:seed-test-data": "node dev-harness/seed-test-data.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
