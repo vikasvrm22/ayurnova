@@ -118,7 +118,7 @@ pending/unpaid ──(prepaid)──▶ payment attempt started, stock NOT YET d
   stock decremented (once, idempotent)      new Razorpay order)
 ```
 
-**VERIFIED** up to the external-API boundary: the schema exists and is reachable end-to-end (§4); a real order successfully reaching `startPaymentAttempt` and receiving `SUCCESS` requires a real Razorpay order-creation call, which is **BLOCKED** on real credentials (§17 #1, unchanged).
+**VERIFIED** up to the external-API boundary: the schema exists and is reachable end-to-end (§4); a real order successfully reaching `startPaymentAttempt` and receiving `SUCCESS` requires a real Razorpay order-creation call, which is **BLOCKED** on real credentials (§17 #2, unchanged).
 
 ---
 
@@ -152,7 +152,7 @@ Table existence and query-ability confirmed live:
 $ curl -X POST .../payments/verify -d '{"razorpay_order_id":"order_doesnotexist",...}'
 {"error":"Payment attempt not found"}   STATUS:404
 ```
-(Pre-migration this was a `500` with a `PGRST205` table-not-found error server-side - now a clean `404`, proving the table exists and the lookup query runs correctly.) Creating more than one real attempt for the same payment needs a real Razorpay order per attempt - **BLOCKED** on credentials (§17 #1).
+(Pre-migration this was a `500` with a `PGRST205` table-not-found error server-side - now a clean `404`, proving the table exists and the lookup query runs correctly.) Creating more than one real attempt for the same payment needs a real Razorpay order per attempt - **BLOCKED** on credentials (§17 #2).
 
 ---
 
@@ -177,13 +177,62 @@ $ <identical request, same event id, sent again>
 ```
 This is exactly the Phase 2 §5/§9 requirement working end-to-end: the second call's insert into `webhook_events` hit the `unique(gateway, event_id)` constraint (Postgres `23505`), `processWebhookEvent` correctly treated that as "already recorded, no-op" rather than processing it again. No fabricated/invented state was needed to prove this - the signature was deliberately invalid (no real Razorpay webhook secret is configured yet), so this also doubles as proof that an unverifiable signature is consistently rejected on retry, not just the first time.
 
+### 9.1 Focused compliance audit (requested separately, before Dashboard webhook configuration)
+
+A dedicated audit was performed against 5 specific event types, in response to a direct question about whether business-state handling (not just the signature/idempotency layer) was actually complete. **It was not assumed complete - it was traced through the code line-by-line and then live-tested.**
+
+**Findings (`server/src/services/paymentService.js`, function `processWebhookEvent`, pre-fix):**
+
+| Event | Explicitly handled? | Real gap found |
+|---|---|---|
+| `payment.captured` | Yes | No |
+| `payment.failed` | Implicitly - fell through a `success = eventType==="payment.captured" \|\| entity.status==="captured"` check to `false`, which *did* correctly mark the attempt FAILED, but by inferring failure from "not success" rather than an explicit signal | **Yes (fragility)** - any other non-captured `payment.*` event (e.g. `payment.authorized`) would have been wrongly classified as a failure by the same fallback |
+| `refund.created` | **No** - the code only ever read `payload.payment.entity`, never `payload.refund.entity` | **Yes** |
+| `refund.processed` | **No** | **Yes** |
+| `refund.failed` | **No** | **Yes** |
+
+The refund gap was real and significant: a refund issued directly via the Razorpay Dashboard (not through this app's own `POST /api/admin/payments/:id/refund`) was silently absorbed as a harmless no-op (`markAttemptOutcome`'s terminal-state guard caught it) but **left no trace anywhere in the local database** - `refunds` table untouched, `payments.refunded_amount`/`status` never updated, `orders.payment_status` never updated. This directly undermined the Phase 2 payment-audit-trail and reconciliation requirements for any refund not initiated through the admin panel.
+
+**Fix implemented** (`paymentService.js`):
+- Payment event classification is now explicit: `PAYMENT_SUCCESS_EVENT_TYPES = {"payment.captured"}`, `PAYMENT_FAILURE_EVENT_TYPES = {"payment.failed"}`. An event that matches neither (and whose entity status is neither `captured` nor `failed`) is now recorded and marked `IGNORED` rather than guessed at as a failure - closes the fragility above.
+- New `processRefundWebhookEvent()` handles `refund.created`/`refund.processed`/`refund.failed`, keyed off `payload.refund.entity.payment_id` directly (not dependent on an accompanying payment entity). Idempotent **per `gateway_refund_id`**, not merely per webhook `event_id`: a `refund.created` followed later by `refund.processed` for the *same* refund applies the amount to `payments.refunded_amount` exactly once (on first transition into `PROCESSED`), and a refund already recorded by this app's own admin-initiated `createRefund()` is updated in place rather than duplicated when its confirming webhook later arrives.
+- None of this touches the signature-verification gate, the `webhook_events` unique-constraint dedup, or the raw-body HMAC capture - all three run identically, before any of the above, exactly as before.
+
+**Live verification - `_tmp_webhook_audit.mjs`, a one-off diagnostic run directly against `processWebhookEvent()` (not committed; deleted immediately after use).** This calls the real exported service function with real, temporary, self-cleaning database fixtures (a throwaway order/payment/attempt created and deleted per case) - it does **not** call the HTTP route with a bypassed signature; it supplies `signatureValid` exactly as the real route does *after* a genuine HMAC check passes, which is the correct way to test business logic in isolation without weakening or bypassing the actual security boundary. **20/20 assertions passed:**
+```
+PASS  payment.captured -> attempt SUCCESS / payment SUCCESS / order payment_status paid
+PASS  payment.failed -> attempt FAILED, failure_reason recorded, payment NOT marked success
+PASS  payment.authorized (unhandled type) -> attempt left INITIATED, not wrongly FAILED   <- the fixed fragility
+PASS  refund.created -> refunds row inserted (INITIATED), refunded_amount NOT yet applied
+PASS  refund.processed -> refunded_amount applied (₹40), payment PARTIALLY_REFUNDED, order payment_status partially_refunded
+PASS  refund.processed (re-delivered under a NEW event_id, same gateway_refund_id) -> amount NOT double-applied
+PASS  refund.failed -> refunds row recorded as FAILED, refunded_amount unchanged
+PASS  duplicate delivery (same event_id) -> first processed, second is a no-op (duplicate:true)
+PASS  invalid signature -> reported invalid_signature, not processed, attempt state unchanged
+
+Cleaned up: 6 orders, 6 payments, 6 attempts, 2 refunds
+```
+Post-run, a direct query confirmed zero leftover `AV-WHAUDIT-*` rows in the live database.
+
+**Additionally re-confirmed against the real HTTP endpoint** (not just the internal function) after the fix, live:
+```
+POST .../webhook/razorpay (invalid signature)             -> 400 {"duplicate":false,"processed":false,"reason":"invalid_signature"}
+POST .../webhook/razorpay (same event again)               -> 400 {"duplicate":true}
+POST .../webhook/razorpay (refund.processed, no signature)  -> 400 {"error":"Missing signature or body"}
+```
+Full QA suite and DEV healthcheck re-run clean after the fix: **85 passed, 0 skipped, 0 failed**; **20/20** DEV healthcheck - no regression.
+
+**Conclusion:** duplicate delivery is safely idempotent and an invalid signature can never change business state, for all 5 audited events, both before and after this fix (those two properties were already correct). What the fix adds is *correct, complete, and audit-traceable* business-state handling for `payment.failed` (now explicit rather than inferred) and for all three refund events (previously entirely unhandled).
+
 ---
 
 ## 10. Refunds
 
-`paymentService.createRefund`: validates `amount <= payment.amount - payment.refunded_amount` **before** calling Razorpay (never exceeds the refundable balance); finds the payment's successful attempt; calls Razorpay; records the `refunds` row and updates `payments.status`/`refunded_amount` and `orders.payment_status` (`REFUNDED` if fully refunded, `PARTIALLY_REFUNDED` otherwise) only after Razorpay's call succeeds. A failed Razorpay call is recorded as a `FAILED` refund row rather than silently dropped.
+`paymentService.createRefund`: validates `amount <= payment.amount - payment.refunded_amount` **before** calling Razorpay (never exceeds the refundable balance); finds the payment's successful attempt; calls Razorpay; records the `refunds` row and updates `payments.status`/`refunded_amount` and `orders.payment_status` (`REFUNDED` if fully refunded, `PARTIALLY_REFUNDED` otherwise) only after Razorpay's call succeeds. A failed Razorpay call is recorded as a `FAILED` refund row rather than silently dropped. This is the **admin-initiated** path (`POST /api/admin/payments/:id/refund`).
 
-**IMPLEMENTED, schema reachable (the `refunds` table is confirmed live per §4); BLOCKED for an actual refund** - needs a real successful payment and real Razorpay credentials to refund against (§17 #1, unchanged by the migration).
+As of the §9.1 webhook audit, refunds initiated **outside** the admin panel (directly via the Razorpay Dashboard) are now also captured: `processRefundWebhookEvent` records/updates the same `refunds` row and applies `payments.refunded_amount`/`orders.payment_status` from the `refund.created`/`refund.processed`/`refund.failed` webhooks, idempotently per `gateway_refund_id` so the two paths (admin-initiated + webhook-confirmed) never double-count. **VERIFIED live** via the §9.1 direct-function audit (partial refund correctly applied once, a re-delivered confirmation correctly not double-applied).
+
+**IMPLEMENTED, schema and webhook-driven recording both live-verified (§4, §9.1); BLOCKED for an actual admin-initiated refund via Razorpay's live API** - needs real Razorpay credentials (§17 #2).
 
 ---
 
@@ -251,7 +300,9 @@ Every new endpoint (`/api/public/payments/verify`, `/retry`, `/webhook/razorpay`
 ```
 This is the first fully clean run: `payments.spec.js`'s "verify with a nonexistent order id returns 404" (previously skipped pre-migration, since the schema didn't exist yet) now passes for real. DEV healthcheck: **20/20 passed**.
 
-Phase 1's existing suite (60+ tests covering the SSR fix, catalog API, existing security/regression coverage) was **re-run in the same pass and remains green** - no Phase 2 change regressed it.
+Phase 1's existing suite (60+ tests covering the SSR fix, catalog API, existing security/regression coverage) was **re-run in the same pass and remains green** - no Phase 2 change regressed it. **Re-run again after the §9.1 webhook business-logic fix, still 85 passed, 0 skipped, 0 failed, 20/20 DEV healthcheck** - no regression from that fix either.
+
+**Additionally, §9.1's dedicated webhook business-logic audit** (a direct-function-call diagnostic against `processWebhookEvent`, using real temporary self-cleaning fixtures, not an HTTP-level test) covered 5 event types plus duplicate-delivery and invalid-signature cases: **20/20 assertions passed**. This is the layer the QA HTTP-level suite structurally cannot reach without real Razorpay credentials (any HTTP webhook test here is signature-invalid by necessity, so it never reaches business-state logic) - see §9.1 for the full breakdown and why this method doesn't weaken or bypass the real endpoint's security.
 
 Taxonomy used (per the locked list): `@smoke`, `@functional`, `@regression`, `@business-critical`, `@negative`, `@boundary`, `@security` tags; `@api`/`@e2e` implied by directory - identical convention to Phase 1, extended rather than replaced.
 
@@ -263,6 +314,7 @@ Taxonomy used (per the locked list): `@smoke`, `@functional`, `@regression`, `@b
 2. **BLOCKED - no real Razorpay Test/Sandbox credentials available this session** (user's explicit, recorded choice). Order creation, refunds, and reconciliation against Razorpay's actual API remain unverified beyond code review + the synthetic signature-verification proof - unaffected by the migration being applied, since this is a separate external dependency (Razorpay's own servers, not the database).
 3. **Recurring, external, pre-existing:** the same intermittent Supabase DNS/network outage documented since Phase 1 recurred multiple times this session (confirmed independent of any app code each time via a direct `fetch()` to Supabase). Not caused by Phase 2. Connectivity was stable through the final post-migration verification pass.
 4. **Pre-existing, unrelated:** `npm audit` findings in transitive dependencies of `geoip-lite`/`sharp`/`express` (§13) - not introduced by this phase.
+5. ~~`payment.failed` handling was fragile (inferred, not explicit) and `refund.created`/`refund.processed`/`refund.failed` webhooks were entirely unhandled~~ — **RESOLVED**, found and fixed by a dedicated audit before Razorpay Dashboard webhook configuration. See §9.1 for the full finding, fix, and 20/20 live-verification results.
 
 ---
 
@@ -277,12 +329,13 @@ Taxonomy used (per the locked list): `@smoke`, `@functional`, `@regression`, `@b
 
 ## 19. Files Changed
 
-**DEV repo**, 5 Phase 2 commits on top of the Phase 1 baseline:
+**DEV repo**, 6 Phase 2 commits on top of the Phase 1 baseline (plus 2 docs-only commits, §20):
 - `fa55c2b`: `supabase/migrations/0002_phase2_payments_and_integrations.sql`, `server/src/integrations/{crypto,integrationService}.js`, `server/src/integrations/razorpay/provider.js`, `server/src/routes/integrationsAdmin.js`, `server/src/config.js`, `server/package.json`/`package-lock.json`.
 - `614a370`: `server/src/services/paymentService.js`, `server/src/routes/{paymentsPublic,paymentsAdmin}.js`, `server/src/routes/public.js`, `server/src/routes/orders.js`, `server/src/index.js`.
 - `29263ac`: `admin/{payments-list,payment-detail,integrations}.html` (new), 12 existing admin pages' nav, `admin/order-detail.html`, `admin/settings.html`.
 - `587be40`: `public-site/cart.html`.
 - `a13aca2`: `server/dev-harness/healthcheck.js`.
+- `aa59cd5`: `server/src/services/paymentService.js` (§9.1 webhook audit fix - `payment.failed` explicit classification, `refund.created`/`refund.processed`/`refund.failed` handling).
 
 **QA repo**, 3 Phase 2 commits:
 - `52fdacc`: `tests/api/payments.spec.js`, `tests/regression/payments-regression.spec.js`, `utils/testData.js`.
@@ -298,11 +351,14 @@ DEV:  fa55c2b  feat: Phase 2 database migration + generic integration management
       29263ac  feat: admin Payments + Integrations UI, order-detail payment surfacing, nav updates
       587be40  feat: wire Razorpay Checkout.js into the customer cart/checkout page
       a13aca2  chore: extend DEV harness with Phase 2 payment/integration checks
+      b4a92e0  docs: Phase 2 implementation report
+      34e07c4  docs: post-migration live verification update to Phase 2 report
+      aa59cd5  fix: complete webhook business-state handling for payment.failed and refund.* events
 
 QA:   52fdacc  feat: add Phase 2 payment API and regression test coverage
       b6139d9  test: add E2E checks for the cart/checkout Razorpay wiring
 ```
-Both working trees clean at time of writing. No force-push, no history rewrite, no squashed/amended prior commits, no secrets committed (verified before every commit).
+Both working trees clean at time of writing. No force-push, no history rewrite, no squashed/amended prior commits, no secrets committed (verified before every commit). The `aa59cd5` fix is isolated to a single file (`server/src/services/paymentService.js`) - no unrelated changes.
 
 ---
 
@@ -315,7 +371,7 @@ Both working trees clean at time of writing. No force-push, no history rewrite, 
 | Payment entity / attempts / history | **PASS** - tables live-verified reachable and correctly queryable (§4, §8) |
 | Razorpay integration | **PASS up to the external-API boundary** - **BLOCKED** for live Razorpay API calls (credentials, §17 #2) |
 | Backend payment verification | **PASS** (signature logic unit-verified) |
-| Webhooks + signature verification | **PASS**, including **live-verified idempotency** (§9) |
+| Webhooks + signature verification | **PASS**, including **live-verified idempotency** (§9) and a **dedicated business-state audit covering all 5 requested event types, 20/20 live-verified** (§9.1) - found and fixed 2 genuine gaps (`payment.failed` fragility, all 3 `refund.*` events unhandled) before Dashboard webhook configuration |
 | Retry | **PASS** - schema-verified reachable (404 ORDER_NOT_FOUND, not 500); a real retry needs Razorpay credentials |
 | Refunds / partial refunds | **PASS** validation logic + schema; **BLOCKED** for an actual refund (credentials) |
 | Payment audit trail | **PASS** - `webhook_events`/`activity_log` confirmed live |
@@ -338,7 +394,7 @@ Both working trees clean at time of writing. No force-push, no history rewrite, 
 
 ## 22. Final Verdict
 
-**PASS.** The database migration is applied and fully live-verified (all 5 new tables reachable, webhook idempotency proven end-to-end with a real duplicate-delivery test). The full QA suite runs completely clean: 85 passed, 0 skipped, 0 failed. One external dependency remains BLOCKED and is explicitly anticipated by the brief's Step 13: real Razorpay Test/Sandbox credentials, the user's own recorded choice not to provide this session - nothing was worked around, invented, or faked to route around it. Add credentials via the new Integrations admin page and re-run the QA suite to convert that item to VERIFIED as well.
+**PASS.** The database migration is applied and fully live-verified (all 5 new tables reachable, webhook idempotency proven end-to-end with a real duplicate-delivery test). A dedicated, explicitly-requested compliance audit of webhook business-state handling across `payment.captured`/`payment.failed`/`refund.created`/`refund.processed`/`refund.failed` found and fixed two genuine gaps (§9.1) before any Razorpay Dashboard webhook configuration was touched - the audit was not skipped or assumed satisfied just because signature verification and idempotency were already known-good. The full QA suite runs completely clean, before and after that fix: 85 passed, 0 skipped, 0 failed. One external dependency remains BLOCKED and is explicitly anticipated by the brief's Step 13: real Razorpay Test/Sandbox credentials, the user's own recorded choice not to provide this session - nothing was worked around, invented, or faked to route around it, and the Razorpay Dashboard/webhook configuration itself was explicitly not touched this session per instruction. Add credentials via the new Integrations admin page, configure the Dashboard webhook once ready, and re-run the QA suite to convert that item to VERIFIED as well.
 
 ---
 
@@ -368,4 +424,23 @@ POST /api/public/payments/webhook/razorpay (event A, 1st delivery)       -> 400 
 POST /api/public/payments/webhook/razorpay (event A, 2nd identical)      -> 400 {"duplicate":true}   <- idempotency proven live
 npm run dev:healthcheck (post-migration)                                  -> 20/20 PASS
 npx playwright test (QA repo, full suite, post-migration)                  -> 85 passed, 0 skipped, 0 failed
+
+--- §9.1 webhook business-state audit (direct-function diagnostic, real self-cleaning fixtures) ---
+payment.captured    -> attempt SUCCESS, payment SUCCESS, order payment_status paid
+payment.failed      -> attempt FAILED, failure_reason recorded, payment NOT marked success
+payment.authorized  -> attempt left INITIATED (not wrongly marked FAILED - the fixed fragility)
+refund.created      -> refunds row inserted (INITIATED), refunded_amount NOT yet applied
+refund.processed    -> refunded_amount applied (+Rs.40), payment PARTIALLY_REFUNDED, order payment_status partially_refunded
+refund.processed (re-delivered, new event_id, same gateway_refund_id) -> amount NOT double-applied
+refund.failed       -> refunds row recorded FAILED, refunded_amount unchanged
+duplicate delivery (same event_id) -> first processed, second is a no-op (duplicate:true)
+invalid signature   -> reported invalid_signature, not processed, attempt state unchanged
+== 20/20 PASS; cleanup confirmed: 0 leftover fixture rows ==
+
+--- post-fix regression check (real HTTP endpoint, not just the direct-function audit) ---
+POST /api/public/payments/webhook/razorpay (invalid signature)             -> 400 {"duplicate":false,"processed":false,"reason":"invalid_signature"}
+POST /api/public/payments/webhook/razorpay (same event again)               -> 400 {"duplicate":true}
+POST /api/public/payments/webhook/razorpay (refund.processed, no signature)  -> 400 {"error":"Missing signature or body"}
+npm run dev:healthcheck (post-fix)                                            -> 20/20 PASS
+npx playwright test (QA repo, full suite, post-fix)                            -> 85 passed, 0 skipped, 0 failed
 ```
