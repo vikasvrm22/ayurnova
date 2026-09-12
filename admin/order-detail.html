@@ -19,7 +19,7 @@
       <a href="customers.html">Customers</a>
       <a href="coupons.html">Coupons</a>
       <a href="reviews.html">Reviews</a>
-      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a><a href="wellness.html">Wellness</a>
+      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a><a href="wellness.html">Wellness</a><a href="inventory.html">Inventory</a>
       <a href="vaidya-bookings.html">Vaidya Bookings</a>
       <a href="users.html">Users &amp; Roles</a>
       <a href="payments-list.html">Payments</a>
@@ -45,8 +45,8 @@
         <div class="card">
           <h3 style="margin-top:0;">Items</h3>
           <table class="data-table">
-            <thead><tr><th>Product</th><th>Variant</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
-            <tbody id="items-rows"><tr><td colspan="5">Loading...</td></tr></tbody>
+            <thead><tr><th>Product</th><th>Variant</th><th>Qty</th><th>Price</th><th>Subtotal</th><th>Fulfilled From (Batch)</th></tr></thead>
+            <tbody id="items-rows"><tr><td colspan="6">Loading...</td></tr></tbody>
           </table>
           <div style="text-align:right; margin-top:10px; font-size:13.5px;" id="totals-block"></div>
         </div>
@@ -88,8 +88,16 @@
     try {
       const { order, items, payment } = await Api.get(`/orders/${orderId}`);
       document.getElementById("page-title").textContent = `Order ${order.order_number}`;
-      document.getElementById("items-rows").innerHTML = items.map(i => `
-        <tr><td><span class="thumb"></span>${i.title_snapshot}</td><td>${i.variant_label_snapshot || "-"}</td><td>${i.qty}</td><td>${fmt(i.price_snapshot)}</td><td>${fmt(i.subtotal)}</td></tr>`).join("");
+      document.getElementById("items-rows").innerHTML = items.map(i => {
+        // Phase 5B data, Phase 5C visibility: which batch(es) FEFO actually
+        // allocated to this line - empty for a prepaid order whose payment
+        // hasn't succeeded yet (nothing allocated), not an error.
+        const allocations = i.batch_allocations || [];
+        const fulfilledFrom = allocations.length
+          ? allocations.map(a => `${a.batch_number_snapshot} ×${a.qty}`).join(", ")
+          : `<span style="color:#888;">Not yet allocated</span>`;
+        return `<tr><td><span class="thumb"></span>${i.title_snapshot}</td><td>${i.variant_label_snapshot || "-"}</td><td>${i.qty}</td><td>${fmt(i.price_snapshot)}</td><td>${fmt(i.subtotal)}</td><td style="font-size:12px;">${fulfilledFrom}</td></tr>`;
+      }).join("");
       document.getElementById("totals-block").innerHTML = `
         <div>Subtotal: ${fmt(order.subtotal)}</div>
         <div>Shipping: ${order.shipping_fee === 0 ? "FREE" : fmt(order.shipping_fee)}</div>

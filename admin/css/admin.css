@@ -65,7 +65,7 @@ table.data-table th{ background:#f8f9fd; color:var(--muted); font-weight:600; }
 .two-col{ display:grid; grid-template-columns:1.4fr 1fr; gap:20px; align-items:start; }
 .preview-pane{ background:#fff; border:1px dashed var(--border); border-radius:10px; padding:16px; }
 
-.variant-row{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+.variant-row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px; }
 .variant-row input{ padding:7px; border:1px solid var(--border); border-radius:6px; font-size:13px; }
 .img-upload-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
 .img-upload-slot{ height:80px; background:#f4f6fb; border:1px dashed var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; color:#98a1c2; font-size:11px; }

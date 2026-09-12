@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory — AyurVeda Store Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a>
+      <a href="wellness.html">Wellness</a><a href="inventory.html" class="active">Inventory</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
+      <a href="payments-list.html">Payments</a>
+      <a href="integrations.html">Integrations</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
+  </aside>
+  <main class="main-area">
+    <div class="page-header"><h2>Inventory (Phase 5)</h2><button class="btn btn-primary" id="new-batch-btn">+ New Batch</button></div>
+    <p style="font-size:12.5px; color:#666; margin-top:-6px;">Batch/lot tracking. Sellable stock on every product variant is a maintained aggregate of its eligible (active + QC-passed + unexpired) batch quantities - never edit stock directly, it always flows through a batch.</p>
+
+    <div class="cards-row" id="stat-cards">Loading...</div>
+
+    <div class="filters-row">
+      <input type="text" id="f-search" placeholder="Search batch number...">
+      <select id="f-batch-status"><option value="">All batch statuses</option><option value="active">Active</option><option value="quarantined">Quarantined</option><option value="expired">Expired</option><option value="recalled">Recalled</option></select>
+      <select id="f-quality-status"><option value="">All quality statuses</option><option value="pending">Pending</option><option value="passed">Passed</option><option value="failed">Failed</option></select>
+      <select id="f-expiring"><option value="">Any expiry</option><option value="30">Expiring within 30 days</option><option value="7">Expiring within 7 days</option></select>
+      <span id="variant-filter-chip"></span>
+    </div>
+
+    <table class="data-table">
+      <thead><tr><th>Batch #</th><th>Product / Variant</th><th>Qty</th><th>MFG</th><th>Expiry</th><th>Quality</th><th>Status</th><th></th></tr></thead>
+      <tbody id="batch-rows"><tr><td colspan="8">Loading...</td></tr></tbody>
+    </table>
+    <div style="display:flex; gap:8px; align-items:center; margin-top:12px; font-size:13px;" id="pagination"></div>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  const state = { page: 1, pageSize: 25, variantId: new URLSearchParams(location.search).get("variant_id") || "" };
+  const today = () => new Date().toISOString().slice(0, 10);
+  const isSellable = (b) => b.batch_status === "active" && b.quality_status === "passed" && (!b.expiry_date || b.expiry_date >= today());
+
+  function statusBadge(status) {
+    const map = { active: "instock", quarantined: "pending", expired: "outofstock", recalled: "cancelled" };
+    return `<span class="badge badge-${map[status] || "pending"}">${status}</span>`;
+  }
+  function qualityBadge(status) {
+    const map = { passed: "delivered", pending: "pending", failed: "outofstock" };
+    return `<span class="badge badge-${map[status] || "pending"}">${status}</span>`;
+  }
+
+  async function loadSummary() {
+    try {
+      const s = await Api.get("/inventory/summary");
+      document.getElementById("stat-cards").innerHTML = `
+        <div class="stat-card"><div class="num">${s.totalBatches}</div><div class="label">Total Batches</div></div>
+        <div class="stat-card"><div class="num">${s.sellableBatchCount}</div><div class="label">Sellable Batches</div></div>
+        <div class="stat-card"><div class="num">${s.expiringSoonCount}</div><div class="label">Expiring within ${s.horizonDays}d</div></div>
+        <div class="stat-card"><div class="num">${s.needsAttentionCount}</div><div class="label">Needs Attention</div></div>
+        <div class="stat-card"><div class="num">${s.lowStockCount}</div><div class="label">Low Stock Variants</div></div>
+        <div class="stat-card"><div class="num">${s.outOfStockCount}</div><div class="label">Out of Stock Variants</div></div>`;
+    } catch (e) {
+      document.getElementById("stat-cards").innerHTML = `<div class="card">Could not load summary: ${e.message}</div>`;
+    }
+  }
+
+  function renderVariantChip() {
+    const chip = document.getElementById("variant-filter-chip");
+    if (!state.variantId) { chip.innerHTML = ""; return; }
+    chip.innerHTML = `<button class="btn btn-outline" id="clear-variant-filter">✕ Clear variant filter</button>`;
+    document.getElementById("clear-variant-filter").addEventListener("click", () => {
+      state.variantId = ""; state.page = 1; history.replaceState(null, "", "inventory.html"); load();
+    });
+  }
+
+  async function load() {
+    renderVariantChip();
+    const params = new URLSearchParams({ page: state.page, pageSize: state.pageSize });
+    const q = document.getElementById("f-search").value.trim();
+    const bs = document.getElementById("f-batch-status").value;
+    const qs = document.getElementById("f-quality-status").value;
+    const exp = document.getElementById("f-expiring").value;
+    if (q) params.set("q", q);
+    if (bs) params.set("batch_status", bs);
+    if (qs) params.set("quality_status", qs);
+    if (exp) params.set("expiring_within_days", exp);
+    if (state.variantId) params.set("variant_id", state.variantId);
+
+    try {
+      const data = await Api.get(`/inventory/batches?${params.toString()}`);
+      const rowsEl = document.getElementById("batch-rows");
+      if (!data.items.length) { rowsEl.innerHTML = `<tr><td colspan="8">No batches found.</td></tr>`; document.getElementById("pagination").innerHTML = ""; return; }
+
+      // FEFO visibility: within the currently-displayed page, flag the
+      // single earliest-expiry SELLABLE batch per variant as "Next" - the
+      // same batch allocate_fefo_stock() would actually consume first for
+      // that variant. Purely a display hint computed client-side from
+      // fields already on each row; never authoritative (allocation itself
+      // always re-derives this server-side at sale time).
+      const nextByVariant = {};
+      data.items.filter(isSellable).forEach((b) => {
+        const cur = nextByVariant[b.variant_id];
+        if (!cur || (b.expiry_date || "9999-99-99") < (cur.expiry_date || "9999-99-99")) nextByVariant[b.variant_id] = b;
+      });
+
+      rowsEl.innerHTML = data.items.map((b) => {
+        const pv = b.product_variants;
+        const productLabel = pv ? `${pv.products?.title || "-"} <span style="color:#888;">(${pv.label})</span>` : "-";
+        const isNext = isSellable(b) && nextByVariant[b.variant_id]?.id === b.id;
+        return `
+        <tr>
+          <td><b>${b.batch_number}</b>${isNext ? ` <span class="badge badge-delivered" title="Next batch allocate_fefo_stock() would consume for this variant">Next (FEFO)</span>` : ""}</td>
+          <td><a href="inventory.html?variant_id=${b.variant_id}" title="Filter to this variant">${productLabel}</a></td>
+          <td>${b.quantity}</td>
+          <td>${b.mfg_date || "-"}</td>
+          <td>${b.expiry_date || "-"}</td>
+          <td>${qualityBadge(b.quality_status)}</td>
+          <td>${statusBadge(b.batch_status)}</td>
+          <td>
+            <button class="btn btn-outline" onclick='openAdjustModal(${JSON.stringify(b).replace(/'/g, "&#39;")})'>Adjust</button>
+            <button class="btn btn-outline" onclick='openStatusModal(${JSON.stringify(b).replace(/'/g, "&#39;")})'>Status</button>
+            <button class="btn btn-outline" onclick="openLedgerModal('${b.id}','${b.batch_number}')">Ledger</button>
+          </td>
+        </tr>`;
+      }).join("");
+
+      const totalPages = Math.max(1, Math.ceil(data.total / state.pageSize));
+      document.getElementById("pagination").innerHTML = `
+        <button class="btn btn-outline" id="pg-prev" ${state.page <= 1 ? "disabled" : ""}>Prev</button>
+        <span>Page ${state.page} of ${totalPages} (${data.total} total)</span>
+        <button class="btn btn-outline" id="pg-next" ${state.page >= totalPages ? "disabled" : ""}>Next</button>`;
+      document.getElementById("pg-prev")?.addEventListener("click", () => { state.page--; load(); });
+      document.getElementById("pg-next")?.addEventListener("click", () => { state.page++; load(); });
+    } catch (e) {
+      document.getElementById("batch-rows").innerHTML = `<tr><td colspan="8">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+
+  ["f-batch-status", "f-quality-status", "f-expiring"].forEach((id) => document.getElementById(id).addEventListener("change", () => { state.page = 1; load(); }));
+  document.getElementById("f-search").addEventListener("input", () => { state.page = 1; load(); });
+
+  // ============================= ADJUST QUANTITY =============================
+  function openAdjustModal(batch) {
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;";
+    backdrop.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:22px;width:420px;">
+        <h3 style="margin-top:0;">Adjust Quantity — ${batch.batch_number}</h3>
+        <p style="font-size:12.5px; color:#666;">Current quantity: <b>${batch.quantity}</b></p>
+        <div class="form-field"><label>Change (positive to receive/correct up, negative for wastage/correction down)</label><input id="adj-delta" type="number" placeholder="e.g. 50 or -5"></div>
+        <div class="form-field" style="margin-top:8px;"><label>Reason (required, for the audit ledger)</label><input id="adj-reason" placeholder="e.g. Received from supplier, Damaged in storage"></div>
+        <div id="adj-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+          <button class="btn btn-outline" id="adj-cancel">Cancel</button>
+          <button class="btn btn-primary" id="adj-save">Apply</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    backdrop.querySelector("#adj-cancel").onclick = () => backdrop.remove();
+    backdrop.querySelector("#adj-save").onclick = async () => {
+      const delta = Number(backdrop.querySelector("#adj-delta").value);
+      const reason = backdrop.querySelector("#adj-reason").value.trim();
+      if (!Number.isInteger(delta) || delta === 0) { backdrop.querySelector("#adj-error").textContent = "Enter a non-zero whole number"; return; }
+      if (!reason) { backdrop.querySelector("#adj-error").textContent = "A reason is required"; return; }
+      try {
+        await Api.post(`/inventory/batches/${batch.id}/adjust`, { delta, reason });
+        backdrop.remove();
+        Toast.show("Quantity adjusted", "success");
+        load(); loadSummary();
+      } catch (e) {
+        backdrop.querySelector("#adj-error").textContent = e.message;
+      }
+    };
+  }
+
+  // ============================= BATCH STATUS =============================
+  function openStatusModal(batch) {
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;";
+    backdrop.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:22px;width:420px;">
+        <h3 style="margin-top:0;">Batch Status — ${batch.batch_number}</h3>
+        <div class="form-field"><label>Batch Status</label>
+          <select id="st-batch-status">${["active", "quarantined", "expired", "recalled"].map((s) => `<option value="${s}" ${batch.batch_status === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+        </div>
+        <div class="form-field" style="margin-top:8px;"><label>Quality Status</label>
+          <select id="st-quality-status">${["pending", "passed", "failed"].map((s) => `<option value="${s}" ${batch.quality_status === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+        </div>
+        <div class="form-field" style="margin-top:8px;"><label>Reason (optional, recorded only if this changes sellability)</label><input id="st-reason" placeholder="e.g. QC lab result received, Recalled by manufacturer"></div>
+        <div id="st-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+          <button class="btn btn-outline" id="st-cancel">Cancel</button>
+          <button class="btn btn-primary" id="st-save">Save</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    backdrop.querySelector("#st-cancel").onclick = () => backdrop.remove();
+    backdrop.querySelector("#st-save").onclick = async () => {
+      try {
+        await Api.put(`/inventory/batches/${batch.id}/status`, {
+          batch_status: backdrop.querySelector("#st-batch-status").value,
+          quality_status: backdrop.querySelector("#st-quality-status").value,
+          reason: backdrop.querySelector("#st-reason").value.trim() || undefined,
+        });
+        backdrop.remove();
+        Toast.show("Status updated", "success");
+        load(); loadSummary();
+      } catch (e) {
+        backdrop.querySelector("#st-error").textContent = e.message;
+      }
+    };
+  }
+
+  // ============================= LEDGER =============================
+  async function openLedgerModal(batchId, batchNumber) {
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;overflow:auto;padding:20px 0;";
+    backdrop.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:22px;width:560px;max-height:85vh;overflow:auto;">
+        <h3 style="margin-top:0;">Ledger — ${batchNumber}</h3>
+        <table class="data-table"><thead><tr><th>When</th><th>Change</th><th>Resulting Qty</th><th>Reason</th><th>Actor</th></tr></thead>
+        <tbody id="ledger-rows"><tr><td colspan="5">Loading...</td></tr></tbody></table>
+        <div style="display:flex; justify-content:flex-end; margin-top:14px;"><button class="btn btn-outline" id="ledger-close">Close</button></div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    backdrop.querySelector("#ledger-close").onclick = () => backdrop.remove();
+    try {
+      const { items } = await Api.get(`/inventory/batches/${batchId}/ledger`);
+      backdrop.querySelector("#ledger-rows").innerHTML = items.length ? items.map((l) => `
+        <tr>
+          <td style="font-size:12px;">${new Date(l.created_at).toLocaleString()}</td>
+          <td style="color:${l.change_qty >= 0 ? "var(--success)" : "var(--danger)"};">${l.change_qty >= 0 ? "+" : ""}${l.change_qty}</td>
+          <td>${l.resulting_quantity}</td>
+          <td>${l.reason}</td>
+          <td style="font-size:12px;">${l.actor}</td>
+        </tr>`).join("") : `<tr><td colspan="5">No ledger entries yet.</td></tr>`;
+    } catch (e) {
+      backdrop.querySelector("#ledger-rows").innerHTML = `<tr><td colspan="5">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+
+  // ============================= NEW BATCH (with variant picker) =============================
+  function openNewBatchModal() {
+    let selectedVariant = null;
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;overflow:auto;padding:20px 0;";
+    backdrop.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:22px;width:480px;max-height:88vh;overflow:auto;">
+        <h3 style="margin-top:0;">New Batch</h3>
+        <div class="form-field"><label>Product</label><input id="nb-product-search" placeholder="Search product by name..."></div>
+        <div id="nb-variant-results" style="margin-top:6px; max-height:140px; overflow:auto; border:1px solid var(--border); border-radius:8px; display:none;"></div>
+        <div id="nb-variant-selected" style="font-size:13px; margin-top:8px;"></div>
+        <div class="form-field" style="margin-top:10px;"><label>Batch Number</label><input id="nb-batch-number" placeholder="e.g. BN-2026-001"></div>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <div class="form-field" style="flex:1;"><label>MFG Date</label><input id="nb-mfg" type="date"></div>
+          <div class="form-field" style="flex:1;"><label>Expiry Date</label><input id="nb-expiry" type="date"></div>
+        </div>
+        <div class="form-field" style="margin-top:8px;"><label>Quantity Received</label><input id="nb-qty" type="number" placeholder="0"></div>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <div class="form-field" style="flex:1;"><label>Quality Status</label><select id="nb-quality"><option value="pending">Pending</option><option value="passed">Passed</option><option value="failed">Failed</option></select></div>
+          <div class="form-field" style="flex:1;"><label>Batch Status</label><select id="nb-status"><option value="active">Active</option><option value="quarantined">Quarantined</option></select></div>
+        </div>
+        <div id="nb-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+          <button class="btn btn-outline" id="nb-cancel">Cancel</button>
+          <button class="btn btn-primary" id="nb-save">Create Batch</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    let searchTimer = null;
+    backdrop.querySelector("#nb-product-search").addEventListener("input", (e) => {
+      clearTimeout(searchTimer);
+      const q = e.target.value.trim();
+      if (!q) { backdrop.querySelector("#nb-variant-results").style.display = "none"; return; }
+      searchTimer = setTimeout(async () => {
+        try {
+          const { items } = await Api.get(`/products?q=${encodeURIComponent(q)}&pageSize=10`);
+          const resultsEl = backdrop.querySelector("#nb-variant-results");
+          const rows = [];
+          items.forEach((p) => (p.product_variants || []).forEach((v) => rows.push({ product: p, variant: v })));
+          resultsEl.innerHTML = rows.length
+            ? rows.map((r) => `<div class="variant-pick-row" data-variant-id="${r.variant.id}" data-product-title="${r.product.title.replace(/"/g, "&quot;")}" data-variant-label="${r.variant.label.replace(/"/g, "&quot;")}" style="padding:6px 10px; cursor:pointer; border-bottom:1px solid var(--border); font-size:13px;">${r.product.title} — ${r.variant.label}</div>`).join("")
+            : `<div style="padding:6px 10px; font-size:12px; color:#888;">No matching products/variants.</div>`;
+          resultsEl.style.display = "block";
+          resultsEl.querySelectorAll(".variant-pick-row").forEach((row) => row.addEventListener("click", () => {
+            selectedVariant = row.dataset.variantId;
+            backdrop.querySelector("#nb-variant-selected").innerHTML = `Selected: <b>${row.dataset.productTitle} — ${row.dataset.variantLabel}</b>`;
+            resultsEl.style.display = "none";
+            backdrop.querySelector("#nb-product-search").value = `${row.dataset.productTitle} — ${row.dataset.variantLabel}`;
+          }));
+        } catch (e) { /* non-fatal search failure */ }
+      }, 300);
+    });
+
+    backdrop.querySelector("#nb-cancel").onclick = () => backdrop.remove();
+    backdrop.querySelector("#nb-save").onclick = async () => {
+      const errEl = backdrop.querySelector("#nb-error");
+      if (!selectedVariant) { errEl.textContent = "Search for and select a product variant"; return; }
+      const batchNumber = backdrop.querySelector("#nb-batch-number").value.trim();
+      if (!batchNumber) { errEl.textContent = "Batch number is required"; return; }
+      try {
+        await Api.post("/inventory/batches", {
+          variant_id: selectedVariant, batch_number: batchNumber,
+          mfg_date: backdrop.querySelector("#nb-mfg").value || null,
+          expiry_date: backdrop.querySelector("#nb-expiry").value || null,
+          quantity: Number(backdrop.querySelector("#nb-qty").value) || 0,
+          quality_status: backdrop.querySelector("#nb-quality").value,
+          batch_status: backdrop.querySelector("#nb-status").value,
+        });
+        backdrop.remove();
+        Toast.show("Batch created", "success");
+        load(); loadSummary();
+      } catch (e) {
+        errEl.textContent = e.message;
+      }
+    };
+  }
+
+  document.getElementById("new-batch-btn").addEventListener("click", openNewBatchModal);
+
+  loadSummary();
+  load();
+</script>
+</body>
+</html>

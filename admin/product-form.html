@@ -19,7 +19,7 @@
       <a href="customers.html">Customers</a>
       <a href="coupons.html">Coupons</a>
       <a href="reviews.html">Reviews</a>
-      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a><a href="wellness.html">Wellness</a>
+      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a><a href="wellness.html">Wellness</a><a href="inventory.html">Inventory</a>
       <a href="vaidya-bookings.html">Vaidya Bookings</a>
       <a href="users.html">Users &amp; Roles</a>
       <a href="payments-list.html">Payments</a>
@@ -178,6 +178,7 @@
         <input value="${v.price || ""}" type="number" placeholder="Price" style="flex:1;" oninput="variants[${i}].price=this.value; updatePreview();">
         <input value="${v.mrp || ""}" type="number" placeholder="MRP" style="flex:1;" oninput="variants[${i}].mrp=this.value;">
         <input value="${v.id ? (v.stock ?? 0) : "—"}" type="text" disabled title="Stock is now maintained from Inventory batches (Phase 5A) and can no longer be set here." style="flex:1; background:#f3f3f3; color:#777;">
+        ${v.id ? `<a class="btn btn-outline" href="inventory.html?variant_id=${v.id}" title="View/manage this variant's batches">Batches</a>` : ""}
         <button type="button" class="btn btn-danger" onclick="removeVariantRow(${i})">Remove</button>
       </div>`).join("");
   }
