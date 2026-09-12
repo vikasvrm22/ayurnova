@@ -31,6 +31,11 @@ import integrationsAdminRoutes from "./routes/integrationsAdmin.js";
 import ingredientsRoutes from "./routes/ingredients.js";
 import faqsRoutes from "./routes/faqs.js";
 import blogPublicRoutes from "./routes/blogPublic.js";
+// ---- Phase 4: Personalization ----
+import wellnessAdminRoutes from "./routes/wellnessAdmin.js";
+import routinesAdminRoutes from "./routes/routinesAdmin.js";
+import wellnessPublicRoutes from "./routes/wellnessPublic.js";
+import routinesPublicRoutes from "./routes/routinesPublic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -118,13 +123,17 @@ app.use("/api/admin/integrations", integrationsAdminRoutes);
 // ---- Admin Discovery & Knowledge content (Phase 3) ----
 app.use("/api/admin/ingredients", ingredientsRoutes);
 app.use("/api/admin/faqs", faqsRoutes);
+// ---- Admin Personalization content (Phase 4) ----
+app.use("/api/admin/wellness/questions", wellnessAdminRoutes);
+app.use("/api/admin/routines", routinesAdminRoutes);
 
 // ---- Public API (storefront AJAX: checkout, reviews, bookings, coupons) ----
 app.use("/api/public", publicRoutes);
 
 // ---- Public catalog API (Phase 1: products/categories/search JSON - the
 // Android-readiness gap identified in Phase 0 §6; extended in Phase 3 with
-// ingredients/richer categories/multi-value filtering/compare) ----
+// ingredients/richer categories/multi-value filtering/compare; extended in
+// Phase 4 with a `dosha` filter dimension) ----
 app.use("/api/public", catalogPublicRoutes);
 
 // ---- Public payment API (Phase 2: verify/retry/webhook) ----
@@ -132,6 +141,11 @@ app.use("/api/public/payments", paymentsPublicRoutes);
 
 // ---- Public Knowledge Hub API (Phase 3) ----
 app.use("/api/public/blog", blogPublicRoutes);
+
+// ---- Public Personalization API (Phase 4: assessment/profile/
+// recommendations + general routine browsing) ----
+app.use("/api/public/wellness", wellnessPublicRoutes);
+app.use("/api/public/routines", routinesPublicRoutes);
 
 app.get("/api/meta/schema", (req, res) => {
   res.json({ roles: ROLES, rolePermissions: ROLE_PERMISSIONS, productFields: PRODUCT_FIELDS });

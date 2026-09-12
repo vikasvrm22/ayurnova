@@ -27,6 +27,7 @@ import {
   compareProducts,
   MAX_COMPARE_PRODUCTS,
   PRODUCT_SORT_MAP,
+  DOSHAS,
 } from "../services/catalogService.js";
 import { parsePagination, isValidSlug, isValidUUID } from "../validation/validators.js";
 import { AppError, sendOk, asyncRoute, catalogErrorHandler } from "../utils/apiResponse.js";
@@ -103,6 +104,7 @@ function toDetail(row) {
     concerns: (row.concerns || []).map(toTagCard),
     benefits: (row.benefits || []).map(toTagCard),
     goals: (row.goals || []).map(toTagCard),
+    doshas: row.doshas || [],
     faqs: (row.faqs || []).map((f) => ({ id: f.id, question: f.question, answer: f.answer })),
   };
 }
@@ -143,6 +145,10 @@ function parseListQuery(query) {
       throw new AppError(`Invalid ${key}: must be a valid slug`, 400, "INVALID_SLUG");
     }
   }
+  // Phase 4: dosha is a fixed 3-value enum, not a slug lookup.
+  if (query.dosha !== undefined && !DOSHAS.includes(query.dosha)) {
+    throw new AppError(`Invalid dosha: must be one of ${DOSHAS.join(", ")}`, 400, "INVALID_PARAM");
+  }
 
   let inStock;
   if (query.in_stock !== undefined) {
@@ -163,6 +169,7 @@ function parseListQuery(query) {
     benefit: query.benefit,
     goal: query.goal,
     ingredient: query.ingredient,
+    dosha: query.dosha,
     q: typeof query.q === "string" ? query.q.slice(0, 100) : undefined,
     inStock,
   };

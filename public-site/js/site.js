@@ -111,4 +111,55 @@ function toggleCompare(productId) {
   return { added: true, list };
 }
 
-document.addEventListener("DOMContentLoaded", updateCartBadge);
+/**
+ * Phase 4: "Recommended For You" product cards - shared by index.html,
+ * product.html and for-you.html rather than each having its own copy.
+ * Deterministic/explainable, not a model: `p` is exactly what
+ * GET /api/public/wellness/recommendations returned for this customer's
+ * stored Dosha/Goals/Concerns.
+ */
+function forYouCardHtml(p) {
+  function fmtPrice(n) { return "₹" + Math.round(n).toLocaleString("en-IN"); }
+  const stars = "★".repeat(Math.round(p.avgRating || 0)) + "☆".repeat(5 - Math.round(p.avgRating || 0));
+  return `
+    <div class="product-card">
+      <div class="img">${p.image ? `<img src="${p.image}" alt="${p.title}" style="width:100%;height:100%;object-fit:cover;">` : "Product Image"}</div>
+      <div class="body">
+        <div class="title">${p.title}</div>
+        <div class="stars">${stars} <span class="reviews">(${p.reviewCount || 0})</span></div>
+        <div class="price-row">${p.price ? `<span class="price">${fmtPrice(p.price)}</span>` : ""}${p.mrp && p.mrp > p.price ? `<span class="mrp">${fmtPrice(p.mrp)}</span>` : ""}</div>
+        <button class="add-btn" onclick="location.href='/product/${p.slug}'">View Product</button>
+      </div>
+    </div>`;
+}
+
+/**
+ * Reveals and fills a "Recommended For You" section if (a) a customer is
+ * logged in and (b) they have at least one recommendation - otherwise
+ * the section stays hidden (its default `display:none` in the markup),
+ * so a guest or a customer with no Wellness Profile yet sees the exact
+ * same page as before Phase 4, not an empty/broken section.
+ */
+async function loadForYouSection(gridId, sectionId, pageSize = 6) {
+  if (!window.supabaseClient) return;
+  const { data } = await window.supabaseClient.auth.getSession();
+  if (!data?.session) return;
+  try {
+    const res = await apiGet(`/api/public/wellness/recommendations?pageSize=${pageSize}`);
+    const items = res.data.items || [];
+    if (!items.length) return;
+    document.getElementById(gridId).innerHTML = items.map(forYouCardHtml).join("");
+    document.getElementById(sectionId).style.display = "block";
+  } catch (e) {
+    // Never let a personalization failure break the rest of the page -
+    // the section simply stays hidden, same as "no recommendations yet".
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  updateCartBadge();
+  // Only pages that actually have this markup (index.html, product.html)
+  // get anything rendered here - every other page's call is a no-op via
+  // loadForYouSection's own auth/session guard returning early.
+  if (document.getElementById("for-you-section")) loadForYouSection("for-you-grid", "for-you-section");
+});

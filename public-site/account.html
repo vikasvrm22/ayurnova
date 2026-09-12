@@ -41,9 +41,13 @@
   <div id="account-panel" style="display:none;">
     <div class="form-card" style="max-width:700px;">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 class="section-title" style="margin:0; text-align:left;">My Orders</h3>
+        <h3 class="section-title" style="margin:0; text-align:left;">My Wellness Profile</h3>
         <button id="logout-btn" style="background:#fff; border:1px solid var(--hairline); padding:8px 16px; border-radius:20px; width:auto;">Log Out</button>
       </div>
+      <div id="wellness-profile" style="margin-top:16px;"></div>
+    </div>
+    <div class="form-card" style="max-width:700px; margin-top:16px;">
+      <h3 class="section-title" style="margin:0; text-align:left;">My Orders</h3>
       <div id="orders-list" style="margin-top:16px;"></div>
     </div>
   </div>
@@ -118,6 +122,39 @@
     }
   }
 
+  // Phase 4: the customer's own Wellness Profile (server/src/routes/
+  // wellnessPublic.js's GET /profile) - dosha + goals/concerns derived
+  // from their most recent assessment, plus history. `requireCustomer`
+  // on that route means this simply never resolves for a guest, but this
+  // page only calls it once already inside the logged-in branch anyway.
+  async function loadWellnessProfile() {
+    const el = document.getElementById("wellness-profile");
+    try {
+      const { current, history } = await apiGet("/api/public/wellness/profile");
+      if (!current) {
+        el.innerHTML = `<p style="color:#888;">You haven't taken the Wellness Assessment yet.</p><a href="/dosha-test" class="pill">Take the Assessment →</a>`;
+        return;
+      }
+      const goals = current.goals.map(g => g.name).join(", ") || "None captured";
+      const concerns = current.concerns.map(c => c.name).join(", ") || "None captured";
+      el.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div>
+            <div style="font-size:12px; color:#888;">Dosha</div>
+            <div style="font-weight:700; text-transform:capitalize; font-size:15px;">${current.dosha}</div>
+          </div>
+          <div><a href="/for-you" class="pill">See Personalized Picks →</a></div>
+        </div>
+        <div style="margin-top:10px; font-size:13px;"><b>Goals:</b> ${goals}</div>
+        <div style="margin-top:4px; font-size:13px;"><b>Concerns:</b> ${concerns}</div>
+        <div style="margin-top:10px; font-size:11.5px; color:#888;">Assessed ${new Date(current.assessedAt).toLocaleDateString("en-IN")} · ${history.length} assessment(s) taken</div>
+        <a href="/dosha-test" style="font-size:12.5px;">Retake the assessment →</a>
+      `;
+    } catch (e) {
+      el.innerHTML = `<p style="color:#B23A2E;">Could not load your wellness profile: ${e.message}</p>`;
+    }
+  }
+
   async function checkSession() {
     if (!window.supabaseClient) return;
     const { data } = await window.supabaseClient.auth.getSession();
@@ -125,6 +162,7 @@
       document.getElementById("auth-forms").style.display = "none";
       document.getElementById("account-panel").style.display = "block";
       loadOrders();
+      loadWellnessProfile();
     } else {
       document.getElementById("auth-forms").style.display = "block";
       document.getElementById("account-panel").style.display = "none";

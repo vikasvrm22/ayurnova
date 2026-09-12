@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wellness — AyurVeda Store Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a>
+      <a href="wellness.html" class="active">Wellness</a><a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
+      <a href="payments-list.html">Payments</a>
+      <a href="integrations.html">Integrations</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
+  </aside>
+  <main class="main-area">
+    <div class="page-header"><h2>Wellness (Phase 4)</h2><button class="btn btn-primary" id="new-btn">+ New</button></div>
+    <p style="font-size:12.5px; color:#666; margin-top:-6px;">Manage the Wellness Assessment's questions and admin-authored Routine templates. Products get their dosha suitability on the Product edit page's Discovery Tags panel.</p>
+    <div style="display:flex; gap:6px; margin:14px 0;">
+      <button class="btn btn-primary tab-btn" data-tab="questions">Assessment Questions</button>
+      <button class="btn btn-outline tab-btn" data-tab="routines">Routines</button>
+    </div>
+    <div id="list-area"><p>Loading...</p></div>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  let activeTab = "questions";
+  const DOSHAS = ["vata", "pitta", "kapha"];
+  const TIMES = ["morning", "afternoon", "evening", "anytime"];
+  let goalOptions = [], concernOptions = [];
+
+  function setTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll(".tab-btn").forEach(b => { b.classList.toggle("btn-primary", b.dataset.tab === tab); b.classList.toggle("btn-outline", b.dataset.tab !== tab); });
+    load();
+  }
+  document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => setTab(b.dataset.tab)));
+
+  async function loadCategoryOptions() {
+    try { goalOptions = (await Api.get("/categories?type=goal")).items; } catch (e) { goalOptions = []; }
+    try { concernOptions = (await Api.get("/categories?type=concern")).items; } catch (e) { concernOptions = []; }
+  }
+
+  async function load() {
+    document.getElementById("list-area").innerHTML = "<p>Loading...</p>";
+    if (activeTab === "questions") await loadQuestions(); else await loadRoutines();
+  }
+
+  // ============================= QUESTIONS =============================
+  async function loadQuestions() {
+    try {
+      const { items } = await Api.get("/wellness/questions");
+      document.getElementById("list-area").innerHTML = `
+        <table class="data-table">
+          <thead><tr><th>Question</th><th>Dimension</th><th>Options</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+          ${items.length ? items.map(q => `
+            <tr>
+              <td><b>${q.question}</b></td>
+              <td style="text-transform:capitalize;">${q.dimension}</td>
+              <td>${(q.wellness_question_options || []).length}</td>
+              <td><span class="badge badge-${q.status === 'published' ? 'delivered' : 'pending'}">${q.status}</span></td>
+              <td>
+                ${q.status !== "published" ? `<button class="btn btn-primary" onclick="publishQuestion('${q.id}')">Publish</button>` : ""}
+                <button class="btn btn-outline" onclick='openQuestionEditor(${JSON.stringify(q).replace(/'/g, "&#39;")})'>Edit</button>
+                <button class="btn btn-danger" onclick="removeQuestion('${q.id}')">Delete</button>
+              </td>
+            </tr>`).join("") : `<tr><td colspan="5">No questions yet.</td></tr>`}
+          </tbody>
+        </table>`;
+    } catch (e) {
+      document.getElementById("list-area").innerHTML = `<p>Could not load: ${e.message}</p>`;
+    }
+  }
+
+  async function publishQuestion(id) {
+    try { await Api.post(`/wellness/questions/${id}/publish`, {}); Toast.show("Published", "success"); load(); }
+    catch (e) { Toast.show(e.message, "error"); }
+  }
+  async function removeQuestion(id) {
+    if (!confirm("Delete this question and all its options?")) return;
+    try { await Api.del(`/wellness/questions/${id}`); Toast.show("Deleted", "success"); load(); }
+    catch (e) { Toast.show(e.message, "error"); }
+  }
+
+  function optionTargetField(dimension, opt) {
+    if (dimension === "dosha") {
+      return `<select class="opt-target">${DOSHAS.map(d => `<option value="${d}" ${opt?.dosha === d ? "selected" : ""}>${d}</option>`).join("")}</select>`;
+    }
+    const list = dimension === "goal" ? goalOptions : concernOptions;
+    const selectedId = dimension === "goal" ? opt?.goal_id : opt?.concern_id;
+    return `<select class="opt-target">${list.map(c => `<option value="${c.id}" ${selectedId === c.id ? "selected" : ""}>${c.name}</option>`).join("")}</select>`;
+  }
+
+  function openQuestionEditor(item) {
+    let options = item ? (item.wellness_question_options || []).map(o => ({ ...o })) : [];
+    let removedOptionIds = [];
+    const dimension = item?.dimension;
+
+    function renderOptionRows() {
+      return options.map((o, i) => `
+        <div class="variant-row" data-idx="${i}">
+          <input value="${(o.label || "").replace(/"/g, "&quot;")}" placeholder="Option label" style="flex:2;" class="opt-label">
+          ${item ? optionTargetField(dimension, o) : `<span style="flex:1; color:#888; font-size:12px;">Save question first</span>`}
+          <button type="button" class="btn btn-danger" onclick="removeOptionRow(this)">Remove</button>
+        </div>`).join("");
+    }
+
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;overflow:auto;padding:20px 0;";
+    backdrop.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:22px;width:520px;max-height:88vh;overflow:auto;">
+        <h3 style="margin-top:0;">${item ? "Edit" : "New"} Question</h3>
+        <div class="form-field"><label>Question</label><input id="q-question" value="${item ? item.question.replace(/"/g, "&quot;") : ""}"></div>
+        <div class="form-field" style="margin-top:8px;">
+          <label>Dimension (what this question votes on - cannot change after creation)</label>
+          <select id="q-dimension" ${item ? "disabled" : ""}>
+            <option value="dosha" ${dimension === "dosha" ? "selected" : ""}>Dosha (Vata/Pitta/Kapha)</option>
+            <option value="goal" ${dimension === "goal" ? "selected" : ""}>Goal</option>
+            <option value="concern" ${dimension === "concern" ? "selected" : ""}>Concern</option>
+          </select>
+        </div>
+        ${item ? `
+        <div class="form-field" style="margin-top:14px;">
+          <label>Options</label>
+          <div id="option-rows">${renderOptionRows()}</div>
+          <button type="button" class="btn btn-outline" id="add-option-btn" style="margin-top:6px;">+ Add Option</button>
+        </div>` : `<p style="font-size:12px; color:#888; margin-top:10px;">Save the question, then reopen it to add options.</p>`}
+        <div id="q-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+          <button class="btn btn-outline" id="q-cancel">Cancel</button>
+          <button class="btn btn-primary" id="q-save">${item ? "Save" : "Create"}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    window.removeOptionRow = (btn) => {
+      const row = btn.closest(".variant-row");
+      const idx = Number(row.dataset.idx);
+      if (options[idx].id) removedOptionIds.push(options[idx].id);
+      options.splice(idx, 1);
+      document.getElementById("option-rows").innerHTML = renderOptionRows();
+    };
+
+    if (item) {
+      backdrop.querySelector("#add-option-btn").addEventListener("click", () => {
+        options.push({ label: "" });
+        document.getElementById("option-rows").innerHTML = renderOptionRows();
+      });
+    }
+
+    backdrop.querySelector("#q-cancel").onclick = () => backdrop.remove();
+    backdrop.querySelector("#q-save").onclick = async () => {
+      const question = backdrop.querySelector("#q-question").value.trim();
+      const dim = backdrop.querySelector("#q-dimension").value;
+      if (!question) { backdrop.querySelector("#q-error").textContent = "Question text is required"; return; }
+      try {
+        let questionId = item?.id;
+        if (item) {
+          await Api.put(`/wellness/questions/${questionId}`, { question });
+        } else {
+          const res = await Api.post("/wellness/questions", { question, dimension: dim });
+          questionId = res.item.id;
+        }
+        if (item) {
+          const rows = Array.from(document.querySelectorAll("#option-rows .variant-row"));
+          for (let i = 0; i < rows.length; i++) {
+            const label = rows[i].querySelector(".opt-label").value.trim();
+            const targetVal = rows[i].querySelector(".opt-target")?.value;
+            if (!label) continue;
+            const body = { label };
+            if (dimension === "dosha") body.dosha = targetVal;
+            else if (dimension === "goal") body.goal_id = targetVal;
+            else if (dimension === "concern") body.concern_id = targetVal;
+            if (options[i].id) await Api.put(`/wellness/questions/${questionId}/options/${options[i].id}`, body).catch(err => Toast.show(err.message, "error"));
+            else await Api.post(`/wellness/questions/${questionId}/options`, body).catch(err => Toast.show(err.message, "error"));
+          }
+          for (const oid of removedOptionIds) await Api.del(`/wellness/questions/${questionId}/options/${oid}`).catch(() => {});
+        }
+        backdrop.remove();
+        Toast.show("Saved", "success");
+        load();
+      } catch (e) {
+        backdrop.querySelector("#q-error").textContent = e.message;
+      }
+    };
+  }
+
+  // ============================= ROUTINES =============================
+  async function loadRoutines() {
+    try {
+      const { items } = await Api.get("/routines");
+      document.getElementById("list-area").innerHTML = `
+        <table class="data-table">
+          <thead><tr><th>Name</th><th>Dosha</th><th>Steps</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+          ${items.length ? items.map(r => `
+            <tr>
+              <td><b>${r.name}</b></td>
+              <td style="text-transform:capitalize;">${r.dosha || "Any"}</td>
+              <td>${(r.routine_steps || []).length}</td>
+              <td><span class="badge badge-${r.status === 'published' ? 'delivered' : 'pending'}">${r.status}</span></td>
+              <td>
+                ${r.status !== "published" ? `<button class="btn btn-primary" onclick="publishRoutine('${r.id}')">Publish</button>` : ""}
+                <button class="btn btn-outline" onclick='openRoutineEditor(${JSON.stringify(r).replace(/'/g, "&#39;")})'>Edit</button>
+                <button class="btn btn-danger" onclick="removeRoutine('${r.id}')">Delete</button>
+              </td>
+            </tr>`).join("") : `<tr><td colspan="5">No routines yet.</td></tr>`}
+          </tbody>
+        </table>`;
+    } catch (e) {
+      document.getElementById("list-area").innerHTML = `<p>Could not load: ${e.message}</p>`;
+    }
+  }
+
+  async function publishRoutine(id) {
+    try { await Api.post(`/routines/${id}/publish`, {}); Toast.show("Published", "success"); load(); }
+    catch (e) { Toast.show(e.message, "error"); }
+  }
+  async function removeRoutine(id) {
+    if (!confirm("Delete this routine and all its steps?")) return;
+    try { await Api.del(`/routines/${id}`); Toast.show("Deleted", "success"); load(); }
+    catch (e) { Toast.show(e.message, "error"); }
+  }
+
+  function openRoutineEditor(item) {
+    let steps = item ? (item.routine_steps || []).map(s => ({ ...s })) : [];
+    let removedStepIds = [];
+    let selectedGoalIds = item ? (item.routine_goals || []).map(g => g.goal_id) : [];
+
+    function renderStepRows() {
+      return steps.map((s, i) => `
+        <div class="variant-row" data-idx="${i}">
+          <input value="${(s.title || "").replace(/"/g, "&quot;")}" placeholder="Step title" style="flex:2;" class="step-title">
+          <select class="step-time">${["", ...TIMES].map(t => `<option value="${t}" ${s.time_of_day === t ? "selected" : ""}>${t || "Any time"}</option>`).join("")}</select>
+          <input value="${s.instructions || ""}" placeholder="Instructions (optional)" style="flex:2;" class="step-instructions">
+          <button type="button" class="btn btn-danger" onclick="removeStepRow(this)">Remove</button>
+        </div>`).join("");
+    }
+    function renderGoalChips() {
+      return goalOptions.length ? goalOptions.map(g => `
+        <label style="display:inline-flex; align-items:center; gap:4px; border:1px solid var(--border); border-radius:14px; padding:4px 10px; font-size:12px; cursor:pointer;">
+          <input type="checkbox" class="routine-goal" value="${g.id}" ${selectedGoalIds.includes(g.id) ? "checked" : ""}> ${g.name}
+        </label>`).join("") : `<span style="font-size:12px; color:#888;">No goals defined yet (Discovery page).</span>`;
+    }
+
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;overflow:auto;padding:20px 0;";
+    backdrop.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:22px;width:560px;max-height:88vh;overflow:auto;">
+        <h3 style="margin-top:0;">${item ? "Edit" : "New"} Routine</h3>
+        <div class="form-field"><label>Name</label><input id="r-name" value="${item ? item.name.replace(/"/g, "&quot;") : ""}"></div>
+        <div class="form-field" style="margin-top:8px;"><label>Description</label><textarea id="r-description">${item?.description || ""}</textarea></div>
+        <div class="form-field" style="margin-top:8px;">
+          <label>Dosha (leave blank to suit everyone)</label>
+          <select id="r-dosha"><option value="">Any</option>${DOSHAS.map(d => `<option value="${d}" ${item?.dosha === d ? "selected" : ""}>${d}</option>`).join("")}</select>
+        </div>
+        <div class="form-field" style="margin-top:8px;">
+          <label>Goals this routine targets (optional - leave empty to match by dosha alone)</label>
+          <div id="goal-chips" style="display:flex; flex-wrap:wrap; gap:6px;">${renderGoalChips()}</div>
+        </div>
+        ${item ? `
+        <div class="form-field" style="margin-top:14px;">
+          <label>Steps</label>
+          <div id="step-rows">${renderStepRows()}</div>
+          <button type="button" class="btn btn-outline" id="add-step-btn" style="margin-top:6px;">+ Add Step</button>
+        </div>` : `<p style="font-size:12px; color:#888; margin-top:10px;">Save the routine, then reopen it to add steps.</p>`}
+        <div id="r-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+          <button class="btn btn-outline" id="r-cancel">Cancel</button>
+          <button class="btn btn-primary" id="r-save">${item ? "Save" : "Create"}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    window.removeStepRow = (btn) => {
+      const row = btn.closest(".variant-row");
+      const idx = Number(row.dataset.idx);
+      if (steps[idx].id) removedStepIds.push(steps[idx].id);
+      steps.splice(idx, 1);
+      document.getElementById("step-rows").innerHTML = renderStepRows();
+    };
+    if (item) {
+      backdrop.querySelector("#add-step-btn").addEventListener("click", () => {
+        steps.push({ title: "" });
+        document.getElementById("step-rows").innerHTML = renderStepRows();
+      });
+    }
+
+    backdrop.querySelector("#r-cancel").onclick = () => backdrop.remove();
+    backdrop.querySelector("#r-save").onclick = async () => {
+      const name = backdrop.querySelector("#r-name").value.trim();
+      if (!name) { backdrop.querySelector("#r-error").textContent = "Name is required"; return; }
+      const body = {
+        name, description: backdrop.querySelector("#r-description").value.trim(),
+        dosha: backdrop.querySelector("#r-dosha").value || null,
+      };
+      try {
+        let routineId = item?.id;
+        if (item) await Api.put(`/routines/${routineId}`, body);
+        else { const res = await Api.post("/routines", body); routineId = res.item.id; }
+
+        const goalIds = Array.from(document.querySelectorAll(".routine-goal:checked")).map(el => el.value);
+        await Api.put(`/routines/${routineId}/goals`, { goal_ids: goalIds }).catch(err => Toast.show(err.message, "error"));
+
+        if (item) {
+          const rows = Array.from(document.querySelectorAll("#step-rows .variant-row"));
+          for (let i = 0; i < rows.length; i++) {
+            const title = rows[i].querySelector(".step-title").value.trim();
+            if (!title) continue;
+            const stepBody = {
+              title, step_order: i,
+              time_of_day: rows[i].querySelector(".step-time").value || null,
+              instructions: rows[i].querySelector(".step-instructions").value.trim() || null,
+            };
+            if (steps[i].id) await Api.put(`/routines/${routineId}/steps/${steps[i].id}`, stepBody).catch(err => Toast.show(err.message, "error"));
+            else await Api.post(`/routines/${routineId}/steps`, stepBody).catch(err => Toast.show(err.message, "error"));
+          }
+          for (const sid of removedStepIds) await Api.del(`/routines/${routineId}/steps/${sid}`).catch(() => {});
+        }
+        backdrop.remove();
+        Toast.show("Saved", "success");
+        load();
+      } catch (e) {
+        backdrop.querySelector("#r-error").textContent = e.message;
+      }
+    };
+  }
+
+  document.getElementById("new-btn").addEventListener("click", () => {
+    if (activeTab === "questions") openQuestionEditor(null);
+    else openRoutineEditor(null);
+  });
+
+  loadCategoryOptions().then(() => setTab("questions"));
+</script>
+</body>
+</html>

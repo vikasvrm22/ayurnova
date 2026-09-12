@@ -481,15 +481,79 @@ router.get("/faq", trackPageView, async (req, res, next) => {
   }
 });
 
+// ============================= PHASE 4: ROUTINES =============================
+router.get("/routines", trackPageView, async (req, res, next) => {
+  try {
+    const { data: routines } = await supabaseAdmin()
+      .from("routine_templates").select("name, slug, description, dosha").eq("status", "published").order("sort_order");
+    let template = getTemplate("routines.html");
+    const listHtml = (routines || []).length
+      ? routines.map((r) => `
+        <div class="testimonial-card">
+          <div class="name"><a href="/routines/${escapeHtml(r.slug)}">${escapeHtml(r.name)}</a>${r.dosha ? ` <span style="font-size:11px; color:#888; text-transform:capitalize;">(${escapeHtml(r.dosha)})</span>` : ""}</div>
+          <p>${escapeHtml(truncate(r.description || "", 140))}</p>
+        </div>`).join("")
+      : `<p style="color:#888;">No routines published yet - check back soon.</p>`;
+    template = template.replace("<!--ROUTINE_LIST-->", listHtml);
+    const headMeta = renderHeadMeta({
+      title: "Ayurvedic Routines — AyurVeda Store",
+      description: "Admin-curated daily Ayurvedic routines for each Dosha.",
+      url: "/routines",
+    });
+    res.send(injectSupabaseConfig(injectHead(template, headMeta)));
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get("/routines/:slug", trackPageView, async (req, res, next) => {
+  try {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(req.params.slug)) return res.status(404).send(render404Page());
+    const { data: routine } = await supabaseAdmin()
+      .from("routine_templates")
+      .select("id, name, slug, description, dosha, routine_steps(id, step_order, time_of_day, title, instructions)")
+      .eq("slug", req.params.slug).eq("status", "published").maybeSingle();
+    if (!routine) return res.status(404).send(render404Page());
+
+    let template = getTemplate("routine-detail.html");
+    template = template.replace("<!--ROUTINE_BREADCRUMB-->", escapeHtml(routine.name));
+    template = template.replace("<!--ROUTINE_NAME-->", escapeHtml(routine.name));
+    template = template.replace("<!--ROUTINE_DOSHA-->", routine.dosha ? `For ${escapeHtml(routine.dosha)} Dosha` : "Suits every Dosha");
+    template = template.replace("<!--ROUTINE_DESCRIPTION-->", escapeHtml(routine.description || ""));
+
+    const steps = [...(routine.routine_steps || [])].sort((a, b) => a.step_order - b.step_order);
+    const stepsHtml = steps.length
+      ? steps.map((s) => `
+        <div style="border-bottom:1px solid var(--hairline); padding:12px 0;">
+          ${s.time_of_day ? `<span style="font-size:11px; text-transform:uppercase; color:#888;">${escapeHtml(s.time_of_day)}</span><br>` : ""}
+          <b>${escapeHtml(s.title)}</b>
+          ${s.instructions ? `<p style="margin:4px 0 0; color:#666; font-size:13px;">${escapeHtml(s.instructions)}</p>` : ""}
+        </div>`).join("")
+      : `<p style="color:#888;">No steps added yet.</p>`;
+    template = template.replace("<!--ROUTINE_STEPS-->", stepsHtml);
+
+    const url = `/routines/${routine.slug}`;
+    const headMeta = renderHeadMeta({
+      title: `${routine.name} — AyurVeda Store`,
+      description: routine.description || `An Ayurvedic routine${routine.dosha ? ` for ${routine.dosha} Dosha` : ""}.`,
+      url,
+    });
+    res.send(injectSupabaseConfig(injectHead(template, headMeta)));
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ============================= STATIC-ISH PAGES =============================
 const STATIC_PAGES = {
   "/about": { file: "about.html", title: "About Us — AyurVeda Store", description: "Learn about AyurVeda Store's mission and commitment to authentic Ayurvedic wellness." },
   "/contact": { file: "contact.html", title: "Contact Us — AyurVeda Store", description: "Get in touch with the AyurVeda Store team." },
   "/consult-vaidya": { file: "consult-vaidya.html", title: "Consult a Vaidya — AyurVeda Store", description: "Book a personalised consultation with our expert Ayurvedic Vaidyas." },
-  "/dosha-test": { file: "dosha-test.html", title: "Discover Your Dosha — AyurVeda Store", description: "Take our free Dosha quiz to find your Ayurvedic body type: Vata, Pitta or Kapha." },
+  "/dosha-test": { file: "dosha-test.html", title: "Wellness Assessment — AyurVeda Store", description: "Take our free Wellness Assessment to discover your Dosha and get personalized Ayurvedic product recommendations." },
   "/cart": { file: "cart.html", title: "Your Cart — AyurVeda Store", description: "Review your cart and checkout.", noindex: true },
   "/account": { file: "account.html", title: "My Account — AyurVeda Store", description: "Log in or view your orders.", noindex: true },
   "/compare": { file: "compare.html", title: "Compare Products — AyurVeda Store", description: "Compare Ayurvedic products side by side.", noindex: true },
+  "/for-you": { file: "for-you.html", title: "For You — AyurVeda Store", description: "Personalized Ayurvedic product and routine recommendations based on your Wellness Profile.", noindex: true },
 };
 for (const [url, meta] of Object.entries(STATIC_PAGES)) {
   router.get(url, trackPageView, async (req, res, next) => {
@@ -530,6 +594,12 @@ router.get("/sitemap.xml", async (req, res, next) => {
       const { data: posts } = await supabaseAdmin().from("blog_posts").select("slug, published_at").eq("status", "published");
       for (const p of posts || []) urls.push({ loc: `/blog/${p.slug}`, lastmod: p.published_at, priority: "0.5" });
 
+      // Phase 4: routine templates - same reasoning as Phase 3's landing
+      // pages above, these need to be real indexable pages.
+      urls.push({ loc: "/routines", priority: "0.5" });
+      const { data: routines } = await supabaseAdmin().from("routine_templates").select("slug").eq("status", "published");
+      for (const r of routines || []) urls.push({ loc: `/routines/${r.slug}`, priority: "0.5" });
+
       const body = urls.map((u) => `
   <url><loc>${config.site.baseUrl}${u.loc}</loc>${u.lastmod ? `<lastmod>${u.lastmod.slice(0, 10)}</lastmod>` : ""}<priority>${u.priority}</priority></url>`).join("");
       return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${body}\n</urlset>`;
@@ -541,7 +611,7 @@ router.get("/sitemap.xml", async (req, res, next) => {
 });
 
 router.get("/robots.txt", (req, res) => {
-  res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /cart\nDisallow: /account\nDisallow: /compare\nSitemap: ${config.site.baseUrl}/sitemap.xml\n`);
+  res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /cart\nDisallow: /account\nDisallow: /compare\nDisallow: /for-you\nSitemap: ${config.site.baseUrl}/sitemap.xml\n`);
 });
 
 // ============================= 404 =============================

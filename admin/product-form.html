@@ -19,7 +19,7 @@
       <a href="customers.html">Customers</a>
       <a href="coupons.html">Coupons</a>
       <a href="reviews.html">Reviews</a>
-      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a>
+      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a><a href="wellness.html">Wellness</a>
       <a href="vaidya-bookings.html">Vaidya Bookings</a>
       <a href="users.html">Users &amp; Roles</a>
       <a href="payments-list.html">Payments</a>
@@ -113,6 +113,10 @@
     { key: "benefit_ids", label: "Benefits", path: "/categories?type=benefit", options: [], selected: [] },
     { key: "goal_ids", label: "Goals", path: "/categories?type=goal", options: [], selected: [] },
     { key: "ingredient_ids", label: "Ingredients", path: "/ingredients", options: [], selected: [] },
+    // Phase 4: dosha suitability is a fixed 3-value enum (products.js's
+    // "doshas" relationship dimension), not an admin-managed list, so
+    // there's no API to fetch options from - the id IS the enum value.
+    { key: "doshas", label: "Suitable Doshas", path: null, options: [{ id: "vata", name: "Vata" }, { id: "pitta", name: "Pitta" }, { id: "kapha", name: "Kapha" }], selected: [] },
   ];
 
   function renderTagsPanel() {
@@ -132,6 +136,7 @@
 
   async function loadTagOptions() {
     for (const dim of TAG_DIMENSIONS) {
+      if (!dim.path) continue; // static options (doshas) - nothing to fetch
       try {
         const { items } = await Api.get(dim.path);
         dim.options = items;

@@ -7,15 +7,21 @@ import { validateProductPayload, validateVariant, sanitizeText, parsePagination,
 import { slugify } from "../seo/seoHelpers.js";
 import { uploadProductImage } from "../storage/imageUpload.js";
 
-// Phase 3A discovery relationships: one join table per dimension, all
-// shaped identically (product_id, <dimension>_id) - see
-// supabase/migrations/0003_phase3a_discovery_foundation.sql. Centralised
-// here so GET/PUT stay in sync with exactly one list of dimensions.
+// Phase 3A/4 discovery relationships: one join table per dimension. Four
+// are shaped (product_id, <dimension>_id uuid) - see
+// supabase/migrations/0003_phase3a_discovery_foundation.sql. Phase 4 adds
+// a fifth, `dosha`, shaped (product_id, dosha enum-text) instead of a uuid
+// FK - see 0005_phase4_personalization_foundation.sql - so each dimension
+// carries its own `isValid` (defaults to isValidUUID) rather than assuming
+// every value is a foreign key id. Centralised here so GET/PUT stay in
+// sync with exactly one list of dimensions.
+const DOSHAS = ["vata", "pitta", "kapha"];
 const RELATIONSHIP_DIMENSIONS = [
   { key: "ingredient_ids", table: "product_ingredients", column: "ingredient_id" },
   { key: "concern_ids", table: "product_concerns", column: "concern_id" },
   { key: "benefit_ids", table: "product_benefits", column: "benefit_id" },
   { key: "goal_ids", table: "product_goals", column: "goal_id" },
+  { key: "doshas", table: "product_doshas", column: "dosha", isValid: (v) => DOSHAS.includes(v) },
 ];
 
 const router = Router();
@@ -129,7 +135,8 @@ router.put("/:id/relationships", requireStaffAuth, requirePermission("manageProd
     for (const dim of RELATIONSHIP_DIMENSIONS) {
       if (!Object.prototype.hasOwnProperty.call(req.body || {}, dim.key)) continue;
       const ids = Array.isArray(req.body[dim.key]) ? req.body[dim.key] : [];
-      const cleanIds = [...new Set(ids.filter((id) => isValidUUID(id)))];
+      const isValid = dim.isValid || isValidUUID;
+      const cleanIds = [...new Set(ids.filter((id) => isValid(id)))];
 
       const { error: delError } = await supabaseAdmin().from(dim.table).delete().eq("product_id", productId);
       if (delError) throw delError;

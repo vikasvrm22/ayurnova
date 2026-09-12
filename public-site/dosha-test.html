@@ -11,14 +11,15 @@
   <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/cart">🛒<span class="cart-count">0</span></a></div>
 </div></header>
 <nav class="main-nav"><div class="container">
-  <a href="/">Home</a><a href="/shop">Shop All</a><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test" class="active">Dosha Test</a>
+  <a href="/">Home</a><a href="/shop">Shop All</a><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test" class="active">Wellness Assessment</a><a href="/routines">Routines</a>
 </div></nav>
 
 <div class="container" style="padding:30px 16px; max-width:640px;">
-  <h3 class="section-title" style="margin-top:0;">Discover Your Dosha</h3>
-  <p class="section-sub" id="quiz-progress">Question 1 of 8</p>
+  <h3 class="section-title" style="margin-top:0;">Wellness Assessment</h3>
+  <p class="section-sub">Discover your Dosha, and the goals/concerns we'll use to personalize your recommendations.</p>
+  <p class="section-sub" id="quiz-progress">Loading questions...</p>
 
-  <div class="form-card" id="quiz-card">
+  <div class="form-card" id="quiz-card" style="display:none;">
     <p style="font-weight:700; font-size:14.5px;" id="quiz-question"></p>
     <div id="quiz-options"></div>
     <div style="display:flex; justify-content:space-between; margin-top:16px;">
@@ -27,10 +28,14 @@
     </div>
   </div>
 
+  <div class="form-card" id="quiz-error" style="display:none; text-align:center; color:#B23A2E;"></div>
+
   <div class="form-card" id="quiz-result" style="display:none; text-align:center;">
     <h3 id="result-title" style="color:var(--green-dark); font-family:Georgia,serif;"></h3>
     <p id="result-description" style="color:var(--ink-soft);"></p>
-    <a href="/shop" class="pill" style="display:inline-block; margin-top:10px;">Shop Recommended Products →</a>
+    <div id="result-tags" style="font-size:12.5px; color:#666; margin-top:8px;"></div>
+    <p id="result-save-note" style="font-size:12px; color:#888; margin-top:10px;"></p>
+    <a id="result-cta" href="/shop" class="pill" style="display:inline-block; margin-top:10px;">Shop Recommended Products →</a>
   </div>
 </div>
 
@@ -38,77 +43,61 @@
   <div><h5>Top Categories</h5><a href="/shop">Immunity</a><a href="/shop">Sleep &amp; Stress</a></div>
   <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a></div>
   <div><h5>Policies</h5><a href="#">Return &amp; Refund</a><a href="#">Privacy Policy</a></div>
-  <div><h5>Quick Links</h5><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a></div>
+  <div><h5>Quick Links</h5><a href="/consult-vaidya">Consult a Vaidya</a><a href="/routines">Routines</a></div>
   <div><h5>Newsletter</h5><input type="email" placeholder="Your email" style="width:100%;padding:8px;border-radius:6px;border:none;margin-bottom:8px;"><button style="width:100%;padding:8px;background:var(--gold);color:#fff;border:none;border-radius:6px;">Subscribe</button></div>
 </div><div class="footer-bottom">© 2026 AyurVeda Store</div></footer>
 
 <script>
-  const QUESTIONS = [
-    { q: "How would you describe your body frame?", options: [
-      ["Thin, light frame, find it hard to gain weight", "vata"],
-      ["Medium build, athletic, gains/loses weight easily", "pitta"],
-      ["Solid, sturdy frame, gains weight easily", "kapha"],
-    ]},
-    { q: "How is your skin normally?", options: [
-      ["Dry, thin, cool to the touch", "vata"],
-      ["Warm, sensitive, prone to redness or acne", "pitta"],
-      ["Thick, oily, smooth and cool", "kapha"],
-    ]},
-    { q: "How would you describe your appetite?", options: [
-      ["Irregular - sometimes forget to eat", "vata"],
-      ["Strong, sharp - get irritable if I skip meals", "pitta"],
-      ["Steady but can easily skip a meal without discomfort", "kapha"],
-    ]},
-    { q: "How do you sleep?", options: [
-      ["Light sleeper, mind races at night", "vata"],
-      ["Moderate, sound sleep but wake up if too warm", "pitta"],
-      ["Deep, long sleeper, hard to wake up", "kapha"],
-    ]},
-    { q: "Under stress, you tend to feel...", options: [
-      ["Anxious or worried", "vata"],
-      ["Irritable or frustrated", "pitta"],
-      ["Withdrawn or unmotivated", "kapha"],
-    ]},
-    { q: "How is your energy through the day?", options: [
-      ["Comes in bursts, then I crash", "vata"],
-      ["Strong and focused, especially midday", "pitta"],
-      ["Steady and enduring, slow to start", "kapha"],
-    ]},
-    { q: "What weather do you dislike the most?", options: [
-      ["Cold and windy", "vata"],
-      ["Hot and humid", "pitta"],
-      ["Cold and damp", "kapha"],
-    ]},
-    { q: "How do you make decisions?", options: [
-      ["Quickly, but I often change my mind", "vata"],
-      ["Decisively, with clear logic", "pitta"],
-      ["Slowly, after a lot of thought", "kapha"],
-    ]},
-  ];
-
+  // Phase 4: questions/options are admin-authored and fetched from the
+  // server (server/src/routes/wellnessPublic.js) - scoring itself also
+  // happens server-side (server/src/services/wellnessService.js). This
+  // page only renders what it's given and relays the customer's picks;
+  // it never computes or claims a dosha/goal/concern result on its own,
+  // unlike the old client-only version of this page.
   const RESULTS = {
     vata: { title: "You are predominantly Vata", description: "Vata types are creative, energetic and quick-thinking, governed by air and space. When out of balance, Vata can show up as anxiety, dry skin, and irregular digestion. Favor warm, grounding, nourishing foods and routines." },
     pitta: { title: "You are predominantly Pitta", description: "Pitta types are focused, driven and sharp, governed by fire and water. When out of balance, Pitta can show up as irritability, inflammation and acidity. Favor cooling foods and a calm, unhurried pace." },
     kapha: { title: "You are predominantly Kapha", description: "Kapha types are calm, steady and nurturing, governed by earth and water. When out of balance, Kapha can show up as sluggishness, weight gain and congestion. Favor light, warm, stimulating foods and regular activity." },
   };
 
+  let questions = [];
   let current = 0;
-  const answers = new Array(QUESTIONS.length).fill(null);
+  const picks = []; // [{question_id, option_id}]
 
-  function renderQuestion() {
-    const item = QUESTIONS[current];
-    document.getElementById("quiz-progress").textContent = `Question ${current + 1} of ${QUESTIONS.length}`;
-    document.getElementById("quiz-question").textContent = item.q;
-    document.getElementById("quiz-options").innerHTML = item.options.map(([label, dosha], i) => `
-      <div class="quiz-option ${answers[current] === dosha ? 'selected' : ''}" style="${answers[current] === dosha ? 'border-color:var(--green); background:var(--green-light);' : ''}" onclick="selectOption('${dosha}')">${label}</div>
-    `).join("");
-    document.getElementById("quiz-back").style.visibility = current === 0 ? "hidden" : "visible";
-    document.getElementById("quiz-next").disabled = !answers[current];
-    document.getElementById("quiz-next").textContent = current === QUESTIONS.length - 1 ? "See My Result →" : "Next →";
+  async function loadQuestions() {
+    try {
+      const res = await fetch("/api/public/wellness/assessment");
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message || "Could not load the assessment");
+      questions = json.data.items;
+      if (!questions.length) {
+        document.getElementById("quiz-progress").textContent = "The wellness assessment isn't available yet - check back soon.";
+        return;
+      }
+      document.getElementById("quiz-card").style.display = "block";
+      renderQuestion();
+    } catch (e) {
+      document.getElementById("quiz-progress").textContent = "";
+      document.getElementById("quiz-error").style.display = "block";
+      document.getElementById("quiz-error").textContent = e.message;
+    }
   }
 
-  function selectOption(dosha) {
-    answers[current] = dosha;
+  function renderQuestion() {
+    const item = questions[current];
+    document.getElementById("quiz-progress").textContent = `Question ${current + 1} of ${questions.length}`;
+    document.getElementById("quiz-question").textContent = item.question;
+    const picked = picks[current];
+    document.getElementById("quiz-options").innerHTML = item.options.map((opt) => `
+      <div class="quiz-option ${picked === opt.id ? 'selected' : ''}" style="${picked === opt.id ? 'border-color:var(--green); background:var(--green-light);' : ''}" onclick="selectOption('${opt.id}')">${opt.label}</div>
+    `).join("");
+    document.getElementById("quiz-back").style.visibility = current === 0 ? "hidden" : "visible";
+    document.getElementById("quiz-next").disabled = !picks[current];
+    document.getElementById("quiz-next").textContent = current === questions.length - 1 ? "See My Result →" : "Next →";
+  }
+
+  function selectOption(optionId) {
+    picks[current] = optionId;
     renderQuestion();
   }
 
@@ -117,29 +106,51 @@
   });
 
   document.getElementById("quiz-next").addEventListener("click", () => {
-    if (current < QUESTIONS.length - 1) {
-      current++;
-      renderQuestion();
-    } else {
-      showResult();
-    }
+    if (current < questions.length - 1) { current++; renderQuestion(); }
+    else submitAssessment();
   });
 
-  function showResult() {
-    const counts = { vata: 0, pitta: 0, kapha: 0 };
-    answers.forEach((a) => { if (a) counts[a]++; });
-    const winner = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+  async function submitAssessment() {
+    const answers = questions.map((q, i) => ({ question_id: q.id, option_id: picks[i] })).filter((a) => a.option_id);
+    try {
+      const body = await apiPost("/api/public/wellness/assessment/submit", { answers });
+      showResult(body.data);
+    } catch (e) {
+      document.getElementById("quiz-card").style.display = "none";
+      document.getElementById("quiz-error").style.display = "block";
+      document.getElementById("quiz-error").textContent = e.message;
+    }
+  }
 
+  function showResult(result) {
     document.getElementById("quiz-card").style.display = "none";
     document.getElementById("quiz-progress").style.display = "none";
     document.getElementById("quiz-result").style.display = "block";
-    document.getElementById("result-title").textContent = RESULTS[winner].title;
-    document.getElementById("result-description").textContent = RESULTS[winner].description;
+    const r = RESULTS[result.resultDosha] || { title: result.resultDosha, description: "" };
+    document.getElementById("result-title").textContent = r.title;
+    document.getElementById("result-description").textContent = r.description;
 
-    apiPost("/api/public/dosha-results", { answers: counts, result_dosha: winner }).catch(() => {});
+    const tagsEl = document.getElementById("result-tags");
+    const goalCount = result.goalIds?.length || 0;
+    const concernCount = result.concernIds?.length || 0;
+    tagsEl.textContent = (goalCount || concernCount)
+      ? `Captured ${goalCount} goal(s) and ${concernCount} concern(s) to personalize your recommendations.`
+      : "";
+
+    const noteEl = document.getElementById("result-save-note");
+    const ctaEl = document.getElementById("result-cta");
+    if (result.saved) {
+      noteEl.textContent = "Saved to your Wellness Profile.";
+      ctaEl.href = "/for-you";
+      ctaEl.textContent = "See Your Personalized Picks →";
+    } else {
+      noteEl.textContent = "Log in to save this result and get personalized product recommendations.";
+      ctaEl.href = "/account";
+      ctaEl.textContent = "Log In to Save →";
+    }
   }
 
-  renderQuestion();
+  loadQuestions();
 </script>
 </body>
 </html>

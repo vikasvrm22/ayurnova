@@ -71,6 +71,16 @@ async function resolveIngredientId(slug) {
   return data?.id ?? null;
 }
 
+// Phase 4: dosha is a fixed 3-value enum, not a lookup table - "resolving"
+// it is just validating membership, kept as an async function only so it
+// fits the same resolver contract (async, id-or-null) the other dimensions
+// use in RELATION_FILTERS below.
+export const DOSHAS = ["vata", "pitta", "kapha"];
+async function resolveDosha(value) {
+  if (!value) return undefined;
+  return DOSHAS.includes(value) ? value : null;
+}
+
 /**
  * Lists published products for the storefront/public API.
  *
@@ -105,6 +115,12 @@ const RELATION_FILTERS = [
   { param: "benefit", table: "product_benefits", column: "benefit_id", categoryType: "benefit" },
   { param: "goal", table: "product_goals", column: "goal_id", categoryType: "goal" },
   { param: "ingredient", table: "product_ingredients", column: "ingredient_id", resolver: resolveIngredientId },
+  // Phase 4: product_doshas is shaped identically to the other join tables
+  // (product_id, dosha) even though `dosha` is an enum value rather than a
+  // foreign key id - the `!inner` embed + `.eq()` filter below works the
+  // same way regardless, so this needed no change to the AND-combination
+  // logic itself, only one more entry in this list.
+  { param: "dosha", table: "product_doshas", column: "dosha", resolver: resolveDosha },
 ];
 
 export async function listPublishedProducts({
@@ -115,6 +131,7 @@ export async function listPublishedProducts({
   benefit,
   goal,
   ingredient,
+  dosha,
   sort = DEFAULT_PRODUCT_SORT,
   q,
   inStock,
@@ -122,7 +139,7 @@ export async function listPublishedProducts({
   const categoryId = categorySlug ? await resolveCategoryId(categorySlug) : undefined;
   if (categoryId === null) return { items: [], total: 0 }; // filter named a category that doesn't exist
 
-  const inputs = { concern, benefit, goal, ingredient };
+  const inputs = { concern, benefit, goal, ingredient, dosha };
   const activeFilters = [];
   for (const filter of RELATION_FILTERS) {
     const slug = inputs[filter.param];
@@ -186,12 +203,13 @@ export async function getPublishedProductBySlug(slug) {
   const concerns = await listRelatedEntities("product_concerns", "concern_id", "categories", product.id);
   const benefits = await listRelatedEntities("product_benefits", "benefit_id", "categories", product.id);
   const goals = await listRelatedEntities("product_goals", "goal_id", "categories", product.id);
+  const { data: doshaRows } = await supabaseAdmin().from("product_doshas").select("dosha").eq("product_id", product.id);
   const { data: faqs } = await supabaseAdmin()
     .from("faqs").select("id, question, answer, sort_order").eq("product_id", product.id).eq("status", "published").order("sort_order");
 
   return {
     ...product, product_images: images, product_variants: variants, category, reviews: reviews || [],
-    relatedIngredients, concerns, benefits, goals, faqs: faqs || [],
+    relatedIngredients, concerns, benefits, goals, doshas: (doshaRows || []).map((r) => r.dosha), faqs: faqs || [],
   };
 }
 
@@ -324,4 +342,75 @@ export async function compareProducts(ids) {
   // Preserve the order the caller asked for (e.g. `?ids=b,a` -> b before a),
   // not whatever order the DB happened to return them in.
   return uniqueIds.map((id) => results.find((p) => p.id === id)).filter(Boolean);
+}
+
+/**
+ * Phase 4: deterministic, explainable product recommendations from
+ * already-derived profile signals (dosha + goal/concern ids) - this
+ * function is intentionally customer-agnostic (matching this whole
+ * module's existing role: "what can a shopper browse", never "who is
+ * this shopper") - server/src/services/wellnessService.js owns deriving
+ * those signals from a customer's assessment history and calls this with
+ * the result.
+ *
+ * Matching rule (the whole rule - nothing hidden in a model):
+ *   - doshaIds  = products tagged (product_doshas) with the given dosha
+ *   - tagIds    = products tagged with ANY of the given goal/concern ids
+ *                 (product_goals/product_concerns, union - matches Phase
+ *                 3's searchCatalog's own id-set-union technique, not a
+ *                 new technique)
+ *   - result    = doshaIds ∩ tagIds when both are non-empty (fits your
+ *                 dosha AND at least one stated goal/concern - the
+ *                 strongest, most explainable match); falls back to
+ *                 whichever side is non-empty if the other is empty or
+ *                 the intersection is empty, so a customer is never shown
+ *                 zero results just because no product yet satisfies
+ *                 every signal at once. `matchType` in the return value
+ *                 says exactly which rule produced the result, so the
+ *                 API/UI can show an honest "why this" reason.
+ */
+export async function getRecommendedProducts({ dosha, goalIds = [], concernIds = [], page = 1, pageSize = 12, sort = DEFAULT_PRODUCT_SORT }) {
+  let doshaIds = null;
+  if (dosha) {
+    const { data } = await supabaseAdmin().from("product_doshas").select("product_id").eq("dosha", dosha);
+    doshaIds = new Set((data || []).map((r) => r.product_id));
+  }
+
+  let tagIds = null;
+  if (goalIds.length || concernIds.length) {
+    tagIds = new Set();
+    if (goalIds.length) {
+      const { data } = await supabaseAdmin().from("product_goals").select("product_id").in("goal_id", goalIds);
+      for (const r of data || []) tagIds.add(r.product_id);
+    }
+    if (concernIds.length) {
+      const { data } = await supabaseAdmin().from("product_concerns").select("product_id").in("concern_id", concernIds);
+      for (const r of data || []) tagIds.add(r.product_id);
+    }
+  }
+
+  let matchIds;
+  let matchType;
+  if (doshaIds?.size && tagIds?.size) {
+    const intersection = [...doshaIds].filter((id) => tagIds.has(id));
+    if (intersection.length) { matchIds = intersection; matchType = "dosha_and_goals_or_concerns"; }
+    else { matchIds = [...doshaIds]; matchType = "dosha_only_no_overlap"; }
+  } else if (doshaIds?.size) {
+    matchIds = [...doshaIds]; matchType = "dosha_only";
+  } else if (tagIds?.size) {
+    matchIds = [...tagIds]; matchType = "goals_or_concerns_only";
+  } else {
+    return { items: [], total: 0, matchType: "no_matching_products" };
+  }
+
+  const { field, ascending } = PRODUCT_SORT_MAP[sort] || PRODUCT_SORT_MAP[DEFAULT_PRODUCT_SORT];
+  const { data, error, count } = await supabaseAdmin()
+    .from("products")
+    .select(LIST_COLUMNS, { count: "exact" })
+    .eq("status", "published")
+    .in("id", matchIds)
+    .order(field, { ascending })
+    .range((page - 1) * pageSize, page * pageSize - 1);
+  if (error) throw error;
+  return { items: data || [], total: count || 0, matchType };
 }

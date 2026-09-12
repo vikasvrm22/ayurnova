@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/css/style.css"><!--SSR_HEAD-->
+</head>
+<body>
+<div class="announce-strip"><div class="container"><span>COD AVAILABLE</span><span>FREE SHIPPING ABOVE ₹599</span></div></div>
+<header class="site-header"><div class="container">
+  <div class="brand"><div class="brand-mark">AV</div><div class="brand-text"><h1>AyurVeda Store</h1><span>Authentic Ayurvedic Wellness</span></div></div>
+  <form class="header-search" action="/shop" method="get"><input type="text" name="q" placeholder="Search products..."><button type="submit">Search</button></form>
+  <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/cart">🛒<span class="cart-count">0</span></a></div>
+</div></header>
+<nav class="main-nav"><div class="container">
+  <a href="/">Home</a><a href="/shop">Shop All</a><a href="/dosha-test">Wellness Assessment</a><a href="/routines">Routines</a><a href="/for-you" class="active">For You</a>
+</div></nav>
+
+<div class="container" style="padding:24px 16px;">
+  <h3 class="section-title" style="text-align:left;">For You</h3>
+  <p class="section-sub" style="text-align:left;">Personalized picks based on your Wellness Profile - deterministic matches on your Dosha, Goals and Concerns, never AI-generated.</p>
+
+  <div id="login-prompt" style="display:none;" class="form-card">
+    <p>Log in to see your personalized recommendations.</p>
+    <a href="/account" class="pill">Log In →</a>
+  </div>
+
+  <div id="no-profile-prompt" style="display:none;" class="form-card">
+    <p>You haven't taken the Wellness Assessment yet - we need it to know what to recommend.</p>
+    <a href="/dosha-test" class="pill">Take the Assessment →</a>
+  </div>
+
+  <div id="for-you-body" style="display:none;">
+    <div id="match-reason" style="font-size:12.5px; color:#888; margin-bottom:10px;"></div>
+    <div class="product-grid" id="recommended-products"></div>
+
+    <h3 class="section-title" style="text-align:left; margin-top:36px;">Recommended Routines</h3>
+    <div id="recommended-routines"></div>
+  </div>
+</div>
+
+<footer class="mega-footer"><div class="container">
+  <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a><a href="/faq">FAQ</a></div>
+  <div><h5>Quick Links</h5><a href="/shop">Shop by Product</a><a href="/dosha-test">Wellness Assessment</a><a href="/routines">Routines</a></div>
+</div><div class="footer-bottom">© 2026 AyurVeda Store</div></footer>
+
+<script>
+  const MATCH_LABELS = {
+    dosha_and_goals_or_concerns: "Matched to your Dosha and your stated Goals/Concerns.",
+    dosha_only_no_overlap: "Matched to your Dosha (none yet also match your specific Goals/Concerns).",
+    dosha_only: "Matched to your Dosha.",
+    goals_or_concerns_only: "Matched to your Goals/Concerns.",
+    no_matching_products: "No products match your profile yet - check back as the catalog grows.",
+    no_profile: "",
+  };
+
+  function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
+
+  function productCardHtml(p) {
+    return `
+      <div class="product-card">
+        <div class="img">${p.image ? `<img src="${p.image}" alt="${p.title}" style="width:100%;height:100%;object-fit:cover;">` : "Product Image"}</div>
+        <div class="body">
+          <div class="title">${p.title}</div>
+          <div class="stars">${"★".repeat(Math.round(p.avgRating || 0))}${"☆".repeat(5 - Math.round(p.avgRating || 0))} <span class="reviews">(${p.reviewCount || 0})</span></div>
+          <div class="price-row">${p.price ? `<span class="price">${fmt(p.price)}</span>` : ""}${p.mrp && p.mrp > p.price ? `<span class="mrp">${fmt(p.mrp)}</span>` : ""}</div>
+          <button class="add-btn" onclick="location.href='/product/${p.slug}'">View Product</button>
+        </div>
+      </div>`;
+  }
+
+  async function loadForYou() {
+    if (!window.supabaseClient) { document.getElementById("login-prompt").style.display = "block"; return; }
+    const { data } = await window.supabaseClient.auth.getSession();
+    if (!data?.session) { document.getElementById("login-prompt").style.display = "block"; return; }
+
+    try {
+      const productsRes = await apiGet("/api/public/wellness/recommendations");
+      if (productsRes.data.matchType === "no_profile") {
+        document.getElementById("no-profile-prompt").style.display = "block";
+        return;
+      }
+      document.getElementById("for-you-body").style.display = "block";
+      document.getElementById("match-reason").textContent = MATCH_LABELS[productsRes.data.matchType] || "";
+      document.getElementById("recommended-products").innerHTML = productsRes.data.items.length
+        ? productsRes.data.items.map(productCardHtml).join("")
+        : `<p style="grid-column:1/-1; color:#888;">No matching products yet.</p>`;
+
+      const routinesRes = await apiGet("/api/public/wellness/routines/recommended");
+      const routinesEl = document.getElementById("recommended-routines");
+      routinesEl.innerHTML = routinesRes.data.items.length
+        ? routinesRes.data.items.map(r => `
+          <div class="form-card" style="margin-bottom:10px;">
+            <a href="/routines/${r.slug}"><b>${r.name}</b></a>
+            <p style="color:#666; font-size:13px; margin:4px 0 0;">${r.description || ""}</p>
+          </div>`).join("")
+        : `<p style="color:#888;">No matching routines yet.</p>`;
+    } catch (e) {
+      document.getElementById("for-you-body").style.display = "block";
+      document.getElementById("match-reason").textContent = "";
+      document.getElementById("recommended-products").innerHTML = `<p style="grid-column:1/-1; color:#B23A2E;">${e.message}</p>`;
+    }
+  }
+
+  loadForYou();
+</script>
+</body>
+</html>
