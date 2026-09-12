@@ -36,6 +36,8 @@ import wellnessAdminRoutes from "./routes/wellnessAdmin.js";
 import routinesAdminRoutes from "./routes/routinesAdmin.js";
 import wellnessPublicRoutes from "./routes/wellnessPublic.js";
 import routinesPublicRoutes from "./routes/routinesPublic.js";
+// ---- Phase 5A: Inventory foundation ----
+import inventoryAdminRoutes from "./routes/inventoryAdmin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -126,6 +128,7 @@ app.use("/api/admin/faqs", faqsRoutes);
 // ---- Admin Personalization content (Phase 4) ----
 app.use("/api/admin/wellness/questions", wellnessAdminRoutes);
 app.use("/api/admin/routines", routinesAdminRoutes);
+app.use("/api/admin/inventory", inventoryAdminRoutes);
 
 // ---- Public API (storefront AJAX: checkout, reviews, bookings, coupons) ----
 app.use("/api/public", publicRoutes);

@@ -266,9 +266,12 @@ router.post("/:id/variants", requireStaffAuth, requirePermission("manageProducts
   try {
     const { valid, errors } = validateVariant(req.body);
     if (!valid) return res.status(400).json({ error: "Validation failed", fields: errors });
+    // `stock` is intentionally not accepted here (Phase 5A) - a new variant
+    // always starts at the column default (0) and only ever changes via a
+    // batch/inventory operation (see routes/inventoryAdmin.js).
     const { data, error } = await supabaseAdmin().from("product_variants").insert({
       product_id: req.params.id, label: req.body.label, sku: req.body.sku || null,
-      price: req.body.price, mrp: req.body.mrp || null, stock: req.body.stock, weight_grams: req.body.weight_grams || null,
+      price: req.body.price, mrp: req.body.mrp || null, weight_grams: req.body.weight_grams || null,
     }).select().single();
     if (error) throw error;
     res.status(201).json({ item: data });
@@ -281,9 +284,12 @@ router.put("/:id/variants/:variantId", requireStaffAuth, requirePermission("mana
   try {
     const { valid, errors } = validateVariant(req.body);
     if (!valid) return res.status(400).json({ error: "Validation failed", fields: errors });
+    // `stock` is intentionally not writable here (Phase 5A) - see the note
+    // on the POST route above. Any `stock` field in the request body is
+    // silently ignored rather than written.
     const { data, error } = await supabaseAdmin().from("product_variants").update({
       label: req.body.label, sku: req.body.sku || null, price: req.body.price,
-      mrp: req.body.mrp || null, stock: req.body.stock, weight_grams: req.body.weight_grams || null,
+      mrp: req.body.mrp || null, weight_grams: req.body.weight_grams || null,
     }).eq("id", req.params.variantId).select().single();
     if (error) throw error;
     res.json({ item: data });

@@ -30,7 +30,12 @@ export function validateProductPayload(body) {
   return { valid: Object.keys(errors).length === 0, errors };
 }
 
-/** A variant needs a label, a positive price, and a non-negative stock. */
+/** A variant needs a label and a positive price. `stock` is deliberately
+ * NOT validated/accepted here as of Phase 5A - it is now a maintained
+ * aggregate of sellable batch quantity (see supabase/migrations/
+ * 0006_phase5a_inventory_foundation.sql + routes/inventoryAdmin.js), not a
+ * manually-typed number, so products.js no longer reads variant.stock from
+ * the request body at all. */
 export function validateVariant(variant) {
   const errors = {};
   if (isBlank(variant.label)) errors.label = "Pack/variant label is required";
@@ -40,8 +45,24 @@ export function validateVariant(variant) {
     const mrp = Number(variant.mrp);
     if (!Number.isFinite(mrp) || mrp < price) errors.mrp = "MRP must be a number greater than or equal to price";
   }
-  const stock = Number(variant.stock);
-  if (!Number.isInteger(stock) || stock < 0) errors.stock = "Stock must be a whole number 0 or greater";
+  return { valid: Object.keys(errors).length === 0, errors };
+}
+
+/** A new batch needs a non-blank batch_number and a non-negative integer
+ * starting quantity; quality_status/batch_status are optional (the DB
+ * defaults to 'pending'/'active' if omitted) but must be one of the
+ * allowed values when provided. Mirrors validateVariant's shape/style. */
+const QUALITY_STATUSES = ["pending", "passed", "failed"];
+const BATCH_STATUSES = ["active", "quarantined", "expired", "recalled"];
+export function validateBatch(batch) {
+  const errors = {};
+  if (isBlank(batch.variant_id) || !isValidUUID(batch.variant_id)) errors.variant_id = "A valid variant_id is required";
+  if (isBlank(batch.batch_number)) errors.batch_number = "Batch number is required";
+  const quantity = Number(batch.quantity);
+  if (!Number.isInteger(quantity) || quantity < 0) errors.quantity = "Quantity must be a whole number 0 or greater";
+  if (!isBlank(batch.quality_status) && !QUALITY_STATUSES.includes(batch.quality_status)) errors.quality_status = `quality_status must be one of: ${QUALITY_STATUSES.join(", ")}`;
+  if (!isBlank(batch.batch_status) && !BATCH_STATUSES.includes(batch.batch_status)) errors.batch_status = `batch_status must be one of: ${BATCH_STATUSES.join(", ")}`;
+  if (!isBlank(batch.mfg_date) && !isBlank(batch.expiry_date) && String(batch.expiry_date) < String(batch.mfg_date)) errors.expiry_date = "Expiry date cannot be before manufacturing date";
   return { valid: Object.keys(errors).length === 0, errors };
 }
 

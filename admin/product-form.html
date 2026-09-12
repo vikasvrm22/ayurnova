@@ -177,7 +177,7 @@
         <input value="${v.label || ""}" placeholder="Label e.g. Pack of 60 Tablets" style="flex:2;" oninput="variants[${i}].label=this.value; updatePreview();">
         <input value="${v.price || ""}" type="number" placeholder="Price" style="flex:1;" oninput="variants[${i}].price=this.value; updatePreview();">
         <input value="${v.mrp || ""}" type="number" placeholder="MRP" style="flex:1;" oninput="variants[${i}].mrp=this.value;">
-        <input value="${v.stock ?? ""}" type="number" placeholder="Stock" style="flex:1;" oninput="variants[${i}].stock=this.value;">
+        <input value="${v.id ? (v.stock ?? 0) : "—"}" type="text" disabled title="Stock is now maintained from Inventory batches (Phase 5A) and can no longer be set here." style="flex:1; background:#f3f3f3; color:#777;">
         <button type="button" class="btn btn-danger" onclick="removeVariantRow(${i})">Remove</button>
       </div>`).join("");
   }
@@ -284,7 +284,9 @@
 
   async function saveVariants(id) {
     for (const v of variants) {
-      const body = { label: v.label, price: Number(v.price), mrp: v.mrp ? Number(v.mrp) : null, stock: Number(v.stock || 0) };
+      // `stock` is no longer sent - it's a maintained aggregate of sellable
+      // batch quantity as of Phase 5A, not admin-editable here.
+      const body = { label: v.label, price: Number(v.price), mrp: v.mrp ? Number(v.mrp) : null };
       if (v.id) await Api.put(`/products/${id}/variants/${v.id}`, body).catch(err => Toast.show(err.message, "error"));
       else { const res = await Api.post(`/products/${id}/variants`, body).catch(err => { Toast.show(err.message, "error"); return null; }); if (res) v.id = res.item.id; }
     }
