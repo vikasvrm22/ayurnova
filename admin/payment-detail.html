@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment — AyurVeda Store Admin</title>
+<link rel="stylesheet" href="css/admin.css">
+<script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="products-list.html">Products</a>
+      <a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a>
+      <a href="coupons.html">Coupons</a>
+      <a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a>
+      <a href="users.html">Users &amp; Roles</a>
+      <a href="payments-list.html" class="active">Payments</a>
+      <a href="integrations.html">Integrations</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user">
+      <div class="name"></div>
+      <div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button>
+      <button id="logout-btn">Log out</button>
+    </div>
+  </aside>
+
+  <main class="main-area">
+    <div class="page-header">
+      <h2 id="page-title">Payment</h2>
+      <a class="btn btn-outline" href="payments-list.html">← Back to payments</a>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0;">Summary</h3>
+          <div id="summary-block" style="font-size:13.5px; line-height:1.8;">Loading...</div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">Payment Attempts</h3>
+          <table class="data-table">
+            <thead><tr><th>#</th><th>Gateway Order</th><th>Gateway Payment</th><th>Method</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody id="attempts-rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">Refunds</h3>
+          <table class="data-table">
+            <thead><tr><th>Amount</th><th>Reason</th><th>Status</th><th>By</th><th>Date</th></tr></thead>
+            <tbody id="refunds-rows"><tr><td colspan="5">No refunds yet.</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0;">Issue Refund</h3>
+          <div class="form-field"><label>Amount (₹) — leave blank for full remaining refund</label><input type="number" id="f-refund-amount" min="0" step="0.01"></div>
+          <div class="form-field" style="margin-top:8px;"><label>Reason</label><textarea id="f-refund-reason" rows="2"></textarea></div>
+          <div id="refund-error" style="color:#b91c1c; font-size:12px; margin-top:6px;"></div>
+          <button class="btn btn-danger" style="margin-top:10px;" id="refund-btn">Issue Refund</button>
+          <p id="refund-disabled-note" style="font-size:12px; color:#888; margin-top:8px;"></p>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">Reconciliation</h3>
+          <p style="font-size:12.5px; color:#666;">Compares our local payment record against Razorpay's own record for the latest attempt. Read-only - does not change anything automatically.</p>
+          <button class="btn btn-outline" id="reconcile-btn">Run Reconciliation</button>
+          <div id="reconcile-result" style="margin-top:10px; font-size:12.5px;"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  const paymentId = new URLSearchParams(location.search).get("id");
+  function fmt(n){ return "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fmtDate(s){ return s ? new Date(s).toLocaleString("en-IN") : "-"; }
+
+  async function load() {
+    if (!paymentId) { document.getElementById("page-title").textContent = "No payment selected"; return; }
+    try {
+      const { payment, attempts, refunds } = await Api.get(`/payments/${paymentId}`);
+      document.getElementById("page-title").textContent = `Payment — ${payment.orders?.order_number || payment.id}`;
+
+      document.getElementById("summary-block").innerHTML = `
+        <div><b>Order:</b> ${payment.orders?.order_number || "-"}</div>
+        <div><b>Customer:</b> ${payment.orders?.guest_email || payment.orders?.guest_phone || "Registered customer"}</div>
+        <div><b>Amount:</b> ${fmt(payment.amount)} ${payment.currency}</div>
+        <div><b>Refunded so far:</b> ${fmt(payment.refunded_amount)}</div>
+        <div><b>Gateway:</b> ${payment.gateway} (${payment.environment})</div>
+        <div><b>Status:</b> <span class="badge badge-${payment.status === "SUCCESS" ? "delivered" : payment.status === "FAILED" ? "cancelled" : "pending"}">${payment.status}</span></div>
+        <div><b>Created:</b> ${fmtDate(payment.created_at)}</div>
+      `;
+
+      document.getElementById("attempts-rows").innerHTML = attempts.length
+        ? attempts.map(a => `
+          <tr>
+            <td>${a.attempt_number}</td>
+            <td style="font-size:11px;">${a.gateway_order_id || "-"}</td>
+            <td style="font-size:11px;">${a.gateway_payment_id || "-"}</td>
+            <td>${a.method || "-"}</td>
+            <td><span class="badge badge-${a.status === "SUCCESS" ? "delivered" : a.status === "FAILED" ? "cancelled" : "pending"}">${a.status}</span>${a.failure_reason ? `<br><span style="color:#888;font-size:11px;">${a.failure_reason}</span>` : ""}</td>
+            <td>${fmtDate(a.created_at)}</td>
+          </tr>`).join("")
+        : `<tr><td colspan="6">No attempts yet.</td></tr>`;
+
+      document.getElementById("refunds-rows").innerHTML = refunds.length
+        ? refunds.map(r => `
+          <tr><td>${fmt(r.amount)}</td><td>${r.reason || "-"}</td><td><span class="badge badge-${r.status === "PROCESSED" ? "delivered" : "cancelled"}">${r.status}</span></td><td>${r.created_by || "-"}</td><td>${fmtDate(r.created_at)}</td></tr>`
+        ).join("")
+        : `<tr><td colspan="5">No refunds yet.</td></tr>`;
+
+      const refundable = Number(payment.amount) - Number(payment.refunded_amount);
+      const canRefund = ["SUCCESS", "PARTIALLY_REFUNDED"].includes(payment.status) && refundable > 0;
+      document.getElementById("refund-btn").disabled = !canRefund;
+      document.getElementById("refund-disabled-note").textContent = canRefund
+        ? `Refundable balance: ${fmt(refundable)}`
+        : "This payment is not in a refundable state.";
+    } catch (e) {
+      document.getElementById("summary-block").innerHTML = `Could not load: ${e.message}`;
+    }
+  }
+
+  document.getElementById("refund-btn").addEventListener("click", async () => {
+    const errEl = document.getElementById("refund-error");
+    errEl.textContent = "";
+    const amountVal = document.getElementById("f-refund-amount").value;
+    const reason = document.getElementById("f-refund-reason").value.trim();
+    if (!confirm("Issue this refund? This cannot be undone.")) return;
+    try {
+      await Api.post(`/payments/${paymentId}/refund`, { amount: amountVal || undefined, reason });
+      Toast.show("Refund issued", "success");
+      document.getElementById("f-refund-amount").value = "";
+      document.getElementById("f-refund-reason").value = "";
+      load();
+    } catch (e) {
+      errEl.textContent = e.message;
+    }
+  });
+
+  document.getElementById("reconcile-btn").addEventListener("click", async () => {
+    const el = document.getElementById("reconcile-result");
+    el.textContent = "Running...";
+    try {
+      const report = await Api.post(`/payments/${paymentId}/reconcile`, {});
+      if (report.consistent === null) {
+        el.innerHTML = `<span style="color:#888;">${report.note}</span>`;
+      } else if (report.consistent) {
+        el.innerHTML = `<span style="color:#0e7a33;">✅ Consistent with Razorpay.</span>`;
+      } else {
+        el.innerHTML = `<span style="color:#b91c1c;">⚠️ Mismatch found:</span><ul>${report.mismatches.map(m => `<li>${m}</li>`).join("")}</ul>`;
+      }
+    } catch (e) {
+      el.innerHTML = `<span style="color:#b91c1c;">${e.message}</span>`;
+    }
+  });
+
+  document.getElementById("logout-btn").addEventListener("click", () => { Api.clearSession(); location.href = "login.html"; });
+
+  load();
+</script>
+</body>
+</html>

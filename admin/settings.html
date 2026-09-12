@@ -11,7 +11,9 @@
     <nav class="sidebar-nav">
       <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
       <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
-      <a href="blog.html">Blog Posts</a><a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a><a href="settings.html" class="active">Settings</a>
+      <a href="blog.html">Blog Posts</a><a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
+      <a href="payments-list.html">Payments</a>
+      <a href="integrations.html">Integrations</a><a href="settings.html" class="active">Settings</a>
     </nav>
     <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
       <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
@@ -28,7 +30,7 @@
 
     <div class="card">
       <h3 style="margin-top:0;">Payment Gateway</h3>
-      <p style="font-size:13px; color:#666;">Razorpay / PayU keys configured via server .env — not editable here for security. See SETUP.md.</p>
+      <p style="font-size:13px; color:#666;">Razorpay Test/Production credentials are managed on the <a href="integrations.html">Integrations</a> page (encrypted at rest, never shown in full once saved).</p>
     </div>
 
     <div class="card">

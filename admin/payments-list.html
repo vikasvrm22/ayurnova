@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payments — AyurVeda Store Admin</title>
+<link rel="stylesheet" href="css/admin.css">
+<script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="products-list.html">Products</a>
+      <a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a>
+      <a href="coupons.html">Coupons</a>
+      <a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a>
+      <a href="users.html">Users &amp; Roles</a>
+      <a href="payments-list.html" class="active">Payments</a>
+      <a href="integrations.html">Integrations</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user">
+      <div class="name"></div>
+      <div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button>
+      <button id="logout-btn">Log out</button>
+    </div>
+  </aside>
+
+  <main class="main-area">
+    <div class="page-header"><h2>Payments</h2></div>
+
+    <div class="filters-row">
+      <select id="f-status">
+        <option value="">All statuses</option>
+        <option value="INITIATED">Initiated</option>
+        <option value="PENDING">Pending</option>
+        <option value="SUCCESS">Success</option>
+        <option value="FAILED">Failed</option>
+        <option value="CANCELLED">Cancelled</option>
+        <option value="REFUNDED">Refunded</option>
+        <option value="PARTIALLY_REFUNDED">Partially Refunded</option>
+      </select>
+      <button class="btn btn-outline" id="view-failed-btn">View Failed Attempts</button>
+    </div>
+
+    <table class="data-table">
+      <thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Gateway</th><th>Environment</th><th>Status</th><th>Date</th><th></th></tr></thead>
+      <tbody id="payments-rows"><tr><td colspan="8">Loading...</td></tr></tbody>
+    </table>
+    <div style="display:flex; gap:8px; align-items:center; margin-top:12px; font-size:13px;" id="pagination"></div>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  const state = { page: 1, pageSize: 20, view: "all" };
+  function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
+  function fmtDate(s){ return new Date(s).toLocaleString("en-IN"); }
+
+  async function loadPayments() {
+    const status = document.getElementById("f-status").value;
+    const params = new URLSearchParams({ page: state.page, pageSize: state.pageSize });
+    if (status) params.set("status", status);
+    try {
+      const data = await Api.get(`/payments?${params.toString()}`);
+      document.getElementById("payments-rows").innerHTML = data.items.length
+        ? data.items.map(p => `
+          <tr>
+            <td>${p.orders?.order_number || "-"}</td>
+            <td>${p.orders?.guest_email || p.orders?.guest_phone || (p.orders?.customer_id ? "Registered customer" : "-")}</td>
+            <td>${fmt(p.amount)}${p.refunded_amount > 0 ? `<br><span style="color:#888;font-size:11px;">refunded ${fmt(p.refunded_amount)}</span>` : ""}</td>
+            <td>${p.gateway}</td>
+            <td>${p.environment}</td>
+            <td><span class="badge badge-${p.status === "SUCCESS" ? "delivered" : p.status === "FAILED" ? "cancelled" : "pending"}">${p.status}</span></td>
+            <td>${fmtDate(p.created_at)}</td>
+            <td><a href="payment-detail.html?id=${p.id}">View →</a></td>
+          </tr>`).join("")
+        : `<tr><td colspan="8">No payments found.</td></tr>`;
+
+      const totalPages = Math.max(1, Math.ceil(data.total / state.pageSize));
+      document.getElementById("pagination").innerHTML = `
+        <button class="btn btn-outline" id="pg-prev" ${state.page <= 1 ? "disabled" : ""}>Prev</button>
+        <span>Page ${state.page} of ${totalPages} (${data.total} total)</span>
+        <button class="btn btn-outline" id="pg-next" ${state.page >= totalPages ? "disabled" : ""}>Next</button>`;
+      document.getElementById("pg-prev")?.addEventListener("click", () => { state.page--; load(); });
+      document.getElementById("pg-next")?.addEventListener("click", () => { state.page++; load(); });
+    } catch (e) {
+      document.getElementById("payments-rows").innerHTML = `<tr><td colspan="8">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+
+  async function loadFailedAttempts() {
+    try {
+      const data = await Api.get(`/payments/failed-attempts?page=${state.page}&pageSize=${state.pageSize}`);
+      document.getElementById("payments-rows").innerHTML = data.items.length
+        ? data.items.map(a => `
+          <tr>
+            <td>${a.payments?.orders?.order_number || "-"}</td>
+            <td>-</td>
+            <td>attempt #${a.attempt_number}</td>
+            <td>razorpay</td>
+            <td>-</td>
+            <td><span class="badge badge-cancelled">FAILED</span></td>
+            <td>${fmtDate(a.created_at)}<br><span style="color:#888;font-size:11px;">${a.failure_reason || ""}</span></td>
+            <td><a href="payment-detail.html?id=${a.payment_id}">View →</a></td>
+          </tr>`).join("")
+        : `<tr><td colspan="8">No failed attempts found.</td></tr>`;
+      document.getElementById("pagination").innerHTML = `<span>${data.total} failed attempt(s) total</span>`;
+    } catch (e) {
+      document.getElementById("payments-rows").innerHTML = `<tr><td colspan="8">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+
+  function load() {
+    return state.view === "failed" ? loadFailedAttempts() : loadPayments();
+  }
+
+  document.getElementById("f-status").addEventListener("change", () => { state.page = 1; state.view = "all"; load(); });
+  document.getElementById("view-failed-btn").addEventListener("click", () => {
+    state.page = 1;
+    state.view = state.view === "failed" ? "all" : "failed";
+    document.getElementById("view-failed-btn").textContent = state.view === "failed" ? "View All Payments" : "View Failed Attempts";
+    load();
+  });
+  document.getElementById("logout-btn").addEventListener("click", () => { Api.clearSession(); location.href = "login.html"; });
+
+  load();
+</script>
+</body>
+</html>

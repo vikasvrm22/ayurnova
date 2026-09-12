@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Integrations — AyurVeda Store Admin</title>
+<link rel="stylesheet" href="css/admin.css">
+<script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="products-list.html">Products</a>
+      <a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a>
+      <a href="coupons.html">Coupons</a>
+      <a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a>
+      <a href="users.html">Users &amp; Roles</a>
+      <a href="payments-list.html">Payments</a>
+      <a href="integrations.html" class="active">Integrations</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user">
+      <div class="name"></div>
+      <div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button>
+      <button id="logout-btn">Log out</button>
+    </div>
+  </aside>
+
+  <main class="main-area">
+    <div class="page-header"><h2>Integrations</h2></div>
+    <p style="font-size:12.5px; color:#666; margin-top:-6px;">
+      Credentials here are encrypted at rest and never shown in full once saved - only a masked preview.
+      Test and Production are configured and enabled independently; Production is used automatically once enabled, otherwise Test is used.
+    </p>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Razorpay — Test / Sandbox</h3>
+      <div id="razorpay-test-form"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Razorpay — Production</h3>
+      <div id="razorpay-production-form"></div>
+    </div>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  function renderForm(containerId, provider, environment) {
+    document.getElementById(containerId).innerHTML = `
+      <div class="form-field"><label>Key ID</label><input id="${containerId}-key-id" placeholder="rzp_test_... / rzp_live_..."></div>
+      <div class="form-field" style="margin-top:8px;"><label>Key Secret</label><input type="password" id="${containerId}-key-secret" placeholder="Leave blank to keep the existing secret"></div>
+      <div class="form-field" style="margin-top:8px;"><label>Webhook Secret</label><input type="password" id="${containerId}-webhook-secret" placeholder="Leave blank to keep the existing secret"></div>
+      <div style="margin-top:10px; font-size:12.5px;" id="${containerId}-status">Loading...</div>
+      <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="${containerId}-save">Save</button>
+        <button class="btn btn-outline" id="${containerId}-test">Test Connection</button>
+        <label class="switch" style="margin-left:auto;" title="Enabled">
+          <input type="checkbox" id="${containerId}-enabled"><span class="slider"></span>
+        </label>
+      </div>
+      <div id="${containerId}-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+      <div id="${containerId}-test-result" style="font-size:12.5px; margin-top:8px;"></div>
+    `;
+
+    async function loadConfig() {
+      try {
+        const { item } = await Api.get(`/integrations/${provider}/${environment}`);
+        const statusEl = document.getElementById(`${containerId}-status`);
+        if (!item) {
+          statusEl.textContent = "Not configured yet.";
+          document.getElementById(`${containerId}-enabled`).checked = false;
+          return;
+        }
+        document.getElementById(`${containerId}-key-id`).value = item.keyId || "";
+        document.getElementById(`${containerId}-enabled`).checked = item.enabled;
+        statusEl.innerHTML = `
+          Key Secret: ${item.keySecretConfigured ? `configured (${item.keySecretMasked})` : "not set"}<br>
+          Webhook Secret: ${item.webhookSecretConfigured ? "configured" : "not set"}<br>
+          Last test: ${item.lastTestedAt ? `${item.lastTestStatus} - ${item.lastTestMessage} (${new Date(item.lastTestedAt).toLocaleString("en-IN")})` : "never tested"}
+        `;
+      } catch (e) {
+        document.getElementById(`${containerId}-status`).innerHTML = `<span style="color:#b91c1c;">${e.message}</span>`;
+      }
+    }
+
+    document.getElementById(`${containerId}-save`).addEventListener("click", async () => {
+      const errEl = document.getElementById(`${containerId}-error`);
+      errEl.textContent = "";
+      try {
+        await Api.put(`/integrations/${provider}/${environment}`, {
+          keyId: document.getElementById(`${containerId}-key-id`).value.trim(),
+          keySecret: document.getElementById(`${containerId}-key-secret`).value,
+          webhookSecret: document.getElementById(`${containerId}-webhook-secret`).value,
+          enabled: document.getElementById(`${containerId}-enabled`).checked,
+        });
+        document.getElementById(`${containerId}-key-secret`).value = "";
+        document.getElementById(`${containerId}-webhook-secret`).value = "";
+        Toast.show("Saved", "success");
+        loadConfig();
+      } catch (e) {
+        errEl.textContent = e.message;
+      }
+    });
+
+    document.getElementById(`${containerId}-test`).addEventListener("click", async () => {
+      const resultEl = document.getElementById(`${containerId}-test-result`);
+      resultEl.textContent = "Testing...";
+      try {
+        const result = await Api.post(`/integrations/${provider}/${environment}/test-connection`, {});
+        resultEl.innerHTML = result.success
+          ? `<span style="color:#0e7a33;">✅ ${result.message}</span>`
+          : `<span style="color:#b91c1c;">❌ ${result.message}</span>`;
+        loadConfig();
+      } catch (e) {
+        resultEl.innerHTML = `<span style="color:#b91c1c;">${e.message}</span>`;
+      }
+    });
+
+    loadConfig();
+  }
+
+  document.getElementById("logout-btn").addEventListener("click", () => { Api.clearSession(); location.href = "login.html"; });
+
+  renderForm("razorpay-test-form", "razorpay", "test");
+  renderForm("razorpay-production-form", "razorpay", "production");
+</script>
+</body>
+</html>
