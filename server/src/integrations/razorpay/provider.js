@@ -7,7 +7,7 @@
  */
 import Razorpay from "razorpay";
 import crypto from "node:crypto";
-import { getDecryptedCredentials, recordConnectionTest } from "../integrationService.js";
+import { getDecryptedCredentials, getIntegrationConfig, recordConnectionTest } from "../integrationService.js";
 
 export const PROVIDER = "razorpay";
 
@@ -32,12 +32,43 @@ export async function getActiveEnvironment() {
   return null;
 }
 
-/** Non-mutating connection test: lists at most one order to confirm the
- * configured key pair is valid, without creating or changing anything. */
+/**
+ * Non-mutating connection test: lists at most one order to confirm the
+ * configured key pair is valid, without creating or changing anything.
+ *
+ * Diagnostic fix: this used to report a single message ("No credentials
+ * configured, or the integration is disabled for this environment") for
+ * three genuinely different states - no config row at all, a config row
+ * that's disabled, and an enabled row missing a key id/secret - which
+ * made a correctly-saved-but-not-yet-enabled configuration look like the
+ * save itself had failed. The actual enable/disable security gate
+ * (getClient/getDecryptedCredentials, used by every real payment code
+ * path) is unchanged; this only makes the ADMIN-FACING diagnosis of why
+ * a test failed precise, by inspecting the raw config row first.
+ */
 export async function testConnection(environment) {
+  const row = await getIntegrationConfig(PROVIDER, environment);
+  if (!row) {
+    const message = "No credentials saved yet for this environment. Enter a Key ID and Key Secret, then Save.";
+    await recordConnectionTest(PROVIDER, environment, "failed", message);
+    return { success: false, message };
+  }
+  if (!row.key_id || !row.key_secret_encrypted) {
+    const message = "Credentials are incomplete - both a Key ID and a Key Secret are required.";
+    await recordConnectionTest(PROVIDER, environment, "failed", message);
+    return { success: false, message };
+  }
+  if (!row.enabled) {
+    const message = "Credentials are saved, but this integration is currently disabled. Toggle Enabled and Save to activate it.";
+    await recordConnectionTest(PROVIDER, environment, "failed", message);
+    return { success: false, message };
+  }
+
   const result = await getClient(environment);
   if (!result) {
-    const message = "No credentials configured, or the integration is disabled for this environment";
+    // Defensive only - the checks above should already cover every case
+    // getClient/getDecryptedCredentials can return null for.
+    const message = "Credentials could not be loaded for this environment.";
     await recordConnectionTest(PROVIDER, environment, "failed", message);
     return { success: false, message };
   }

@@ -60,10 +60,11 @@
       <div class="form-field" style="margin-top:8px;"><label>Key Secret</label><input type="password" id="${containerId}-key-secret" placeholder="Leave blank to keep the existing secret"></div>
       <div class="form-field" style="margin-top:8px;"><label>Webhook Secret</label><input type="password" id="${containerId}-webhook-secret" placeholder="Leave blank to keep the existing secret"></div>
       <div style="margin-top:10px; font-size:12.5px;" id="${containerId}-status">Loading...</div>
-      <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+      <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center;">
         <button class="btn btn-primary" id="${containerId}-save">Save</button>
         <button class="btn btn-outline" id="${containerId}-test">Test Connection</button>
-        <label class="switch" style="margin-left:auto;" title="Enabled">
+        <span style="margin-left:auto; font-size:12.5px; font-weight:700;">Enabled</span>
+        <label class="switch" title="Toggling this does not take effect until you click Save">
           <input type="checkbox" id="${containerId}-enabled"><span class="slider"></span>
         </label>
       </div>
@@ -83,6 +84,8 @@
         document.getElementById(`${containerId}-key-id`).value = item.keyId || "";
         document.getElementById(`${containerId}-enabled`).checked = item.enabled;
         statusEl.innerHTML = `
+          Status: <b style="color:${item.enabled ? "#0e7a33" : "#b91c1c"};">${item.enabled ? "Enabled" : "Disabled"}</b>
+          ${!item.enabled ? `<span style="color:#888;"> - credentials are saved below but won't be used until you toggle Enabled and Save</span>` : ""}<br>
           Key Secret: ${item.keySecretConfigured ? `configured (${item.keySecretMasked})` : "not set"}<br>
           Webhook Secret: ${item.webhookSecretConfigured ? "configured" : "not set"}<br>
           Last test: ${item.lastTestedAt ? `${item.lastTestStatus} - ${item.lastTestMessage} (${new Date(item.lastTestedAt).toLocaleString("en-IN")})` : "never tested"}
