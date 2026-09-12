@@ -43,7 +43,17 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://checkout.razorpay.com"],
+        // Phase 2 final-verification finding: Checkout.js itself injects a
+        // risk-detection/fraud-prevention script from cdn.razorpay.com at
+        // runtime (confirmed live - a real checkout attempt logged
+        // "Loading the script 'https://cdn.razorpay.com/static/cx/
+        // razorpay-risk-detection/bundle.js' violates ... script-src").
+        // checkout.razorpay.com alone (added in Phase 2) covers the main
+        // Checkout.js bundle but not this second-party script it loads for
+        // itself - without it, Razorpay's own fraud signal for this session
+        // never reaches them, degrading their side of transaction risk
+        // scoring on every real payment attempt.
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://checkout.razorpay.com", "https://cdn.razorpay.com"],
         // Phase 1 finding (discovered via real-browser E2E testing, not
         // present in Phase 0's curl-only audit): helmet's secure-by-default
         // CSP directives include `script-src-attr 'none'` unless overridden,
