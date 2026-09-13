@@ -24,6 +24,28 @@
       ],
       "requiresAuth": true,
       "waitForSelector": "#total-cards .stat-card"
+    },
+    {
+      "name": "admin-products",
+      "route": "/admin/products-list.html",
+      "reference": "../references/admin-products-panel1.png",
+      "viewport": { "width": 1440, "height": 900 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#status-tabs"
+    },
+    {
+      "name": "admin-categories",
+      "route": "/admin/categories.html",
+      "reference": "../references/admin-categories-panel3.png",
+      "viewport": { "width": 1440, "height": 900 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#type-tabs"
     }
   ]
 }

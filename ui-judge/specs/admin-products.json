@@ -1,0 +1,32 @@
+{
+  "page": "admin-products",
+  "source": "authored",
+  "generatedAt": "2026-09-13T17:54:00.000Z",
+  "reference": { "path": "../references/admin-products-panel1.png", "width": 856, "height": 535 },
+  "sections": {
+    "expectedOrder": [".sidebar", ".topbar", "#status-tabs", ".filters-row", "table.data-table", "#pagination"],
+    "confidence": "high",
+    "note": "Products list per Phase1 10 panel 1 (Products List - Main): status tabs, search/category/bulk filters, a data table, and pagination."
+  },
+  "colors": { "dominant": [{ "hex": "#132615", "pct": 0.18 }, { "hex": "#ffffff", "pct": 0.5 }, { "hex": "#f4f6fb", "pct": 0.2 }], "confidence": "medium" },
+  "typography": {
+    "hierarchy": [{ "selector": ".page-header h2", "expectedFontSizePx": 20, "expectedFontWeight": "700" }],
+    "confidence": "medium"
+  },
+  "spacing": { "expectations": [], "confidence": "low" },
+  "components": {
+    "expected": [
+      { "name": "Status tabs", "selector": "#status-tabs", "critical": true },
+      { "name": "Search filter", "selector": "#f-search", "critical": true },
+      { "name": "Category filter", "selector": "#f-category", "critical": true },
+      { "name": "Clear filters", "selector": "#f-clear", "critical": false },
+      { "name": "Products table", "selector": "table.data-table", "critical": true },
+      { "name": "Pagination", "selector": "#pagination", "critical": true },
+      { "name": "Add Product button", "selector": "a[href='product-form.html']", "critical": true, "expectedText": "+ Add Product" }
+    ],
+    "confidence": "medium"
+  },
+  "assets": { "images": [], "confidence": "low" },
+  "borders": { "confidence": "low" },
+  "responsive": { "expectations": [], "confidence": "low", "note": "Same intentional horizontal-scroll mobile sidebar/table pattern as admin-dashboard - not a real page-level overflow (verified separately)." }
+}
