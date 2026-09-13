@@ -1,0 +1,45 @@
+{
+  "page": "fixture-close-match",
+  "source": "authored",
+  "generatedAt": "2026-09-13T00:00:00.000Z",
+  "reference": { "path": "reference.png", "width": 1024, "height": 900, "aspectRatio": 1.138 },
+  "sections": {
+    "expectedOrder": [".topbar", "#hero-title", "#cta", ".card", "#site-footer"],
+    "confidence": "high",
+    "note": "Landmarks a faithful implementation must contain; layout also folds in a full visual pixel-diff against reference.png."
+  },
+  "colors": {
+    "dominant": [
+      { "hex": "#f7f5f0", "pct": 0.7969 },
+      { "hex": "#fefefd", "pct": 0.1098 },
+      { "hex": "#fbf9f5", "pct": 0.0178 },
+      { "hex": "#f8f7f2", "pct": 0.0143 }
+    ],
+    "confidence": "high"
+  },
+  "typography": {
+    "hierarchy": [
+      { "selector": "#hero-title", "expectedFontSizePx": 32, "expectedFontWeight": "700", "expectedFontFamily": "Arial" },
+      { "selector": ".subtitle", "expectedFontSizePx": 16, "expectedFontWeight": "400" }
+    ],
+    "confidence": "high"
+  },
+  "spacing": {
+    "expectations": [
+      { "selectorA": ".subtitle", "selectorB": "#cta", "axis": "vertical", "expectedGapPx": 24, "tolerancePx": 6 }
+    ],
+    "confidence": "high"
+  },
+  "components": {
+    "expected": [
+      { "name": "Primary CTA", "selector": "#cta", "critical": true, "expectedText": "Get Started", "expectedStyle": { "backgroundColor": "rgb(47, 125, 79)", "fontSize": "16px", "borderRadius": "8px" } },
+      { "name": "Hero title", "selector": "#hero-title", "critical": false, "expectedText": "Pure Wellness", "expectedStyle": { "fontSize": "32px", "fontWeight": "700" } },
+      { "name": "Product image", "selector": "#product-img", "critical": false },
+      { "name": "Site footer", "selector": "#site-footer", "critical": false }
+    ],
+    "confidence": "high"
+  },
+  "assets": { "images": [{ "selector": "#product-img" }], "confidence": "high" },
+  "borders": { "confidence": "unknown", "note": "No authored border/shadow expectations beyond what components.expected already checks." },
+  "responsive": { "expectations": [], "confidence": "low", "note": "Checked generically via overflow detection at every configured viewport - no authored per-breakpoint layout rules for this fixture." }
+}

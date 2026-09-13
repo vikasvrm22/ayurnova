@@ -1,0 +1,7 @@
+node_modules/
+screenshots/*
+!screenshots/.gitkeep
+reports/*
+!reports/.gitkeep
+specs/*.heuristic.json
+tests/fixtures/**/reference.generated.png

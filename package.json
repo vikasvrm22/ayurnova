@@ -1,0 +1,8 @@
+{
+  "name": "ayur-app",
+  "private": true,
+  "description": "Repo-root pass-through scripts. The server (server/) and UI Judge (ui-judge/) are independent Node projects, each with their own package.json/dependencies.",
+  "scripts": {
+    "ui:judge": "npm --prefix ui-judge run judge --"
+  }
+}

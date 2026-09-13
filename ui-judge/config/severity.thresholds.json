@@ -1,0 +1,15 @@
+{
+  "_comment": "Thresholds the severity detector uses to classify a deviation as P0-P3. Edit without touching src/lib/severity.js.",
+  "visualDiffRatio": { "p0": 0.35, "p1": 0.20, "p2": 0.08, "p3": 0.02 },
+  "colorDistance": { "p0": 0.6, "p1": 0.35, "p2": 0.18, "p3": 0.06 },
+  "spacingDeltaPx": { "p0": 64, "p1": 32, "p2": 16, "p3": 6 },
+  "fontSizeDeltaPx": { "p0": 12, "p1": 6, "p2": 3, "p3": 1 },
+  "overflowPx": { "p0": 80, "p1": 24, "p2": 4, "p3": 0 },
+  "criticalSelectorHints": [
+    "[data-critical]",
+    "button[type=submit]",
+    ".primary-cta",
+    "nav",
+    "form"
+  ]
+}

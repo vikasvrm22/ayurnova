@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI Judge Fixture - Deviated Implementation</title>
+<link rel="stylesheet" href="actual-common.css">
+</head>
+<body>
+<header class="topbar">
+  <strong>UI Judge Demo</strong>
+  <nav><a href="/shop.html">Shop</a><a href="/about.html">About</a><a href="/contact.html">Contact</a></nav>
+</header>
+<section class="hero">
+  <h1 id="hero-title">Pure Wellness, Delivered</h1>
+  <p class="subtitle">A fixture page used to validate the UI Judge tool.</p>
+  <button id="cta" class="primary-cta">Get Started</button>
+  <button id="dead-btn" class="secondary-btn">Learn More</button>
+  <a href="#" id="empty-link">Terms</a>
+</section>
+<div class="card">
+  <img id="product-img" src="swatch-missing.png">
+  <p class="price">₹499</p>
+</div>
+<div class="wide-overflow"></div>
+<span class="timestamp" id="ts"></span>
+<script>document.getElementById("ts").textContent = new Date().toLocaleTimeString();</script>
+</body>
+</html>

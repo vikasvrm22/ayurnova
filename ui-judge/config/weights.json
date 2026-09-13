@@ -1,0 +1,11 @@
+{
+  "_comment": "Category weights for the overall fidelity score. Must sum to 1.0 (the engine normalizes if they don't). Copy this file, edit weights, and pass --weights <path> to use a different profile without touching the scoring engine.",
+  "layout": 0.25,
+  "components": 0.20,
+  "typography": 0.10,
+  "spacing": 0.10,
+  "assets": 0.10,
+  "colors": 0.05,
+  "responsive": 0.10,
+  "functional": 0.10
+}
