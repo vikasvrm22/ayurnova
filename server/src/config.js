@@ -17,7 +17,7 @@ export const config = {
 
   site: {
     baseUrl: process.env.SITE_BASE_URL || "http://localhost:5100",
-    name: "AyurVeda Store",
+    name: "AyurNova",
   },
 
   supabase: {

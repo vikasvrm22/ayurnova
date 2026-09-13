@@ -147,7 +147,7 @@ router.get("/", trackPageView, async (req, res, next) => {
       template = template.replace("<!--FOOTER_CATEGORIES-->", renderFooterCategories(concerns, benefits));
 
       const headMeta = renderHeadMeta({
-        title: "AyurVeda Store — Authentic Ayurvedic Supplements Online",
+        title: "AyurNova — Authentic Ayurvedic Supplements Online",
         description: "Scientifically researched, clinically tested Ayurvedic products for immunity, digestion, sleep, skin and overall wellness. Consult a Vaidya, discover your Dosha.",
         url: "/",
       });
@@ -211,7 +211,7 @@ router.get("/shop", trackPageView, async (req, res, next) => {
       template = template.replace("<!--FOOTER_CATEGORIES-->", renderFooterCategories(concerns, benefits));
 
       const headMeta = renderHeadMeta({
-        title: q ? `Search: ${q} — AyurVeda Store` : "Shop Ayurvedic Products — AyurVeda Store",
+        title: q ? `Search: ${q} — AyurNova` : "Shop Ayurvedic Products — AyurNova",
         description: "Browse our full range of Ayurvedic supplements, oils and wellness products by health concern, benefit, goal, and product type.",
         url: `/shop${concern ? `?concern=${concern}` : benefit ? `?benefit=${benefit}` : goal ? `?goal=${goal}` : q ? `?q=${encodeURIComponent(q)}` : ""}`,
         noindex: Boolean(q), // search-results URLs aren't useful landing pages for a crawler
@@ -313,7 +313,7 @@ router.get("/product/:slug", trackPageView, async (req, res, next) => {
 
     const url = `/product/${product.slug}`;
     const headMeta = renderHeadMeta({
-      title: product.seo_title || `${product.title} — AyurVeda Store`,
+      title: product.seo_title || `${product.title} — AyurNova`,
       description: product.seo_description || product.short_description || product.title,
       url, image: mainImage,
     }) + "\n" + renderProductJsonLd(product, variants[0], url) + "\n" + renderBreadcrumbJsonLd([
@@ -346,7 +346,7 @@ async function renderDiscoverPage(res, { entity, products, total, page, pageSize
   template = template.replace("<!--FOOTER_CATEGORIES-->", renderFooterCategories(concerns, benefits));
 
   const headMeta = renderHeadMeta({
-    title: entity.seo_title || `${entity.name} — AyurVeda Store`,
+    title: entity.seo_title || `${entity.name} — AyurNova`,
     description: entity.seo_description || entity.description || `Shop Ayurvedic products for ${entity.name}.`,
     url: urlPath, image: entity.hero_image || undefined,
   }) + "\n" + renderBreadcrumbJsonLd([
@@ -419,7 +419,7 @@ router.get("/blog", trackPageView, async (req, res, next) => {
     template = template.replace("<!--BLOG_POSTS-->", cardsHtml);
 
     const headMeta = renderHeadMeta({
-      title: "Ayurveda Knowledge Hub — AyurVeda Store",
+      title: "Ayurveda Knowledge Hub — AyurNova",
       description: "Articles on Ayurvedic ingredients, wellness routines and healthy living.",
       url: "/blog",
     });
@@ -449,7 +449,7 @@ router.get("/blog/:slug", trackPageView, async (req, res, next) => {
 
     const url = `/blog/${post.slug}`;
     const headMeta = renderHeadMeta({
-      title: post.seo_title || `${post.title} — AyurVeda Store`,
+      title: post.seo_title || `${post.title} — AyurNova`,
       description: post.seo_description || post.excerpt || post.title,
       url, image: post.cover_image || undefined,
     });
@@ -471,7 +471,7 @@ router.get("/faq", trackPageView, async (req, res, next) => {
         : `<p style="color:#888;">No FAQs published yet.</p>`;
       template = template.replace("<!--FAQ_LIST-->", listHtml);
       const headMeta = renderHeadMeta({
-        title: "Frequently Asked Questions — AyurVeda Store",
+        title: "Frequently Asked Questions — AyurNova",
         description: "Answers to common questions about our Ayurvedic products, orders, shipping and returns.",
         url: "/faq",
       });
@@ -510,7 +510,7 @@ for (const slug of LEGAL_SLUGS) {
         template = template.replace(/<!--LEGAL_TITLE-->/g, escapeHtml(page.title));
         template = template.replace("<!--LEGAL_CONTENT-->", sanitizeRichText(page.content_html));
         const headMeta = renderHeadMeta({
-          title: `${page.title} — AyurVeda Store`,
+          title: `${page.title} — AyurNova`,
           description: page.title,
           url: `/${slug}`,
         });
@@ -538,7 +538,7 @@ router.get("/routines", trackPageView, async (req, res, next) => {
       : `<p style="color:#888;">No routines published yet - check back soon.</p>`;
     template = template.replace("<!--ROUTINE_LIST-->", listHtml);
     const headMeta = renderHeadMeta({
-      title: "Ayurvedic Routines — AyurVeda Store",
+      title: "Ayurvedic Routines — AyurNova",
       description: "Admin-curated daily Ayurvedic routines for each Dosha.",
       url: "/routines",
     });
@@ -576,7 +576,7 @@ router.get("/routines/:slug", trackPageView, async (req, res, next) => {
 
     const url = `/routines/${routine.slug}`;
     const headMeta = renderHeadMeta({
-      title: `${routine.name} — AyurVeda Store`,
+      title: `${routine.name} — AyurNova`,
       description: routine.description || `An Ayurvedic routine${routine.dosha ? ` for ${routine.dosha} Dosha` : ""}.`,
       url,
     });
@@ -588,15 +588,15 @@ router.get("/routines/:slug", trackPageView, async (req, res, next) => {
 
 // ============================= STATIC-ISH PAGES =============================
 const STATIC_PAGES = {
-  "/about": { file: "about.html", title: "About Us — AyurVeda Store", description: "Learn about AyurVeda Store's mission and commitment to authentic Ayurvedic wellness." },
-  "/contact": { file: "contact.html", title: "Contact Us — AyurVeda Store", description: "Get in touch with the AyurVeda Store team." },
-  "/consult-vaidya": { file: "consult-vaidya.html", title: "Consult a Vaidya — AyurVeda Store", description: "Book a personalised consultation with our expert Ayurvedic Vaidyas." },
-  "/dosha-test": { file: "dosha-test.html", title: "Wellness Assessment — AyurVeda Store", description: "Take our free Wellness Assessment to discover your Dosha and get personalized Ayurvedic product recommendations." },
-  "/cart": { file: "cart.html", title: "Your Cart — AyurVeda Store", description: "Review your cart and checkout.", noindex: true },
-  "/account": { file: "account.html", title: "My Account — AyurVeda Store", description: "Log in or view your orders.", noindex: true },
-  "/order-detail": { file: "order-detail.html", title: "Order Detail — AyurVeda Store", description: "View your order details.", noindex: true },
-  "/compare": { file: "compare.html", title: "Compare Products — AyurVeda Store", description: "Compare Ayurvedic products side by side.", noindex: true },
-  "/for-you": { file: "for-you.html", title: "For You — AyurVeda Store", description: "Personalized Ayurvedic product and routine recommendations based on your Wellness Profile.", noindex: true },
+  "/about": { file: "about.html", title: "About Us — AyurNova", description: "Learn about AyurNova's mission and commitment to authentic Ayurvedic wellness." },
+  "/contact": { file: "contact.html", title: "Contact Us — AyurNova", description: "Get in touch with the AyurNova team." },
+  "/consult-vaidya": { file: "consult-vaidya.html", title: "Consult a Vaidya — AyurNova", description: "Book a personalised consultation with our expert Ayurvedic Vaidyas." },
+  "/dosha-test": { file: "dosha-test.html", title: "Wellness Assessment — AyurNova", description: "Take our free Wellness Assessment to discover your Dosha and get personalized Ayurvedic product recommendations." },
+  "/cart": { file: "cart.html", title: "Your Cart — AyurNova", description: "Review your cart and checkout.", noindex: true },
+  "/account": { file: "account.html", title: "My Account — AyurNova", description: "Log in or view your orders.", noindex: true },
+  "/order-detail": { file: "order-detail.html", title: "Order Detail — AyurNova", description: "View your order details.", noindex: true },
+  "/compare": { file: "compare.html", title: "Compare Products — AyurNova", description: "Compare Ayurvedic products side by side.", noindex: true },
+  "/for-you": { file: "for-you.html", title: "For You — AyurNova", description: "Personalized Ayurvedic product and routine recommendations based on your Wellness Profile.", noindex: true },
 };
 for (const [url, meta] of Object.entries(STATIC_PAGES)) {
   router.get(url, trackPageView, async (req, res, next) => {
@@ -660,7 +660,7 @@ router.get("/robots.txt", (req, res) => {
 // ============================= 404 =============================
 export function render404Page() {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<title>Page Not Found — AyurVeda Store</title><meta name="robots" content="noindex">
+<title>Page Not Found — AyurNova</title><meta name="robots" content="noindex">
 <link rel="stylesheet" href="/css/style.css"></head><body>
 <div class="container" style="padding:60px 20px; text-align:center;">
 <h1>404 — Page Not Found</h1><p>This product or page may have been removed.</p>

@@ -1,5 +1,5 @@
 /**
- * AyurVeda Store - shared client-side utilities.
+ * AyurNova - shared client-side utilities.
  * Cart lives in localStorage (guest-friendly, no login required to shop);
  * checkout re-prices everything server-side from the database, so nothing
  * here needs to be trusted for money/stock accuracy.

@@ -249,7 +249,7 @@ app.use(errorHandler);
 startAnalyticsFlusher();
 
 app.listen(config.port, () => {
-  console.log(`AyurVeda Store running on ${config.site.baseUrl}`);
+  console.log(`AyurNova running on ${config.site.baseUrl}`);
   console.log(`Admin panel:  ${config.site.baseUrl}/admin`);
   console.log(`Public site:  ${config.site.baseUrl}/`);
 });

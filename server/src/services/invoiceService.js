@@ -169,7 +169,7 @@ export function renderInvoicePdfBuffer(invoice) {
     }
     doc.moveDown();
 
-    doc.fontSize(11).text(seller.legalBusinessName || "AyurVeda Store", { continued: false });
+    doc.fontSize(11).text(seller.legalBusinessName || "AyurNova", { continued: false });
     doc.fontSize(9);
     formatAddressLines(seller.address).forEach((line) => doc.text(line));
     if (seller.gstin) doc.text(`GSTIN: ${seller.gstin}`);
