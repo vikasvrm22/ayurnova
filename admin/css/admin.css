@@ -138,6 +138,7 @@ a{ text-decoration:none; }
 .timeline-step.bad .timeline-dot{ background:var(--danger); border-color:var(--danger); }
 
 .shortcuts-row{ margin-top:4px; }
+.refunds-layout{ grid-template-columns:1fr 380px; }
 .shortcut-card{ display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px; color:var(--text); font-size:12.5px; }
 .shortcut-card:hover{ border-color:var(--primary); }
 .shortcut-card strong{ display:block; font-size:13px; margin-bottom:2px; }

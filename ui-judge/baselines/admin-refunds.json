@@ -1,0 +1,16 @@
+{
+  "page": "admin-refunds",
+  "overall": 84,
+  "categoryScores": {
+    "layout": 60,
+    "components": 100,
+    "typography": 100,
+    "spacing": null,
+    "assets": 100,
+    "colors": 100,
+    "responsive": 60,
+    "functional": 95
+  },
+  "savedAt": "2026-09-13T19:31:19.084Z",
+  "reportPath": "D:\\FinalAyurveda\\ayurveda-store-full-project\\ayur-app\\ui-judge\\reports\\admin-refunds__2026-09-13T19-31-19-068Z.json"
+}

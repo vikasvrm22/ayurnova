@@ -1,0 +1,30 @@
+{
+  "page": "admin-refunds",
+  "source": "authored",
+  "generatedAt": "2026-09-13T19:30:00.000Z",
+  "reference": { "path": "../../public-site/design-ref/Phase2 11. Refund Management.png", "width": 1536, "height": 1024 },
+  "sections": {
+    "expectedOrder": [".breadcrumb", ".page-icon", "#stat-cards", ".filters-row", "table.data-table", "#pagination", "#refund-details-panel"],
+    "confidence": "high",
+    "note": "Refund Management per Phase2 11: breadcrumb, back arrow, icon+title header with Process Refund action, a 5-card KPI summary row, filters (search/status/date range/clear), a refunds table, pagination, quick-action shortcuts, a Refund Details side panel, and a Refund Policy note."
+  },
+  "colors": { "dominant": [{ "hex": "#132615", "pct": 0.14 }, { "hex": "#ffffff", "pct": 0.45 }, { "hex": "#f4f6fb", "pct": 0.3 }], "confidence": "medium" },
+  "typography": { "hierarchy": [{ "selector": ".page-header h2", "expectedFontSizePx": 20, "expectedFontWeight": "700" }], "confidence": "medium" },
+  "spacing": { "expectations": [], "confidence": "low" },
+  "components": {
+    "expected": [
+      { "name": "Breadcrumb", "selector": ".breadcrumb", "critical": false },
+      { "name": "Summary KPI cards", "selector": "#stat-cards", "critical": true },
+      { "name": "Search filter", "selector": "#f-search", "critical": true },
+      { "name": "Status filter", "selector": "#f-status", "critical": true },
+      { "name": "Date range filters", "selector": "#f-from", "critical": false },
+      { "name": "Refunds table", "selector": "table.data-table", "critical": true },
+      { "name": "Pagination", "selector": "#pagination", "critical": true },
+      { "name": "Refund Details panel", "selector": "#refund-details-panel", "critical": true }
+    ],
+    "confidence": "medium"
+  },
+  "assets": { "images": [], "confidence": "low" },
+  "borders": { "confidence": "low" },
+  "responsive": { "expectations": [], "confidence": "low", "note": "Same intentional horizontal-scroll mobile sidebar pattern as other authenticated pages - not a real page-level overflow (verified: 0px at 390px after fixing a real bug where an inline grid-template-columns style overrode the mobile .two-col media query)." }
+}

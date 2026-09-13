@@ -106,19 +106,45 @@ router.get(
 router.get(
   "/refunds",
   asyncRoute(async (req, res) => {
-    const { status } = req.query;
+    const { status, from, to } = req.query;
     let query = supabaseAdmin()
       .from("refunds")
-      .select("*, payments(id, amount, method:gateway, orders(order_number, guest_email, guest_phone))", { count: "exact" })
+      .select("*, payments(id, amount, gateway, orders(id, order_number, guest_email, guest_phone))", { count: "exact" })
       .order("created_at", { ascending: false });
     if (status) query = query.eq("status", status);
+    if (from) query = query.gte("created_at", from);
+    if (to) query = query.lte("created_at", to);
 
     const { page, pageSize } = parsePagination(req.query);
     query = query.range((page - 1) * pageSize, page * pageSize - 1);
 
     const { data, error, count } = await query;
     if (error) throw error;
-    res.json({ items: data, total: count, page, pageSize });
+    // "Type" (Full/Partial) isn't a stored column - derived from comparing
+    // this refund's amount to its payment's total amount, same real data
+    // the row already carries via the join above.
+    const items = (data || []).map((r) => ({ ...r, type: r.payments && Number(r.amount) >= Number(r.payments.amount) ? "Full" : "Partial" }));
+    res.json({ items, total: count, page, pageSize });
+  })
+);
+
+// ---- Refund summary KPIs (Refund Management header cards) - read-only
+// aggregate over the same `refunds` table used above. ----
+router.get(
+  "/refunds/summary",
+  asyncRoute(async (req, res) => {
+    const { data: rows, error } = await supabaseAdmin().from("refunds").select("status, amount");
+    if (error) throw error;
+    const total = (rows || []).length;
+    const countByStatus = (rows || []).reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
+    const totalRefunded = (rows || []).filter((r) => r.status === "PROCESSED").reduce((s, r) => s + Number(r.amount || 0), 0);
+    res.json({
+      total,
+      completed: countByStatus.PROCESSED || 0,
+      pending: countByStatus.INITIATED || 0,
+      rejected: countByStatus.FAILED || 0,
+      totalRefunded,
+    });
   })
 );
 

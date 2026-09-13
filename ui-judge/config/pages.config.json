@@ -91,6 +91,17 @@
       ],
       "requiresAuth": true,
       "waitForSelector": "#payment-summary-strip .payment-status-icon"
+    },
+    {
+      "name": "admin-refunds",
+      "route": "/admin/refunds.html",
+      "reference": "../../public-site/design-ref/Phase2 11. Refund Management.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#stat-cards .stat-card"
     }
   ]
 }
