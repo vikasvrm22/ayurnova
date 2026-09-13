@@ -73,9 +73,18 @@ export const config = {
 
   ssrCacheTtlMs: Number(process.env.SSR_CACHE_TTL_MS || 300000),
 
+  // Phase 9G: SEED_SUPERADMIN_PASSWORD used to silently fall back to the
+  // hardcoded, source-committed "ChangeMe123!" if unset - unlike
+  // JWT_SECRET/INTEGRATION_ENCRYPTION_KEY above, this one seeds a REAL,
+  // persistent admin login into the database, so a forgotten env var in
+  // production would create a SuperAdmin with a publicly-known password.
+  // Deliberately NOT validated with requireSecret() here (that would make
+  // the whole server refuse to boot over a var only the one-off
+  // `npm run seed-admin` script ever reads) - the check lives in that
+  // script instead, see seedAdmin.js.
   seed: {
     superAdminEmail: process.env.SEED_SUPERADMIN_EMAIL || "admin@ayurvedastore.example",
-    superAdminPassword: process.env.SEED_SUPERADMIN_PASSWORD || "ChangeMe123!",
+    superAdminPassword: process.env.SEED_SUPERADMIN_PASSWORD || null,
   },
 
   shipping: {

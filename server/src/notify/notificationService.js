@@ -31,6 +31,7 @@ import { config } from "../config.js";
 import * as emailProvider from "../integrations/email/provider.js";
 import * as smsProvider from "../integrations/sms/provider.js";
 import * as whatsappProvider from "../integrations/whatsapp/provider.js";
+import { logError } from "../services/errorLogService.js";
 
 export const NOTIFICATION_EVENTS = [
   "order_placed", "order_shipped", "order_delivered", "order_cancelled",
@@ -210,5 +211,6 @@ export async function notify(event, { order, returnRequestId, dedupeKey, ...temp
     });
   } catch (e) {
     console.error(`[notify] unexpected error dispatching ${event}:`, e.message || e);
+    logError("notification_service", e, { event, orderId: order?.id || null });
   }
 }

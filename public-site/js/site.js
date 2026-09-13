@@ -156,7 +156,7 @@ function forYouCardHtml(p) {
   return `
     <div class="product-card">
       <button class="wishlist-toggle" data-wishlist-product-id="${p.id}" title="Add to Wishlist">♡</button>
-      <div class="img">${p.image ? `<img src="${p.image}" alt="${p.title}" style="width:100%;height:100%;object-fit:cover;">` : "Product Image"}</div>
+      <div class="img">${p.image ? `<img src="${p.image}" alt="${p.title}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">` : "Product Image"}</div>
       <div class="body">
         <div class="title">${p.title}</div>
         <div class="stars">${stars} <span class="reviews">(${p.reviewCount || 0})</span></div>

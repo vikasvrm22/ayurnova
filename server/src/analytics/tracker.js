@@ -1,6 +1,7 @@
 import geoip from "geoip-lite";
 import { supabaseAdmin } from "../db/supabaseClient.js";
 import { config } from "../config.js";
+import { logError } from "../services/errorLogService.js";
 
 let buffer = [];
 
@@ -44,6 +45,7 @@ async function flush() {
     if (error) throw error;
   } catch (e) {
     console.error(`Failed to flush ${batch.length} analytics events:`, e.message);
+    logError("analytics_flush", e, { batchSize: batch.length });
   }
 }
 

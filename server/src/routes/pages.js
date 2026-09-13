@@ -26,6 +26,23 @@ function cached(key, renderFn) {
   });
 }
 
+// Phase 9F (P1-7): the 5-min TTL above means a newly published/edited
+// product or category could be invisible on Home/Shop for up to 5
+// minutes - self-heals, but a confusing "did my publish actually work?"
+// moment for staff. Admin product/category write routes (products.js,
+// categories.js) call this on every successful mutation so a publish
+// takes effect on the very next storefront request, same immediacy
+// legal-pages.js already gets via its own updated_at-keyed cache key
+// (a different technique, not applicable here since these two pages
+// aggregate many rows rather than rendering one). Deliberately narrow:
+// only the catalog-derived entries (home/shop/sitemap) are cleared -
+// faq/legal caches are untouched since neither route can affect them.
+export function invalidateCatalogCache() {
+  for (const key of pageCache.keys()) {
+    if (key === "home" || key === "sitemap" || key.startsWith("shop:")) pageCache.delete(key);
+  }
+}
+
 function fmtPrice(n) {
   return `₹${Number(n).toLocaleString("en-IN")}`;
 }
@@ -144,7 +161,7 @@ function productCardHtml(product) {
     <div class="product-card">
       ${off > 0 ? `<span class="pill-badge danger card-badge">${off}% OFF</span>` : ""}
       <button class="wishlist-toggle" data-wishlist-product-id="${product.id}" title="Add to Wishlist">♡</button>
-      <div class="img">${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.title)}" style="width:100%;height:100%;object-fit:cover;">` : "Product Image"}</div>
+      <div class="img">${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.title)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">` : "Product Image"}</div>
       <div class="body">
         <div class="title">${escapeHtml(product.title)}</div>
         <div class="stars">${stars} <span class="reviews">(${product.review_count})</span></div>
@@ -163,7 +180,7 @@ function productCardHtml(product) {
  * cover images where set, honest "no articles yet" empty state. */
 function knowledgeHubCardHtml(post) {
   const img = post.cover_image
-    ? `<img src="${escapeHtml(post.cover_image)}" alt="${escapeHtml(post.title)}" style="width:100%;height:100%;object-fit:cover;">`
+    ? `<img src="${escapeHtml(post.cover_image)}" alt="${escapeHtml(post.title)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">`
     : "";
   return `
     <a class="hub-card" href="/blog/${escapeHtml(post.slug)}">
@@ -309,10 +326,24 @@ router.get("/shop", trackPageView, async (req, res, next) => {
       template = template.replace("<!--MEGA_BENEFIT-->", renderMegaMenu(benefits, "benefit"));
       template = template.replace("<!--FOOTER_CATEGORIES-->", renderFooterCategories(concerns, benefits));
 
+      // Phase 9F (P2-8): previously only reflected the FIRST matching
+      // filter in an if/else-if chain that never even checked `category`
+      // at all - a category-filtered URL (or any combination of two+
+      // filters at once, e.g. ?category=X&concern=Y) canonicalized down
+      // to the bare unfiltered /shop, telling crawlers to ignore the
+      // filtered page's own distinct content (duplicate-content risk).
+      // Now reflects every active filter actually present in the request.
+      const canonicalParams = new URLSearchParams();
+      if (category) canonicalParams.set("category", category);
+      if (concern) canonicalParams.set("concern", concern);
+      if (benefit) canonicalParams.set("benefit", benefit);
+      if (goal) canonicalParams.set("goal", goal);
+      if (q) canonicalParams.set("q", q);
+      const canonicalQuery = canonicalParams.toString();
       const headMeta = renderHeadMeta({
         title: q ? `Search: ${q} — AyurNova` : "Shop Ayurvedic Products — AyurNova",
         description: "Browse our full range of Ayurvedic supplements, oils and wellness products by health concern, benefit, goal, and product type.",
-        url: `/shop${concern ? `?concern=${concern}` : benefit ? `?benefit=${benefit}` : goal ? `?goal=${goal}` : q ? `?q=${encodeURIComponent(q)}` : ""}`,
+        url: `/shop${canonicalQuery ? `?${canonicalQuery}` : ""}`,
         noindex: Boolean(q), // search-results URLs aren't useful landing pages for a crawler
       });
       return injectSupabaseConfig(injectHead(template, headMeta));
@@ -784,7 +815,11 @@ router.get("/sitemap.xml", async (req, res, next) => {
 });
 
 router.get("/robots.txt", (req, res) => {
-  res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /cart\nDisallow: /account\nDisallow: /compare\nDisallow: /for-you\nSitemap: ${config.site.baseUrl}/sitemap.xml\n`);
+  // Phase 9F (P2-9): /admin was never listed - defense-in-depth only
+  // (the admin panel isn't linked from any public page and requires
+  // auth regardless), but a stray inbound link or crawler guess should
+  // still be told not to index it, same as the other private surfaces.
+  res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /cart\nDisallow: /account\nDisallow: /compare\nDisallow: /for-you\nSitemap: ${config.site.baseUrl}/sitemap.xml\n`);
 });
 
 // ============================= 404 =============================

@@ -75,6 +75,16 @@ router.post("/checkout", async (req, res, next) => {
     if (!["cod", "prepaid"].includes(payment_method)) {
       return res.status(400).json({ error: "Select a valid payment method" });
     }
+    // Phase 9B (P1-3): the admin "COD Available" toggle must actually gate
+    // COD order creation, not just the storefront badge - otherwise a direct
+    // API call could bypass an admin's decision to disable COD.
+    if (payment_method === "cod") {
+      const { data: trustBadgesSetting } = await supabaseAdmin().from("settings").select("value").eq("key", "trust_badges").single();
+      const codEnabled = trustBadgesSetting?.value?.cod !== false;
+      if (!codEnabled) {
+        return res.status(400).json({ error: "Cash on Delivery is currently unavailable. Please choose an online payment method." });
+      }
+    }
     const { valid, errors } = validateAddress(address || {});
     if (!valid) return res.status(400).json({ error: "Invalid address", fields: errors });
     if (!req.customer && !validatePhone(guest_phone || "")) {

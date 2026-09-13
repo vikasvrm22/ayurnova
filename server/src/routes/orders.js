@@ -120,21 +120,36 @@ router.put("/:id/status", requireStaffAuth, requirePermission("manageOrders"), a
       }
     }
 
+    // Phase 9B (P2-1): atomic conditional update - only flips status if it
+    // is STILL at the status this request read at the top of the handler.
+    // A second, near-simultaneous admin cancel request on the same order
+    // (the race the Phase 9 audit flagged, unlike the already-guarded
+    // customer-facing cancel route) finds 0 rows matched and gets a 409
+    // instead of both requests independently restocking the same order.
+    const patch = { status, updated_at: new Date().toISOString() };
+    const { data, error } = await supabaseAdmin()
+      .from("orders").update(patch).eq("id", req.params.id).eq("status", existing.status)
+      .select().maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(409).json({ error: "This order was just modified by another request. Please refresh and try again." });
+
     // Phase 5B: cancelling an order restocks exactly the batch(es)
     // originally allocated to it (never re-derived via FEFO), each
     // producing its own auditable ledger entry - see restock_order() in
-    // 0007_phase5b_fefo_allocation.sql. Only on a genuine transition INTO
-    // cancelled (never on a no-op re-save of an already-cancelled order),
-    // so this can never double-restock. An order that was never allocated
-    // (e.g. a prepaid order cancelled before payment ever succeeded) has
-    // no allocation rows, so restock_order() is correctly a no-op for it.
+    // 0007_phase5b_fefo_allocation.sql. Only runs after the conditional
+    // update above has actually won the transition INTO cancelled (never
+    // on a no-op re-save of an already-cancelled order, and never twice
+    // for the same order), so this can never double-restock. An order
+    // that was never allocated (e.g. a prepaid order cancelled before
+    // payment ever succeeded) has no allocation rows, so restock_order()
+    // is correctly a no-op for it.
     //
     // A restock failure is logged, not thrown - cancelling an order is
     // pre-existing Phase 1 functionality staff already rely on working;
     // an inventory-accounting side effect (or, pre-migration, the RPC not
     // existing yet) must never block the cancellation itself, same risk
     // tolerance as decrementStockForOrder's post-payment accounting.
-    if (status === "cancelled" && existing?.status !== "cancelled") {
+    if (status === "cancelled" && existing.status !== "cancelled") {
       const { error: restockError } = await supabaseAdmin().rpc("restock_order", {
         p_order_id: req.params.id, p_actor: req.staff.email, p_reason: "order_cancelled",
       });
@@ -145,10 +160,6 @@ router.put("/:id/status", requireStaffAuth, requirePermission("manageOrders"), a
         });
       }
     }
-
-    const patch = { status, updated_at: new Date().toISOString() };
-    const { data, error } = await supabaseAdmin().from("orders").update(patch).eq("id", req.params.id).select().single();
-    if (error) throw error;
 
     await supabaseAdmin().from("activity_log").insert({
       entity_type: "order", entity_id: req.params.id, action: `status -> ${status}`, actor: req.staff.email,

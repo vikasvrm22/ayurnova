@@ -159,3 +159,48 @@ table.data-table th{ background:#f8f9fd; color:var(--muted); font-weight:600; }
 .switch input:checked + .slider{ background:var(--primary); }
 .switch input:checked + .slider:before{ transform:translateX(20px); }
 .save-note{ font-size:11.5px; color:var(--success); margin-top:8px; display:none; }
+
+/* ---- Phase 9D (mobile readiness): the admin shell's fixed 240px
+   sidebar + a full-width main column were never given a mobile
+   breakpoint, so every admin screen forced horizontal page scroll at
+   phone width (measured 250-570px of overflow across Dashboard/
+   Products/Orders/Payments/Refunds/Inventory/Integrations, headed
+   Chromium at 390x844) - the same class of bug as the storefront nav
+   fix (P0-1), just never applied to /admin. Same remediation
+   philosophy: one shared, CSS-only, scoped media query (admin.css is
+   the single stylesheet all 30+ admin pages already share, unlike the
+   storefront's per-page header markup), provably inert above the
+   breakpoint. No JS, no HTML changes, no layout redesign - the
+   sidebar becomes a horizontally-scrollable top strip (same pattern
+   as the storefront nav) instead of a fixed-width side column, and
+   any data table wider than the viewport scrolls within itself
+   instead of forcing the whole page to. ---- */
+@media (max-width:860px){
+  .app-shell{ flex-direction:column; min-height:auto; }
+  /* min-width:0 overrides the flex item's default min-width:auto, which
+     would otherwise let .sidebar-nav's non-shrinking (flex-shrink:0)
+     content force .sidebar itself wider than 100% instead of scrolling
+     within it - the standard fix for this well-known flexbox overflow
+     trap. Without it, overflow-x:auto below has no effect. */
+  .sidebar{ width:100%; min-width:0; flex-direction:row; align-items:center; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .sidebar::-webkit-scrollbar{ display:none; }
+  .sidebar-brand{ border-bottom:none; padding:10px 14px; flex-shrink:0; }
+  .sidebar-nav{ flex:none; flex-direction:row; align-items:center; overflow:visible; padding:6px 8px; }
+  .sidebar-nav a{ white-space:nowrap; flex-shrink:0; }
+  .sidebar-group-label{ display:none; } /* labels don't read well inline in a horizontal strip; the links themselves stay, just ungrouped */
+  .sidebar-user{ border-top:none; border-left:1px solid #234626; padding:8px 14px; display:flex; align-items:center; gap:8px; flex-shrink:0; white-space:nowrap; }
+  .sidebar-user .name, .sidebar-user .role-badge{ display:none; } /* already visible in the topbar; dropped here purely to save horizontal space */
+  .sidebar-user button{ width:auto; margin-top:0; padding:6px 10px; }
+  .topbar{ padding:10px 14px; flex-wrap:wrap; }
+  .topbar-search{ display:none; } /* pre-existing disabled/non-functional placeholder input (see markup) - safe to drop below the fold at this width */
+  .main-area{ padding:16px; }
+  table.data-table{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; white-space:nowrap; }
+  /* .two-col (e.g. dashboard.html's "Top Products"/"Recent Orders" cards)
+     is a 1.4fr/1fr grid with no responsive override - at phone width its
+     two side-by-side cards together were wider than the viewport, and
+     grid items share the same default min-width:auto overflow trap as
+     the flex items above, so their own data-table's overflow-x:auto
+     couldn't help until the grid item itself could shrink. */
+  .two-col{ grid-template-columns:1fr; }
+  .two-col > *{ min-width:0; }
+}

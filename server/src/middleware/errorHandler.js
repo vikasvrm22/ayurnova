@@ -17,7 +17,13 @@
  * kept byte-for-byte identical to before for exposed errors, because every
  * existing admin/public-site page already does `data.error` / `err.fields` -
  * changing the shape here would regress all of them.
+ *
+ * Phase 9B (P1-5): every unhandled (non-`.expose`) error is now also
+ * durably recorded via errorLogService.logError, in addition to the
+ * pre-existing console.error - see that module's own comment for why.
  */
+import { logError } from "../services/errorLogService.js";
+
 export function errorHandler(err, req, res, next) {
   const status = err.status || 500;
 
@@ -28,5 +34,6 @@ export function errorHandler(err, req, res, next) {
   }
 
   console.error(err);
+  logError("http_error_handler", err, { method: req.method, path: req.originalUrl || req.path });
   res.status(status >= 500 ? status : 500).json({ error: "Internal server error" });
 }

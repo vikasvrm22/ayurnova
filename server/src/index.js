@@ -57,6 +57,8 @@ import shipmentWebhooksPublicRoutes from "./routes/shipmentWebhooksPublic.js";
 import wishlistPublicRoutes from "./routes/wishlistPublic.js";
 // ---- Phase 8D: Buy Again ----
 import buyAgainPublicRoutes from "./routes/buyAgainPublic.js";
+// ---- Phase 9B: persistent error log (P1-5) ----
+import errorLogAdminRoutes from "./routes/errorLogAdmin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -212,6 +214,10 @@ app.use("/api/public/wishlist", wishlistPublicRoutes);
 // commerce write path - reads existing order history, reuses the
 // existing cart/checkout flow for the actual reorder. ----
 app.use("/api/public/buy-again", buyAgainPublicRoutes);
+
+// ---- Admin error log (Phase 9B, P1-5). Read-only observability screen -
+// see errorLogAdmin.js's own comment for RBAC rationale. ----
+app.use("/api/admin/error-log", errorLogAdminRoutes);
 
 app.get("/api/meta/schema", (req, res) => {
   res.json({ roles: ROLES, rolePermissions: ROLE_PERMISSIONS, productFields: PRODUCT_FIELDS });

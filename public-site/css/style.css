@@ -126,8 +126,16 @@ a{ color:var(--green-dark); }
    hamburger drawer) keeps every existing link reachable with zero markup
    changes needed across the ~18 public-site page templates that each
    embed their own copy of this nav, so desktop rendering (no media query
-   match) is byte-for-byte unaffected. */
-@media (max-width:640px){
+   match) is byte-for-byte unaffected.
+   Phase 9D: the breakpoint was originally 640px (phone-only, matching
+   9A's own tested viewport). Headed-browser testing at a 768px tablet
+   viewport this session found the identical overflow (+126px) still
+   present there - untested in 9A, not a regression - since 768 sits
+   above 640. Raised to 900px, matching this codebase's own established
+   tablet breakpoint used everywhere else (.hero-inner, .category-tiles,
+   .product-grid, .checkout-layout all already switch at 900px), so
+   touch-first tablets get the same touch-appropriate nav as phones. */
+@media (max-width:900px){
   .main-nav .container{
     overflow-x:auto;
     flex-wrap:nowrap;

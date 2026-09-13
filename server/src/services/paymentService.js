@@ -20,6 +20,15 @@ import { getDecryptedCredentials } from "../integrations/integrationService.js";
 import { notify } from "../notify/notificationService.js";
 import { generateInvoiceForOrder } from "./invoiceService.js";
 
+// Phase 9B (P2-3): caps how many Razorpay order-creation attempts one
+// order can generate via startPaymentAttempt (initial checkout + every
+// /retry call). Without this, /retry had no limit beyond the generic
+// per-IP rate limiter, so one order could be used to spam Razorpay
+// order-creation indefinitely. 10 is generous for genuine retry
+// scenarios (card declines, dropped connections, changed payment
+// method) while still bounding abuse.
+const MAX_PAYMENT_ATTEMPTS_PER_ORDER = 10;
+
 /**
  * Starts (or restarts) a Razorpay payment for an order: creates/reuses
  * the order's `payments` row, creates a new `payment_attempts` row, asks
@@ -61,6 +70,13 @@ export async function startPaymentAttempt(order) {
     .from("payment_attempts").select("attempt_number").eq("payment_id", payment.id).order("attempt_number", { ascending: false }).limit(1);
   if (attemptsError) throw attemptsError;
   const nextAttemptNumber = (existingAttempts?.[0]?.attempt_number || 0) + 1;
+  if (nextAttemptNumber > MAX_PAYMENT_ATTEMPTS_PER_ORDER) {
+    throw new AppError(
+      "Too many payment attempts for this order. Please contact support or choose Cash on Delivery.",
+      429,
+      "TOO_MANY_PAYMENT_ATTEMPTS"
+    );
+  }
 
   const razorpayOrder = await razorpayProvider.createOrder(environment, {
     amountRupees: Number(order.total), currency: "INR", receipt: order.order_number, notes: { order_number: order.order_number },

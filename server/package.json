@@ -10,7 +10,13 @@
     "reset-password": "node src/scripts/resetPassword.js",
     "dev:healthcheck": "node dev-harness/healthcheck.js",
     "dev:seed-test-data": "node dev-harness/seed-test-data.js",
-    "dev:test-phase9a-secrets": "node dev-harness/test-phase9a-secrets.js"
+    "dev:test-phase9a-secrets": "node dev-harness/test-phase9a-secrets.js",
+    "dev:test-phase9b-cod-gate": "node dev-harness/test-phase9b-cod-gate.js",
+    "dev:test-phase9b-admin-cancel-race": "node dev-harness/test-phase9b-admin-cancel-race.js",
+    "dev:test-phase9b-payment-retry-cap": "node dev-harness/test-phase9b-payment-retry-cap.js",
+    "dev:test-phase9b-error-log": "node dev-harness/test-phase9b-error-log.js",
+    "dev:test-phase9f-cache-invalidation": "node dev-harness/test-phase9f-cache-invalidation.js",
+    "dev:test-phase9g-seed-admin-password": "node dev-harness/test-phase9g-seed-admin-password.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

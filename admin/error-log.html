@@ -1,11 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Orders — AyurNova Admin [WIREFRAME]</title>
-<link rel="stylesheet" href="css/admin.css">
-<script src="js/api.js"></script>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Error Log — AyurNova Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
 <script>requireAdminAuth();</script>
 </head>
 <body>
@@ -16,7 +12,7 @@
       <a href="dashboard.html">Dashboard</a>
       <a href="products-list.html">Products</a>
       <a href="categories.html">Categories</a>
-      <a href="orders-list.html" class="active">Orders</a>
+      <a href="orders-list.html">Orders</a>
       <a href="customers.html">Customers</a>
       <div class="sidebar-group-label">Content</div>
       <a href="blog.html">Blog Posts</a>
@@ -40,7 +36,7 @@
       <div class="sidebar-group-label">Admin</div>
       <a href="media.html">Banners & Media</a>
       <a href="notifications.html">Notifications</a>
-      <a href="error-log.html">Error Log</a>
+      <a href="error-log.html" class="active">Error Log</a>
       <a href="users.html">Users & Roles</a>
       <a href="settings.html">Settings</a>
     </nav>
@@ -51,7 +47,6 @@
       <button onclick="Api.clearSession(); location.href='login.html';">Log out</button>
     </div>
   </aside>
-
   <div class="main-col">
   <div class="topbar">
     <div class="topbar-search"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="text" placeholder="Search orders, products, customers..." disabled></div>
@@ -61,16 +56,21 @@
     </div>
   </div>
   <main class="main-area">
-    <div class="page-header"><h2>Orders</h2><button class="btn btn-outline">Export CSV</button></div>
+    <div class="page-header"><h2>Error Log</h2></div>
+    <p style="font-size:12.5px; color:#666; margin-top:-6px;">Read-only record of unhandled server errors and background failures (Phase 9B) that otherwise only reach server console output. Payment/refund/webhook/notification-send failures already have their own dedicated screens (Payments, Webhooks, Notifications) and are not duplicated here.</p>
+    <div id="migration-warning" style="display:none; background:#fff4e5; border:1px solid #f5c26b; border-radius:6px; padding:10px 14px; font-size:12.5px; margin-bottom:12px;">
+      The error_log table isn't set up in this environment yet (migration <code>0014_phase9b_error_log.sql</code> not applied). This screen will populate automatically once it is.
+    </div>
 
     <div class="filters-row">
-      <input type="text" id="f-search" placeholder="Search order ID or email/phone...">
-      <select id="f-status"><option value="">All statuses</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="rto">RTO</option><option value="cancelled">Cancelled</option></select>
+      <select id="f-source"><option value="">All sources</option><option value="http_error_handler">HTTP error handler</option><option value="analytics_flush">Analytics flush</option><option value="notification_service">Notification service</option></select>
+      <input type="date" id="f-from" title="From date">
+      <input type="date" id="f-to" title="To date">
     </div>
 
     <table class="data-table">
-      <thead><tr><th>Order ID</th><th>Customer</th><th>Total</th><th>Payment</th><th>Status</th><th></th></tr></thead>
-      <tbody id="orders-rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+      <thead><tr><th>When</th><th>Source</th><th>Message</th><th>Context</th></tr></thead>
+      <tbody id="err-rows"><tr><td colspan="4">Loading...</td></tr></tbody>
     </table>
     <div style="display:flex; gap:8px; align-items:center; margin-top:12px; font-size:13px;" id="pagination"></div>
   </main>
@@ -78,28 +78,25 @@
 </div>
 <script src="js/pages/changePassword.js"></script>
 <script>
-  const state = { page: 1, pageSize: 20 };
-  function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
+  const state = { page: 1, pageSize: 25 };
 
   async function load() {
-    const q = document.getElementById("f-search").value;
-    const status = document.getElementById("f-status").value;
     const params = new URLSearchParams({ page: state.page, pageSize: state.pageSize });
-    if (q) params.set("q", q);
-    if (status) params.set("status", status);
+    const source = document.getElementById("f-source").value; if (source) params.set("source", source);
+    const from = document.getElementById("f-from").value; if (from) params.set("from", from);
+    const to = document.getElementById("f-to").value; if (to) params.set("to", to);
     try {
-      const data = await Api.get(`/orders?${params.toString()}`);
-      document.getElementById("orders-rows").innerHTML = data.items.length
-        ? data.items.map(o => `
-          <tr>
-            <td>${o.order_number}</td>
-            <td>${o.guest_email || o.guest_phone || "-"}</td>
-            <td>${fmt(o.total)}</td>
-            <td>${o.payment_method === "cod" ? "COD" : "Prepaid"}</td>
-            <td><span class="badge badge-${o.status}">${o.status}</span></td>
-            <td><a href="order-detail.html?id=${o.id}">View →</a></td>
-          </tr>`).join("")
-        : `<tr><td colspan="6">No orders found.</td></tr>`;
+      const data = await Api.get(`/error-log?${params.toString()}`);
+      document.getElementById("migration-warning").style.display = data.migrationApplied === false ? "block" : "none";
+      const rowsEl = document.getElementById("err-rows");
+      if (!data.items.length) { rowsEl.innerHTML = `<tr><td colspan="4">No errors recorded.</td></tr>`; document.getElementById("pagination").innerHTML = ""; return; }
+      rowsEl.innerHTML = data.items.map(row => `
+        <tr>
+          <td style="font-size:12px; white-space:nowrap;">${new Date(row.created_at).toLocaleString("en-IN")}</td>
+          <td style="font-size:11.5px;">${row.source}</td>
+          <td style="font-size:12.5px; max-width:420px;">${(row.message || "").replace(/</g, "&lt;")}</td>
+          <td style="font-size:11.5px; color:#666; max-width:260px;">${row.context ? JSON.stringify(row.context).replace(/</g, "&lt;") : "-"}</td>
+        </tr>`).join("");
 
       const totalPages = Math.max(1, Math.ceil(data.total / state.pageSize));
       document.getElementById("pagination").innerHTML = `
@@ -109,11 +106,10 @@
       document.getElementById("pg-prev")?.addEventListener("click", () => { state.page--; load(); });
       document.getElementById("pg-next")?.addEventListener("click", () => { state.page++; load(); });
     } catch (e) {
-      document.getElementById("orders-rows").innerHTML = `<tr><td colspan="6">Could not load: ${e.message}</td></tr>`;
+      document.getElementById("err-rows").innerHTML = `<tr><td colspan="4">Could not load: ${e.message}</td></tr>`;
     }
   }
-  document.getElementById("f-search").addEventListener("input", () => { state.page = 1; load(); });
-  document.getElementById("f-status").addEventListener("change", () => { state.page = 1; load(); });
+  ["f-source", "f-from", "f-to"].forEach(id => document.getElementById(id).addEventListener("change", () => { state.page = 1; load(); }));
   load();
 </script>
 </body>

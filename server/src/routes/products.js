@@ -6,6 +6,26 @@ import { requirePermission } from "../auth/rbac.js";
 import { validateProductPayload, validateVariant, sanitizeText, parsePagination, sanitizeSearchTerm, isValidUUID } from "../validation/validators.js";
 import { slugify } from "../seo/seoHelpers.js";
 import { uploadProductImage } from "../storage/imageUpload.js";
+import { invalidateCatalogCache } from "./pages.js";
+
+const router = Router();
+
+// Phase 9F (P1-7): every mutating request to this router (create/update/
+// publish/archive/delete a product or its variants/images) invalidates
+// the storefront's Home/Shop SSR cache on success, so a publish is
+// visible on the very next storefront request instead of up to
+// ssrCacheTtlMs later. One hook point here (rather than a manual call
+// in all ~10 individual route handlers) so no future write route can
+// forget it. Only fires on a successful (<400) response - a failed
+// write has nothing to invalidate.
+router.use((req, res, next) => {
+  if (["POST", "PUT", "DELETE"].includes(req.method)) {
+    res.on("finish", () => {
+      if (res.statusCode < 400) invalidateCatalogCache();
+    });
+  }
+  next();
+});
 
 // Phase 3A/4 discovery relationships: one join table per dimension. Four
 // are shaped (product_id, <dimension>_id uuid) - see
@@ -24,7 +44,6 @@ const RELATIONSHIP_DIMENSIONS = [
   { key: "doshas", table: "product_doshas", column: "dosha", isValid: (v) => DOSHAS.includes(v) },
 ];
 
-const router = Router();
 const PRODUCT_STATUSES = ["draft", "published", "archived"];
 // Admin product list sort - whitelisted columns only. `sort` used to be
 // taken straight from the query string and passed to `.order()` unvalidated

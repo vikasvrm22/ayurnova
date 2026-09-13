@@ -4,8 +4,22 @@ import { requireStaffAuth } from "../auth/adminAuth.js";
 import { requirePermission } from "../auth/rbac.js";
 import { slugify } from "../seo/seoHelpers.js";
 import { sanitizeText } from "../validation/validators.js";
+import { invalidateCatalogCache } from "./pages.js";
 
 const router = Router();
+
+// Phase 9F (P1-7): same storefront-cache invalidation as products.js -
+// see that file's own comment. Categories feed Shop's filter sidebar/
+// mega-menu and category landing pages, so a category create/update/
+// delete needs the same immediate-effect treatment.
+router.use((req, res, next) => {
+  if (["POST", "PUT", "DELETE"].includes(req.method)) {
+    res.on("finish", () => {
+      if (res.statusCode < 400) invalidateCatalogCache();
+    });
+  }
+  next();
+});
 
 router.get("/", requireStaffAuth, async (req, res, next) => {
   try {
