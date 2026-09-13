@@ -56,20 +56,44 @@
     </div>
   </div>
   <main class="main-area">
+    <div class="breadcrumb"><a href="payments-list.html">Payments</a> <span>&rsaquo;</span> <span>Reconciliation</span></div>
     <div class="page-header">
-      <div><h2>Payment Reconciliation</h2><div class="sub">Track which successful payments have a confirmed, consistent Razorpay record</div></div>
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <span class="page-icon">⚖️</span>
+        <div><h2>Payment Reconciliation</h2><div class="sub">Track which successful payments have a confirmed, consistent Razorpay record.</div></div>
+      </div>
     </div>
 
     <div class="alert-banner info">
-      <div><strong>What this shows:</strong> a payment is marked "Matched" once an admin has run a per-payment reconciliation check (Payment Detail → Run Reconciliation) and it came back consistent with Razorpay's API. This app does not yet import Razorpay's bank settlement files, so this view cannot confirm money has landed in your account - only that our record and Razorpay's payment record agree.</div>
+      <div><strong>What this shows:</strong> a payment is marked "Matched" once an admin has run a per-payment reconciliation check (Payment Detail → Run Reconciliation) and it came back consistent with Razorpay's API. This app does not yet import Razorpay's bank settlement files, so it cannot show settlement amounts, "In Transit" totals, or a reconciliation rate against actual bank deposits - only that our record and Razorpay's payment record agree for payments an admin has checked.</div>
     </div>
 
     <div class="cards-row" id="stat-cards">Loading...</div>
 
-    <table class="data-table">
-      <thead><tr><th>Order</th><th>Amount</th><th>Gateway</th><th>Payment Date</th><th>Reconciliation Status</th><th>Last Checked</th><th></th></tr></thead>
-      <tbody id="rows"><tr><td colspan="7">Loading...</td></tr></tbody>
-    </table>
+    <div class="two-col refunds-layout">
+      <div>
+        <div class="tabs-row" id="recon-tabs">
+          <button data-filter="" class="active">All Transactions</button>
+          <button data-filter="mismatch">Mismatches <span id="mismatch-count"></span></button>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Order</th><th>Amount</th><th>Gateway</th><th>Payment Date</th><th>Reconciliation Status</th><th>Last Checked</th><th></th></tr></thead>
+          <tbody id="rows"><tr><td colspan="7">Loading...</td></tr></tbody>
+        </table>
+      </div>
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0;">Reconciliation Summary</h3>
+          <div id="recon-summary-block" style="font-size:13px; display:flex; flex-direction:column; gap:8px;">Loading...</div>
+        </div>
+        <div class="card">
+          <strong style="font-size:13px;">Quick Actions</strong>
+          <div style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
+            <button type="button" class="btn btn-outline" id="find-mismatches-btn" style="text-align:left;">🔍 Find Mismatched Transactions</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </main>
   </div>
 </div>
@@ -79,30 +103,63 @@
   function fmtDate(s){ return s ? new Date(s).toLocaleString("en-IN") : "—"; }
   const STATUS_LABEL = { matched: "Matched", mismatch: "Mismatch", inconclusive: "Inconclusive", not_run: "Not Checked Yet" };
   const STATUS_BADGE = { matched: "delivered", mismatch: "cancelled", inconclusive: "pending", not_run: "shipped" };
+  let allRows = [];
+  let activeFilter = "";
+
+  function renderRows() {
+    const rows = activeFilter ? allRows.filter((r) => r.reconciliationStatus === activeFilter) : allRows;
+    document.getElementById("rows").innerHTML = rows.length ? rows.map(r => `
+      <tr>
+        <td>${r.orderNumber || "-"}</td>
+        <td>${fmt(r.amount)}</td>
+        <td>${r.gateway}</td>
+        <td>${fmtDate(r.createdAt)}</td>
+        <td><span class="badge badge-${STATUS_BADGE[r.reconciliationStatus]}">${STATUS_LABEL[r.reconciliationStatus]}</span></td>
+        <td>${fmtDate(r.lastCheckedAt)}</td>
+        <td><a href="payment-detail.html?id=${r.id}">Check / View →</a></td>
+      </tr>`).join("") : `<tr><td colspan="7">${activeFilter ? "No mismatches found." : "No successful payments yet."}</td></tr>`;
+  }
 
   async function load() {
     try {
       const { rows, totals } = await Api.get("/payments/reconciliation-summary");
-      document.getElementById("stat-cards").innerHTML = `
-        <div class="stat-card"><div class="num">${totals.total}</div><div class="label">Successful Payments (last 200)</div></div>
-        <div class="stat-card"><div class="num">${totals.matched || 0}</div><div class="label">Matched</div></div>
-        <div class="stat-card"><div class="num">${totals.mismatch || 0}</div><div class="label">Mismatch</div></div>
-        <div class="stat-card"><div class="num">${totals.not_run || 0}</div><div class="label">Not Checked Yet</div></div>`;
+      allRows = rows;
+      const rate = totals.total ? (((totals.matched || 0) / totals.total) * 100).toFixed(1) : "0.0";
 
-      document.getElementById("rows").innerHTML = rows.length ? rows.map(r => `
-        <tr>
-          <td>${r.orderNumber || "-"}</td>
-          <td>${fmt(r.amount)}</td>
-          <td>${r.gateway}</td>
-          <td>${fmtDate(r.createdAt)}</td>
-          <td><span class="badge badge-${STATUS_BADGE[r.reconciliationStatus]}">${STATUS_LABEL[r.reconciliationStatus]}</span></td>
-          <td>${fmtDate(r.lastCheckedAt)}</td>
-          <td><a href="payment-detail.html?id=${r.id}">Check / View →</a></td>
-        </tr>`).join("") : `<tr><td colspan="7">No successful payments yet.</td></tr>`;
+      document.getElementById("stat-cards").innerHTML = `
+        <div class="stat-card stat-card-total"><div class="stat-card-icon">💳</div><div><div class="num">${totals.total}</div><div class="label">Successful Payments</div><div class="sub-detail">last 200 checked</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#e6f4ea; color:#0e7a33;">✓</div><div><div class="num">${totals.matched || 0}</div><div class="label">Matched</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#fdecec; color:var(--danger);">!</div><div><div class="num">${totals.mismatch || 0}</div><div class="label">Mismatch</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#eef1f8; color:#555;">?</div><div><div class="num">${totals.not_run || 0}</div><div class="label">Not Checked Yet</div></div></div>`;
+
+      document.getElementById("mismatch-count").textContent = `(${totals.mismatch || 0})`;
+      document.getElementById("recon-summary-block").innerHTML = `
+        <div style="display:flex; justify-content:space-between;"><span>Successful Payments</span><b>${totals.total}</b></div>
+        <div style="display:flex; justify-content:space-between;"><span>Matched</span><b style="color:var(--success);">${totals.matched || 0}</b></div>
+        <div style="display:flex; justify-content:space-between;"><span>Mismatch</span><b style="color:var(--danger);">${totals.mismatch || 0}</b></div>
+        <div style="display:flex; justify-content:space-between;"><span>Not Checked Yet</span><b>${totals.not_run || 0}</b></div>
+        <div style="display:flex; justify-content:space-between; border-top:1px solid var(--border); margin-top:6px; padding-top:6px;"><span>Checked Rate</span><b>${rate}%</b></div>
+      `;
+      renderRows();
     } catch (e) {
       document.getElementById("rows").innerHTML = `<tr><td colspan="7">Could not load: ${e.message}</td></tr>`;
     }
   }
+
+  document.getElementById("recon-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-filter]");
+    if (!btn) return;
+    activeFilter = btn.dataset.filter;
+    document.querySelectorAll("#recon-tabs button").forEach((b) => b.classList.toggle("active", b === btn));
+    renderRows();
+  });
+  document.getElementById("find-mismatches-btn").addEventListener("click", () => {
+    activeFilter = "mismatch";
+    document.querySelectorAll("#recon-tabs button").forEach((b) => b.classList.toggle("active", b.dataset.filter === "mismatch"));
+    renderRows();
+    document.getElementById("recon-tabs").scrollIntoView({ behavior: "smooth" });
+  });
+
   load();
 </script>
 </body>

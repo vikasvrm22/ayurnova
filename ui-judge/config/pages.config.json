@@ -113,6 +113,17 @@
       ],
       "requiresAuth": true,
       "waitForSelector": "#refund-timeline .timeline-step"
+    },
+    {
+      "name": "admin-reconciliation",
+      "route": "/admin/reconciliation.html",
+      "reference": "../../public-site/design-ref/Phase2 13. Payment Reconciliation.png",
+      "viewport": { "width": 1672, "height": 941 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#stat-cards .stat-card"
     }
   ]
 }

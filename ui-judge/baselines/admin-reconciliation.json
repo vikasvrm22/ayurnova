@@ -1,0 +1,16 @@
+{
+  "page": "admin-reconciliation",
+  "overall": 84,
+  "categoryScores": {
+    "layout": 62,
+    "components": 100,
+    "typography": 100,
+    "spacing": null,
+    "assets": 100,
+    "colors": 99,
+    "responsive": 60,
+    "functional": 88
+  },
+  "savedAt": "2026-09-13T19:51:45.663Z",
+  "reportPath": "D:\\FinalAyurveda\\ayurveda-store-full-project\\ayur-app\\ui-judge\\reports\\admin-reconciliation__2026-09-13T19-51-45-600Z.json"
+}
