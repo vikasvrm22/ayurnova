@@ -330,6 +330,12 @@
 
   document.getElementById("new-batch-btn").addEventListener("click", openNewBatchModal);
 
+  // Phase 8B: a "Review in Inventory" deep link (e.g. from an order's RTO
+  // receipt) can pre-select the Quality filter via ?quality_status=pending,
+  // the same URL-param-to-filter pattern variant_id already uses above.
+  const initialQualityStatus = new URLSearchParams(location.search).get("quality_status");
+  if (initialQualityStatus) document.getElementById("f-quality-status").value = initialQualityStatus;
+
   loadSummary();
   load();
 </script>

@@ -88,13 +88,20 @@ export async function createShipment({ orderId, provider, environment, actor }) 
   const { data: order, error } = await supabaseAdmin().from("orders").select("*").eq("id", orderId).maybeSingle();
   if (error) throw error;
   if (!order) throw new AppError("Order not found", 404, "ORDER_NOT_FOUND");
-  if (order.status !== "processing") {
-    throw new AppError("A shipment can only be created for an order that is currently Processing.", 400, "ORDER_NOT_PROCESSING");
-  }
 
+  // Checked BEFORE the processing-status precondition below: once a
+  // shipment exists, order.status is no longer 'processing' (it moves to
+  // 'shipped' at the end of this very function), so a second call for the
+  // same order would otherwise always surface the less specific
+  // ORDER_NOT_PROCESSING error instead of correctly identifying the real
+  // reason - that an active shipment already exists.
   const { data: existing } = await supabaseAdmin()
     .from("shipments").select("id, status").eq("order_id", orderId).neq("status", "cancelled").maybeSingle();
   if (existing) throw new AppError(`This order already has an active shipment (status: ${existing.status}).`, 409, "SHIPMENT_ALREADY_EXISTS");
+
+  if (order.status !== "processing") {
+    throw new AppError("A shipment can only be created for an order that is currently Processing.", 400, "ORDER_NOT_PROCESSING");
+  }
 
   const { data: items } = await supabaseAdmin().from("order_items").select("*").eq("order_id", orderId);
 
