@@ -94,6 +94,20 @@ a{ text-decoration:none; }
 .promo-card p{ font-size:12.5px; color:var(--muted); margin:0 0 14px; }
 .promo-leaf{ width:26px; height:26px; color:var(--primary); }
 
+.breadcrumb{ font-size:12px; color:var(--muted); margin-bottom:8px; }
+.breadcrumb a{ color:var(--muted); }
+.breadcrumb span:last-child{ color:var(--text); font-weight:600; }
+.page-icon{ width:36px; height:36px; border-radius:9px; background:var(--primary-light); color:var(--primary); display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
+.stat-card-total .sub-detail{ font-size:11px; color:var(--muted); margin-top:2px; }
+
+.integration-cards-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; margin-bottom:18px; }
+.integration-card{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; }
+.integration-card-head{ display:flex; align-items:flex-start; gap:10px; margin-bottom:8px; }
+.integration-card-icon{ width:36px; height:36px; border-radius:9px; background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; }
+.integration-card-desc{ font-size:12.5px; color:var(--muted); margin:0 0 12px; }
+.integration-card-actions{ display:flex; gap:8px; }
+.integration-card-sync{ font-size:11px; color:var(--muted); margin-top:10px; }
+
 .shortcuts-row{ margin-top:4px; }
 .shortcut-card{ display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px; color:var(--text); font-size:12.5px; }
 .shortcut-card:hover{ border-color:var(--primary); }

@@ -46,6 +46,17 @@
       ],
       "requiresAuth": true,
       "waitForSelector": "#type-tabs"
+    },
+    {
+      "name": "admin-integrations",
+      "route": "/admin/integrations.html",
+      "reference": "../../public-site/design-ref/Phase2 7. Admin Integration Management.png",
+      "viewport": { "width": 1672, "height": 941 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#integration-cards .integration-card"
     }
   ]
 }
