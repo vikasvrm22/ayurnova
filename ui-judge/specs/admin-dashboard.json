@@ -1,0 +1,54 @@
+{
+  "page": "admin-dashboard",
+  "source": "authored",
+  "generatedAt": "2026-09-13T17:46:00.000Z",
+  "reference": { "path": "../../public-site/design-ref/Phase1 09 Admin Dashboard .png", "width": 1536, "height": 1024 },
+  "sections": {
+    "expectedOrder": [".sidebar", ".topbar", "#welcome-heading", "#total-cards", "#stat-cards", "#status-chart", "#visits-chart", ".promo-card", ".two-col", ".shortcuts-row"],
+    "confidence": "high",
+    "note": "Dashboard shell: sidebar nav, topbar search/user, welcome header + range filter + Add Product, all-time total cards, period stat cards, a 3-up insights row (visits chart / orders-by-status donut / promo card), Top Selling Products + Recent Orders tables, and shortcut cards - per Phase1 09 Admin Dashboard.png."
+  },
+  "colors": {
+    "dominant": [
+      { "hex": "#132615", "pct": 0.16 },
+      { "hex": "#f4f6fb", "pct": 0.35 },
+      { "hex": "#ffffff", "pct": 0.35 },
+      { "hex": "#2f5233", "pct": 0.05 }
+    ],
+    "confidence": "medium"
+  },
+  "typography": {
+    "hierarchy": [
+      { "selector": "#welcome-heading", "expectedFontSizePx": 20, "expectedFontWeight": "700" },
+      { "selector": ".page-header .sub", "expectedFontSizePx": 12.5, "expectedFontWeight": "400" },
+      { "selector": ".stat-card-total .num", "expectedFontSizePx": 20, "expectedFontWeight": "700" }
+    ],
+    "confidence": "medium"
+  },
+  "spacing": {
+    "expectations": [
+      { "selectorA": "#welcome-heading", "selectorB": ".page-header .sub", "axis": "vertical", "expectedGapPx": 4, "tolerancePx": 6 }
+    ],
+    "confidence": "medium"
+  },
+  "components": {
+    "expected": [
+      { "name": "Sidebar nav", "selector": ".sidebar-nav", "critical": true },
+      { "name": "Topbar search", "selector": ".topbar-search", "critical": true },
+      { "name": "Topbar user", "selector": ".topbar-user", "critical": true },
+      { "name": "Welcome heading", "selector": "#welcome-heading", "critical": true },
+      { "name": "Add Product shortcut", "selector": "a[href='product-form.html']", "critical": false },
+      { "name": "Total-metric cards", "selector": "#total-cards", "critical": true },
+      { "name": "Period stat cards", "selector": "#stat-cards", "critical": true },
+      { "name": "Visits chart", "selector": "#visits-chart", "critical": false },
+      { "name": "Orders by Status chart", "selector": "#status-chart", "critical": true },
+      { "name": "Growth promo card", "selector": ".promo-card", "critical": false },
+      { "name": "Top Selling Products table", "selector": ".two-col", "critical": true },
+      { "name": "Shortcut cards row", "selector": ".shortcuts-row", "critical": false }
+    ],
+    "confidence": "medium"
+  },
+  "assets": { "images": [], "confidence": "medium" },
+  "borders": { "confidence": "low" },
+  "responsive": { "expectations": [], "confidence": "low", "note": "The mobile sidebar is an intentional horizontal-scroll nav strip (previously fixed P0 mobile-nav overflow) - its own scrollWidth > clientWidth is expected and does not mean the page itself scrolls horizontally (verified separately: document.documentElement scrollWidth-clientWidth = 0 at 390px)." }
+}

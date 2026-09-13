@@ -21,6 +21,8 @@ a{ text-decoration:none; }
 .sidebar-nav a.active{ background:var(--primary); color:#fff; }
 .sidebar-group-label{ font-size:10.5px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#6f8a6c; padding:14px 12px 4px; }
 .sidebar-group-label:first-child{ padding-top:0; }
+.sidebar-footer-promo{ margin:10px 8px 0; padding:12px 14px; border-radius:10px; background:rgba(255,255,255,.07); color:#dbe7d6; font-size:11.5px; line-height:1.4; }
+.sidebar-footer-promo strong{ display:block; color:#fff; font-size:13px; margin-bottom:3px; }
 .sidebar-user{ padding:12px 18px; border-top:1px solid #234626; }
 .sidebar-user .name{ font-size:13px; font-weight:700; color:#fff; }
 .role-badge{ display:inline-block; font-size:11px; background:#234626; color:#c3d6bf; padding:2px 8px; border-radius:10px; margin:4px 0 8px; }
@@ -80,6 +82,23 @@ a{ text-decoration:none; }
 .stat-card{ background:var(--card); border-radius:10px; border:1px solid var(--border); padding:16px; }
 .stat-card .num{ font-size:26px; font-weight:700; color:var(--primary); }
 .stat-card .label{ font-size:12px; color:var(--muted); margin-top:4px; }
+.stat-card-total{ display:flex; align-items:center; gap:12px; }
+.stat-card-total .num{ font-size:20px; }
+.stat-card-icon{ width:40px; height:40px; flex-shrink:0; border-radius:10px; background:var(--primary-light); color:var(--primary); display:flex; align-items:center; justify-content:center; }
+.stat-card-icon svg{ width:20px; height:20px; }
+
+.dashboard-insights-row{ display:grid; grid-template-columns:1.3fr 1fr 1fr; gap:16px; align-items:stretch; margin-bottom:16px; }
+@media (max-width:900px){ .dashboard-insights-row{ grid-template-columns:1fr; } }
+.promo-card{ background:linear-gradient(160deg,var(--primary-light),#fff); border-color:var(--primary-light); position:relative; overflow:hidden; }
+.promo-card h3{ margin:8px 0 6px; font-size:15px; }
+.promo-card p{ font-size:12.5px; color:var(--muted); margin:0 0 14px; }
+.promo-leaf{ width:26px; height:26px; color:var(--primary); }
+
+.shortcuts-row{ margin-top:4px; }
+.shortcut-card{ display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--border); border-radius:10px; padding:14px; color:var(--text); font-size:12.5px; }
+.shortcut-card:hover{ border-color:var(--primary); }
+.shortcut-card strong{ display:block; font-size:13px; margin-bottom:2px; }
+.shortcut-icon{ width:36px; height:36px; flex-shrink:0; border-radius:9px; background:var(--primary-light); display:flex; align-items:center; justify-content:center; font-size:16px; }
 
 .filters-row{ display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
 .filters-row input, .filters-row select{ padding:8px 10px; border:1px solid var(--border); border-radius:8px; font-size:13px; }

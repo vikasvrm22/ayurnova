@@ -80,10 +80,12 @@ function requireAdminAuth() {
   const topbarName = document.getElementById("topbar-name");
   const topbarRole = document.getElementById("topbar-role");
   const topbarAvatar = document.getElementById("topbar-avatar");
+  const welcomeHeading = document.getElementById("welcome-heading");
   if (user) {
     if (topbarName) topbarName.textContent = user.name;
     if (topbarRole) topbarRole.textContent = user.role;
     if (topbarAvatar) topbarAvatar.textContent = (user.name || "?").trim().slice(0, 1).toUpperCase();
+    if (welcomeHeading) welcomeHeading.textContent = `Welcome back, ${(user.name || "Admin").split(" ")[0]}!`;
   }
   return true;
 }

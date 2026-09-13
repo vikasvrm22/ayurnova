@@ -2,6 +2,7 @@
   "_comment": "Live page registry for THIS project. Paths are resolved relative to this file. Add pages by editing this array - no engine code changes needed. See docs/UI-JUDGE.md for the full schema.",
   "baseUrl": "http://localhost:5100",
   "sourceRoots": ["../../admin", "../../public-site"],
+  "auth": { "storageState": "../.auth/admin-storageState.json", "_note": "Generated locally by authenticating with the project's existing SEED_SUPERADMIN_EMAIL/PASSWORD (server/.env) via Playwright; gitignored, never committed. Only pages with requiresAuth:true use it." },
   "pages": [
     {
       "name": "admin-login",
@@ -12,6 +13,17 @@
         { "name": "mobile", "width": 390, "height": 844 }
       ],
       "waitForSelector": ".login-box"
+    },
+    {
+      "name": "admin-dashboard",
+      "route": "/admin/dashboard.html",
+      "reference": "../../public-site/design-ref/Phase1 09 Admin Dashboard .png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#total-cards .stat-card"
     }
   ]
 }
