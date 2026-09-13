@@ -40,6 +40,7 @@ export async function runAudit(pageConfig, opts) {
     const primaryPage = await context.newPage();
     evidenceByViewport.primary = await collectEvidence(primaryPage, {
       url: pageConfig.fullUrl, viewport: pageConfig.viewport, waitForSelector: pageConfig.waitForSelector, extraSelectors,
+      scrollToSelector: pageConfig.scrollToSelector,
     });
     const landedUrl = primaryPage.url();
     await primaryPage.close();
@@ -51,6 +52,7 @@ export async function runAudit(pageConfig, opts) {
       const p = await context.newPage();
       evidenceByViewport[vp.name] = await collectEvidence(p, {
         url: pageConfig.fullUrl, viewport: { width: vp.width, height: vp.height }, waitForSelector: pageConfig.waitForSelector, extraSelectors,
+        scrollToSelector: pageConfig.scrollToSelector,
       });
       await p.close();
     }
