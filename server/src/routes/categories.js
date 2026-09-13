@@ -27,6 +27,23 @@ router.get("/", requireStaffAuth, async (req, res, next) => {
 // catalogPublic.js's `GET /categories` do.
 const CATEGORY_TYPES = ["concern", "benefit", "product_type", "goal"];
 
+// Real per-category product counts for the admin Categories list (Phase
+// UI-1) - a plain group-by over `products.category_id`, not an invented
+// number. Only `product_type` categories are ever assigned as a product's
+// `category_id`, so concern/benefit/goal categories simply show 0 here
+// (they're tagged via their own join tables, not this column).
+router.get("/product-counts", requireStaffAuth, async (req, res, next) => {
+  try {
+    const { data, error } = await supabaseAdmin().from("products").select("category_id").not("category_id", "is", null);
+    if (error) throw error;
+    const counts = {};
+    for (const row of data || []) counts[row.category_id] = (counts[row.category_id] || 0) + 1;
+    res.json(counts);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.post("/", requireStaffAuth, requirePermission("manageProducts"), async (req, res, next) => {
   try {
     const { name, type, sort_order = 0, description, hero_image, seo_title, seo_description } = req.body || {};

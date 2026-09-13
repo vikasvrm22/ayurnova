@@ -183,6 +183,19 @@ router.get("/", trackPageView, async (req, res, next) => {
       let template = getTemplate("index.html");
       const { items: highlights } = await listPublishedProducts({ page: 1, pageSize: 4, sort: "newest" });
       const { items: bestSellers } = await listPublishedProducts({ page: 1, pageSize: 4, sort: "bestselling" });
+
+      // Phase UI-1: admin-managed hero image (Banners & Media), falling
+      // back to the static extracted-asset image when no "home_hero"
+      // placement is active - never a broken/blank hero.
+      let heroImageUrl = "/img/hero-home-bottles.webp";
+      try {
+        const { data: heroAsset } = await supabaseAdmin()
+          .from("media_assets").select("url").eq("placement", "home_hero").eq("active", true)
+          .order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if (heroAsset?.url) heroImageUrl = heroAsset.url;
+      } catch (e) { /* media_assets migration not applied yet - static fallback stays */ }
+      template = template.replace('src="/img/hero-home-bottles.webp"', `src="${escapeHtml(heroImageUrl)}"`);
+
       const { data: recentPosts } = await supabaseAdmin()
         .from("blog_posts")
         .select("title, slug, excerpt, cover_image, published_at")

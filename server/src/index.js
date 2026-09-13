@@ -27,6 +27,7 @@ import catalogPublicRoutes from "./routes/catalogPublic.js";
 import paymentsPublicRoutes from "./routes/paymentsPublic.js";
 import paymentsAdminRoutes from "./routes/paymentsAdmin.js";
 import integrationsAdminRoutes from "./routes/integrationsAdmin.js";
+import mediaAdminRoutes from "./routes/mediaAdmin.js";
 // ---- Phase 3: Ayurveda Discovery & Knowledge ----
 import ingredientsRoutes from "./routes/ingredients.js";
 import faqsRoutes from "./routes/faqs.js";
@@ -140,6 +141,7 @@ app.use("/api/admin/analytics", analyticsRoutes);
 // ---- Admin Payments + Integration Management (Phase 2) ----
 app.use("/api/admin/payments", paymentsAdminRoutes);
 app.use("/api/admin/integrations", integrationsAdminRoutes);
+app.use("/api/admin/media", mediaAdminRoutes);
 // ---- Admin Discovery & Knowledge content (Phase 3) ----
 app.use("/api/admin/ingredients", ingredientsRoutes);
 app.use("/api/admin/faqs", faqsRoutes);

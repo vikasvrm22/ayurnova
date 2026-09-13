@@ -76,5 +76,14 @@ function requireAdminAuth() {
   const roleEl = document.querySelector(".sidebar-user .role-badge");
   if (nameEl && user) nameEl.textContent = user.name;
   if (roleEl && user) roleEl.textContent = user.role;
+
+  const topbarName = document.getElementById("topbar-name");
+  const topbarRole = document.getElementById("topbar-role");
+  const topbarAvatar = document.getElementById("topbar-avatar");
+  if (user) {
+    if (topbarName) topbarName.textContent = user.name;
+    if (topbarRole) topbarRole.textContent = user.role;
+    if (topbarAvatar) topbarAvatar.textContent = (user.name || "?").trim().slice(0, 1).toUpperCase();
+  }
   return true;
 }
