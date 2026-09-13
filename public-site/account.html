@@ -50,6 +50,10 @@
       <h3 class="section-title" style="margin:0; text-align:left;">My Orders</h3>
       <div id="orders-list" style="margin-top:16px;"></div>
     </div>
+    <div class="form-card" id="buy-again-section" style="max-width:700px; margin-top:16px;">
+      <h3 class="section-title" style="margin:0; text-align:left;">Buy Again</h3>
+      <div id="buy-again-list" style="margin-top:16px;"></div>
+    </div>
     <div class="form-card" id="wishlist-section" style="max-width:700px; margin-top:16px;">
       <h3 class="section-title" style="margin:0; text-align:left;">My Wishlist</h3>
       <div id="wishlist-list" style="margin-top:16px;"></div>
@@ -133,6 +137,47 @@
     }
   }
 
+  // Phase 8D: "Buy Again" - distinct products from this customer's own
+  // shipped/delivered orders (server/src/services/buyAgainService.js),
+  // hydrated with CURRENT price/MRP/stock, never the order's historical
+  // price_snapshot. "Add to Cart" reuses the same site.js addToCart() the
+  // wishlist section above already uses, via the item's own current
+  // default variant - never the variant/price that was actually ordered
+  // last time.
+  async function loadBuyAgain() {
+    const el = document.getElementById("buy-again-list");
+    try {
+      const res = await apiGet("/api/public/buy-again?pageSize=20");
+      const items = res.data.items || [];
+      if (!items.length) {
+        el.innerHTML = `<p style="color:#888;">Nothing to reorder yet - purchases show up here once an order has shipped.</p>`;
+        return;
+      }
+      el.innerHTML = items.map((i) => {
+        if (!i.available) {
+          return `
+            <div style="border-bottom:1px solid var(--hairline); padding:12px 0; display:flex; justify-content:space-between; align-items:center; font-size:13.5px;">
+              <div><span style="color:#666;">${i.title}</span><br><span style="color:#888; font-size:12px;">No longer available</span></div>
+            </div>`;
+        }
+        const p = i.product;
+        return `
+          <div style="border-bottom:1px solid var(--hairline); padding:12px 0; display:flex; gap:12px; align-items:center; font-size:13.5px;">
+            <div style="width:56px; height:56px; flex-shrink:0; border-radius:8px; overflow:hidden; background:#f2f5ee;">${p.image ? `<img src="${p.image}" alt="${p.title}" style="width:100%; height:100%; object-fit:cover;">` : ""}</div>
+            <div style="flex:1; min-width:0;">
+              <a href="/product/${p.slug}" style="color:inherit; text-decoration:none; font-weight:700;">${p.title}</a><br>
+              ${p.price != null ? `<span>${fmt(p.price)}</span>` : ""} ${p.mrp && p.mrp > p.price ? `<span style="color:#aaa; text-decoration:line-through; font-size:12px;">${fmt(p.mrp)}</span>` : ""}
+              ${!p.inStock ? `<span style="color:#B23A2E; font-size:12px; margin-left:6px;">Out of stock</span>` : ""}
+              <br><span style="color:#888; font-size:11.5px;">Last bought ${new Date(i.lastPurchasedAt).toLocaleDateString("en-IN")}</span>
+            </div>
+            <button type="button" style="width:auto; padding:6px 12px; font-size:12px;" ${p.inStock ? "" : "disabled"} onclick="addItemToCartWithFeedback('${p.defaultVariantId}', this)">Buy Again</button>
+          </div>`;
+      }).join("");
+    } catch (e) {
+      el.innerHTML = `<p style="color:#B23A2E;">Could not load your purchase history: ${e.message}</p>`;
+    }
+  }
+
   // Phase 4: the customer's own Wellness Profile (server/src/routes/
   // wellnessPublic.js's GET /profile) - dosha + goals/concerns derived
   // from their most recent assessment, plus history. `requireCustomer`
@@ -211,7 +256,7 @@
               ${!p.inStock ? `<span style="color:#B23A2E; font-size:12px; margin-left:6px;">Out of stock</span>` : ""}
             </div>
             <div style="text-align:right; white-space:nowrap;">
-              <button type="button" style="width:auto; padding:6px 12px; font-size:12px;" ${p.inStock ? "" : "disabled"} onclick="addWishlistItemToCart('${p.defaultVariantId}', this)">Add to Cart</button><br>
+              <button type="button" style="width:auto; padding:6px 12px; font-size:12px;" ${p.inStock ? "" : "disabled"} onclick="addItemToCartWithFeedback('${p.defaultVariantId}', this)">Add to Cart</button><br>
               <a href="#" style="font-size:12px; color:#B23A2E;" onclick="removeFromWishlist('${i.productId}'); return false;">Remove</a>
             </div>
           </div>`;
@@ -221,7 +266,11 @@
     }
   }
 
-  function addWishlistItemToCart(variantId, btn) {
+  // Shared by both My Wishlist and Buy Again below - a one-click "add this
+  // item's current default variant to the cart" with brief button
+  // feedback. Reuses js/site.js's own addToCart() unchanged (the same cart
+  // checkout re-prices/re-validates server-side either way).
+  function addItemToCartWithFeedback(variantId, btn) {
     if (!variantId || variantId === "null") return;
     addToCart(variantId, 1);
     const original = btn.textContent;
@@ -332,7 +381,12 @@
       document.getElementById("auth-forms").style.display = "none";
       document.getElementById("account-panel").style.display = "block";
       loadOrders();
+      loadBuyAgain();
       loadWellnessProfile();
+      // Phase 8C bug fix: this call was missing entirely - the My Wishlist
+      // section only ever populated after a remove action (which calls
+      // loadWishlist() itself to refresh), never on initial page load.
+      loadWishlist();
       loadAddresses();
     } else {
       document.getElementById("auth-forms").style.display = "block";

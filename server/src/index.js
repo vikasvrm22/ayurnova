@@ -54,6 +54,8 @@ import shipmentsAdminRoutes from "./routes/shipmentsAdmin.js";
 import shipmentWebhooksPublicRoutes from "./routes/shipmentWebhooksPublic.js";
 // ---- Phase 8C: Customer Wishlist ----
 import wishlistPublicRoutes from "./routes/wishlistPublic.js";
+// ---- Phase 8D: Buy Again ----
+import buyAgainPublicRoutes from "./routes/buyAgainPublic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -203,6 +205,11 @@ app.use("/api/public/shipping-webhooks", shipmentWebhooksPublicRoutes);
 // customer-owned personal data, same as addresses/wellness profile,
 // neither of which has an admin view either. ----
 app.use("/api/public/wishlist", wishlistPublicRoutes);
+
+// ---- Public Customer Buy Again (Phase 8D). No admin API and no new
+// commerce write path - reads existing order history, reuses the
+// existing cart/checkout flow for the actual reorder. ----
+app.use("/api/public/buy-again", buyAgainPublicRoutes);
 
 app.get("/api/meta/schema", (req, res) => {
   res.json({ roles: ROLES, rolePermissions: ROLE_PERMISSIONS, productFields: PRODUCT_FIELDS });
