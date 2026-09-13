@@ -17,6 +17,7 @@ import { supabaseAdmin } from "../db/supabaseClient.js";
 import { AppError } from "../utils/apiResponse.js";
 import * as razorpayProvider from "../integrations/razorpay/provider.js";
 import { getDecryptedCredentials } from "../integrations/integrationService.js";
+import { notify } from "../notify/notificationService.js";
 
 /**
  * Starts (or restarts) a Razorpay payment for an order: creates/reuses
@@ -180,6 +181,12 @@ export async function markAttemptOutcome(attempt, { success, gatewayPaymentId, m
       entity_type: "order", entity_id: order.id, action: "payment_succeeded", actor: "system",
       note: `Razorpay payment ${gatewayPaymentId || ""}`.trim(),
     });
+    // Phase 7: this conditional update only succeeds on the ONE call that
+    // actually flips payment status (see this function's own idempotency
+    // comment above) - the single correct place to confirm a prepaid
+    // "order placed" to the customer, whether that arrived via the
+    // Checkout.js verify callback or the webhook, whichever wins the race.
+    await notify("order_placed", { order, total: order.total });
     return { attempt: updatedAttempt, payment: updatedPayment };
   }
 
@@ -418,6 +425,15 @@ export async function createRefund({ paymentId, amountRupees, reason, actorEmail
     entity_type: "payment", entity_id: paymentId, action: "refund_issued", actor: actorEmail,
     note: `₹${amount} (${newPaymentStatus})`,
   });
+
+  // Phase 7: single choke point for refund_completed - both a return's
+  // prepaid refund (returnsAdmin.js POST /:id/refund) and a standalone
+  // admin refund (paymentsAdmin.js POST /:id/refund) go through this same
+  // function, so notifying here covers both without duplicating the call
+  // at either site. dedupeKey is the refund's own id (not the order id -
+  // an order can be partially refunded more than once, each a distinct
+  // notification-worthy event).
+  await notify("refund_completed", { order: payment.orders, dedupeKey: refundRow.id, refundAmount: amount });
 
   return refundRow;
 }

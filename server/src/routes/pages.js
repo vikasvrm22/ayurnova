@@ -6,6 +6,7 @@ import {
   escapeHtml, truncate, renderHeadMeta, renderProductJsonLd, renderBreadcrumbJsonLd, parseListLines,
 } from "../seo/seoHelpers.js";
 import { trackPageView } from "../analytics/tracker.js";
+import { sanitizeRichText } from "../utils/richTextSanitizer.js";
 import {
   listPublishedProducts, getPublishedProductBySlug, listCategories, listRelatedEntities, searchCatalog,
   getCategoryBySlug, getIngredientBySlug,
@@ -480,6 +481,46 @@ router.get("/faq", trackPageView, async (req, res, next) => {
     next(e);
   }
 });
+
+// ============================= PHASE 7: LEGAL CMS PAGES =============================
+// Exactly four fixed slugs (legal_pages' own check constraint - see
+// 0009_phase7_notifications_and_legal_cms.sql), each rendered only when
+// status='published' - a draft (including the auto-seeded "DRAFT —
+// BUSINESS CONTENT REQUIRED" placeholder rows) 404s exactly like a
+// product/blog post that doesn't exist, never leaking draft content to a
+// public visitor. content_html is admin-authored rich text, sanitized
+// again here (not just trusted from legalAdmin.js's own save-time
+// sanitization) before ever reaching a public response.
+const LEGAL_SLUGS = ["terms-and-conditions", "privacy-policy", "return-refund-policy", "shipping-policy"];
+for (const slug of LEGAL_SLUGS) {
+  router.get(`/${slug}`, trackPageView, async (req, res, next) => {
+    try {
+      // Existence/publish-status is checked OUTSIDE the render cache (not
+      // itself cached) specifically so publishing a page takes effect
+      // immediately rather than potentially serving a cached 404 for up
+      // to ssrCacheTtlMs - the actual rendered HTML is still cached below,
+      // same short-TTL convenience every other SSR content page here has.
+      const { data: page } = await supabaseAdmin()
+        .from("legal_pages").select("title, content_html, updated_at").eq("slug", slug).eq("status", "published").maybeSingle();
+      if (!page) return res.status(404).send(render404Page());
+
+      const html = await cached(`legal:${slug}:${page.updated_at}`, async () => {
+        let template = getTemplate("legal-page.html");
+        template = template.replace(/<!--LEGAL_TITLE-->/g, escapeHtml(page.title));
+        template = template.replace("<!--LEGAL_CONTENT-->", sanitizeRichText(page.content_html));
+        const headMeta = renderHeadMeta({
+          title: `${page.title} — AyurVeda Store`,
+          description: page.title,
+          url: `/${slug}`,
+        });
+        return injectSupabaseConfig(injectHead(template, headMeta));
+      });
+      res.send(html);
+    } catch (e) {
+      next(e);
+    }
+  });
+}
 
 // ============================= PHASE 4: ROUTINES =============================
 router.get("/routines", trackPageView, async (req, res, next) => {

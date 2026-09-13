@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Legal Pages — AyurVeda Store Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+<style>
+  .rte-toolbar{ display:flex; gap:4px; flex-wrap:wrap; border:1px solid var(--border); border-bottom:none; border-radius:8px 8px 0 0; padding:6px; background:#f8f9fd; }
+  .rte-toolbar button{ border:1px solid var(--border); background:#fff; border-radius:6px; padding:5px 9px; font-size:12.5px; cursor:pointer; }
+  .rte-toolbar button:hover{ background:#eef1f8; }
+  .rte-editor{ border:1px solid var(--border); border-radius:0 0 8px 8px; padding:12px; min-height:260px; max-height:50vh; overflow:auto; font-size:14px; line-height:1.6; }
+  .rte-editor:focus{ outline:2px solid var(--primary); outline-offset:-2px; }
+  .rte-editor p{ margin:0 0 10px; } .rte-editor ul, .rte-editor ol{ margin:0 0 10px 22px; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">AyurVeda Store <span>Admin</span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a><a href="products-list.html">Products</a><a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
+      <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a>
+      <a href="wellness.html">Wellness</a><a href="inventory.html">Inventory</a><a href="returns.html">Returns</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
+      <a href="payments-list.html">Payments</a>
+      <a href="integrations.html">Integrations</a>
+      <a href="notifications.html">Notifications</a>
+      <a href="legal-pages.html" class="active">Legal Pages</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button><button onclick="Api.clearSession(); location.href='login.html';">Log out</button></div>
+  </aside>
+  <main class="main-area">
+    <div class="page-header"><h2>Legal Pages</h2></div>
+    <p style="font-size:12.5px; color:#666; margin-top:-6px;">Terms &amp; Conditions, Privacy Policy, Return &amp; Refund Policy, and Shipping Policy. A page only appears on the public site once Published - draft content (including the placeholder text seeded automatically) is never shown to visitors. Nothing here is business-approved legal content until your team writes and publishes it.</p>
+
+    <table class="data-table">
+      <thead><tr><th>Page</th><th>Status</th><th>Last Updated</th><th></th></tr></thead>
+      <tbody id="legal-rows"><tr><td colspan="4">Loading...</td></tr></tbody>
+    </table>
+  </main>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  async function load() {
+    try {
+      const { items } = await Api.get("/legal-pages");
+      document.getElementById("legal-rows").innerHTML = items.map(p => `
+        <tr>
+          <td>${p.title}<br><span style="font-size:11px; color:#888;">/${p.slug}</span></td>
+          <td><span class="badge badge-${p.status === "published" ? "delivered" : "pending"}">${p.status}</span></td>
+          <td style="font-size:12.5px; color:#666;">${new Date(p.updated_at).toLocaleString("en-IN")}${p.updated_by ? ` by ${p.updated_by}` : ""}</td>
+          <td><button class="btn btn-outline" onclick="openEditor('${p.slug}')">Edit</button></td>
+        </tr>`).join("");
+    } catch (e) {
+      document.getElementById("legal-rows").innerHTML = `<tr><td colspan="4">Could not load: ${e.message}</td></tr>`;
+    }
+  }
+
+  function exec(cmd, value) { document.getElementById("rte-editor").focus(); document.execCommand(cmd, false, value || null); }
+
+  async function openEditor(slug) {
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:998;overflow:auto;padding:20px 0;";
+    backdrop.innerHTML = `<div style="background:#fff;border-radius:10px;padding:22px;width:680px;max-width:94vw;max-height:90vh;overflow:auto;"><p>Loading...</p></div>`;
+    document.body.appendChild(backdrop);
+
+    let page;
+    try {
+      const res = await Api.get(`/legal-pages/${slug}`);
+      page = res.item;
+    } catch (e) {
+      backdrop.querySelector("div").innerHTML = `<p>Could not load: ${e.message}</p><button class="btn btn-outline" onclick="this.closest('div').parentElement.remove()">Close</button>`;
+      return;
+    }
+
+    const content = backdrop.querySelector("div");
+    content.innerHTML = `
+      <h3 style="margin-top:0;">${page.title} <span class="badge badge-${page.status === "published" ? "delivered" : "pending"}">${page.status}</span></h3>
+      <div class="form-field"><label>Title</label><input id="lp-title" value="${page.title.replace(/"/g, "&quot;")}"></div>
+      <div class="form-field" style="margin-top:10px;">
+        <label>Content</label>
+        <div class="rte-toolbar">
+          <button type="button" onclick="exec('bold')"><b>B</b></button>
+          <button type="button" onclick="exec('italic')"><i>I</i></button>
+          <button type="button" onclick="exec('formatBlock','H2')">H2</button>
+          <button type="button" onclick="exec('formatBlock','H3')">H3</button>
+          <button type="button" onclick="exec('formatBlock','P')">¶</button>
+          <button type="button" onclick="exec('insertUnorderedList')">• List</button>
+          <button type="button" onclick="exec('insertOrderedList')">1. List</button>
+          <button type="button" onclick="(function(){ const url = prompt('Link URL:'); if (url) exec('createLink', url); })()">Link</button>
+          <button type="button" onclick="exec('removeFormat')">Clear</button>
+        </div>
+        <div id="rte-editor" class="rte-editor" contenteditable="true">${page.content_html || ""}</div>
+      </div>
+      <div id="lp-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+      <div style="display:flex; justify-content:space-between; gap:8px; margin-top:14px; flex-wrap:wrap;">
+        <div>
+          ${page.status === "published"
+            ? `<button class="btn btn-outline" id="lp-unpublish">Unpublish</button>`
+            : `<button class="btn btn-primary" id="lp-publish">Publish</button>`}
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-outline" id="lp-close">Close</button>
+          <button class="btn btn-primary" id="lp-save">Save Draft</button>
+        </div>
+      </div>`;
+
+    content.querySelector("#lp-close").onclick = () => backdrop.remove();
+    content.querySelector("#lp-save").onclick = async () => {
+      try {
+        await Api.put(`/legal-pages/${slug}`, {
+          title: content.querySelector("#lp-title").value.trim(),
+          content_html: document.getElementById("rte-editor").innerHTML,
+        });
+        Toast.show("Saved", "success");
+        backdrop.remove();
+        load();
+      } catch (e) { content.querySelector("#lp-error").textContent = e.message; }
+    };
+    content.querySelector("#lp-publish")?.addEventListener("click", async () => {
+      try {
+        await Api.put(`/legal-pages/${slug}`, {
+          title: content.querySelector("#lp-title").value.trim(),
+          content_html: document.getElementById("rte-editor").innerHTML,
+        });
+        await Api.post(`/legal-pages/${slug}/publish`, {});
+        Toast.show("Published", "success");
+        backdrop.remove();
+        load();
+      } catch (e) { content.querySelector("#lp-error").textContent = e.message; }
+    });
+    content.querySelector("#lp-unpublish")?.addEventListener("click", async () => {
+      try {
+        await Api.post(`/legal-pages/${slug}/unpublish`, {});
+        Toast.show("Unpublished", "success");
+        backdrop.remove();
+        load();
+      } catch (e) { content.querySelector("#lp-error").textContent = e.message; }
+    });
+  }
+
+  load();
+</script>
+</body>
+</html>

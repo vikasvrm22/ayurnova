@@ -23,6 +23,7 @@ import { Router } from "express";
 import { supabaseAdmin } from "../db/supabaseClient.js";
 import { requireCustomer } from "../auth/customerAuth.js";
 import { AppError, sendOk, asyncRoute, catalogErrorHandler } from "../utils/apiResponse.js";
+import { notify } from "../notify/notificationService.js";
 
 const router = Router();
 router.use(requireCustomer);
@@ -147,6 +148,11 @@ router.post(
     await supabaseAdmin().from("activity_log").insert({
       entity_type: "order", entity_id: order.id, action: "status -> cancelled (customer)", actor,
     });
+
+    // `updated` is the post-update row with every column (an unqualified
+    // .select() above), so it already carries order_number/guest_email/
+    // guest_phone/shipping_address - no extra fetch needed.
+    await notify("order_cancelled", { order: updated });
 
     sendOk(res, { id: updated.id, status: updated.status });
   })

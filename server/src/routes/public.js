@@ -7,6 +7,7 @@ import { recomputeProductRating } from "./reviews.js";
 import { config } from "../config.js";
 import { startPaymentAttempt } from "../services/paymentService.js";
 import { getActiveEnvironment } from "../integrations/razorpay/provider.js";
+import { notify } from "../notify/notificationService.js";
 
 const router = Router();
 router.use(attachCustomerIfPresent);
@@ -145,13 +146,21 @@ router.post("/checkout", async (req, res, next) => {
       await supabaseAdmin().from("coupons").update({ used_count: couponResult.coupon.used_count + 1 }).eq("id", couponResult.coupon.id);
     }
 
-    // NOTE: order confirmation email/SMS is not wired up - plug your own
-    // SMTP/SMS provider call in here (see SETUP.md "Order notifications").
-
     if (payment_method === "prepaid") {
       const paymentAttempt = await startPaymentAttempt(order);
+      // Phase 7: NOT notified here - a prepaid order isn't a real
+      // commitment until payment actually succeeds (an abandoned Razorpay
+      // checkout would otherwise get a false "order placed" message).
+      // See paymentService.markAttemptOutcome for the single point where
+      // that success is confirmed, for both the verify-callback and
+      // webhook paths.
       return res.status(201).json({ order_number: orderNumber, total, payment_required: true, ...paymentAttempt });
     }
+
+    // COD is a real, immediate commitment (stock already decremented
+    // above) - notify right away. Awaited but internally bulletproofed
+    // against ever throwing (see notificationService.js).
+    await notify("order_placed", { order, total });
 
     res.status(201).json({ order_number: orderNumber, total, payment_required: false });
   } catch (e) {

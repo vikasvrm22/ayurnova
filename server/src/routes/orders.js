@@ -3,6 +3,7 @@ import { supabaseAdmin } from "../db/supabaseClient.js";
 import { requireStaffAuth } from "../auth/adminAuth.js";
 import { requirePermission } from "../auth/rbac.js";
 import { parsePagination, sanitizeOrFilterValue } from "../validation/validators.js";
+import { notify } from "../notify/notificationService.js";
 
 const router = Router();
 
@@ -134,6 +135,19 @@ router.put("/:id/status", requireStaffAuth, requirePermission("manageOrders"), a
     await supabaseAdmin().from("activity_log").insert({
       entity_type: "order", entity_id: req.params.id, action: `status -> ${status}`, actor: req.staff.email,
     });
+
+    // Phase 7: customer notification on a genuine status transition only
+    // (never on a no-op re-save of the same status, e.g. re-entering the
+    // same tracking number) - awaited but internally bulletproofed
+    // against ever throwing (see notificationService.js), same "must
+    // never block the real action" tolerance as restock_order()/
+    // delivered_at above.
+    if (existing?.status !== status) {
+      if (status === "shipped") await notify("order_shipped", { order: data, trackingNumber: data.tracking_number });
+      else if (status === "delivered") await notify("order_delivered", { order: data });
+      else if (status === "cancelled") await notify("order_cancelled", { order: data });
+    }
+
     res.json({ order: data });
   } catch (e) {
     next(e);

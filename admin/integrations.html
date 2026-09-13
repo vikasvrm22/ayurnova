@@ -24,6 +24,8 @@
       <a href="users.html">Users &amp; Roles</a>
       <a href="payments-list.html">Payments</a>
       <a href="integrations.html" class="active">Integrations</a>
+      <a href="notifications.html">Notifications</a>
+      <a href="legal-pages.html">Legal Pages</a>
       <a href="settings.html">Settings</a>
     </nav>
     <div class="sidebar-user">
@@ -49,6 +51,39 @@
     <div class="card">
       <h3 style="margin-top:0;">Razorpay — Production</h3>
       <div id="razorpay-production-form"></div>
+    </div>
+
+    <div class="page-header" style="margin-top:8px;"><h2 style="font-size:17px;">Customer Notifications (Phase 7)</h2></div>
+    <p style="font-size:12.5px; color:#666; margin-top:-6px;">
+      Email/SMS/WhatsApp are independent channels - each can be enabled on its own. If a channel is disabled or left
+      unconfigured, notifications on that channel are silently skipped and every other part of the site keeps working normally.
+    </p>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Email (SMTP) — Test</h3>
+      <div id="email-test-form"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Email (SMTP) — Production</h3>
+      <div id="email-production-form"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">SMS (HTTP gateway) — Test</h3>
+      <div id="sms-test-form"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">SMS (HTTP gateway) — Production</h3>
+      <div id="sms-production-form"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">WhatsApp (Cloud API) — Test</h3>
+      <div id="whatsapp-test-form"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">WhatsApp (Cloud API) — Production</h3>
+      <div id="whatsapp-production-form"></div>
     </div>
   </main>
 </div>
@@ -135,6 +170,128 @@
 
   renderForm("razorpay-test-form", "razorpay", "test");
   renderForm("razorpay-production-form", "razorpay", "production");
+
+  // ---- Phase 7 notification channels - same underlying /integrations/
+  // :provider/:environment API as Razorpay above (generic foundation),
+  // just with each channel's own non-secret `extra` fields alongside the
+  // shared enabled/keyId/keySecret/test-connection controls. ----
+  function renderChannelForm(containerId, provider, environment, fields) {
+    const extraFieldsHtml = fields.map(f => `
+      <div class="form-field" style="margin-top:8px;"><label>${f.label}</label>
+        ${f.type === "select"
+          ? `<select id="${containerId}-${f.key}">${f.options.map(o => `<option value="${o}">${o}</option>`).join("")}</select>`
+          : `<input id="${containerId}-${f.key}" placeholder="${f.placeholder || ""}">`}
+      </div>`).join("");
+
+    document.getElementById(containerId).innerHTML = `
+      <div class="form-field"><label>${fields.keyIdLabel || "Key ID"}</label><input id="${containerId}-key-id" placeholder="${fields.keyIdPlaceholder || ""}"></div>
+      <div class="form-field" style="margin-top:8px;"><label>${fields.keySecretLabel || "Key Secret"}</label><input type="password" id="${containerId}-key-secret" placeholder="Leave blank to keep the existing secret"></div>
+      ${extraFieldsHtml}
+      <div style="margin-top:10px; font-size:12.5px;" id="${containerId}-status">Loading...</div>
+      <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center;">
+        <button class="btn btn-primary" id="${containerId}-save">Save</button>
+        <button class="btn btn-outline" id="${containerId}-test">Test Connection</button>
+        <span style="margin-left:auto; font-size:12.5px; font-weight:700;">Enabled</span>
+        <label class="switch" title="Toggling this does not take effect until you click Save">
+          <input type="checkbox" id="${containerId}-enabled"><span class="slider"></span>
+        </label>
+      </div>
+      <div id="${containerId}-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+      <div id="${containerId}-test-result" style="font-size:12.5px; margin-top:8px;"></div>
+    `;
+
+    async function loadConfig() {
+      try {
+        const { item } = await Api.get(`/integrations/${provider}/${environment}`);
+        const statusEl = document.getElementById(`${containerId}-status`);
+        if (!item) {
+          statusEl.textContent = "Not configured yet.";
+          document.getElementById(`${containerId}-enabled`).checked = false;
+          return;
+        }
+        document.getElementById(`${containerId}-key-id`).value = item.keyId || "";
+        document.getElementById(`${containerId}-enabled`).checked = item.enabled;
+        for (const f of fields) {
+          const el = document.getElementById(`${containerId}-${f.key}`);
+          if (el) el.value = (item.extra && item.extra[f.key] != null) ? item.extra[f.key] : (f.default || "");
+        }
+        statusEl.innerHTML = `
+          Status: <b style="color:${item.enabled ? "#0e7a33" : "#b91c1c"};">${item.enabled ? "Enabled" : "Disabled"}</b>
+          ${!item.enabled ? `<span style="color:#888;"> - saved below but won't be used until you toggle Enabled and Save</span>` : ""}<br>
+          Secret: ${item.keySecretConfigured ? `configured (${item.keySecretMasked})` : "not set"}<br>
+          Last test: ${item.lastTestedAt ? `${item.lastTestStatus} - ${item.lastTestMessage} (${new Date(item.lastTestedAt).toLocaleString("en-IN")})` : "never tested"}
+        `;
+      } catch (e) {
+        document.getElementById(`${containerId}-status`).innerHTML = `<span style="color:#b91c1c;">${e.message}</span>`;
+      }
+    }
+
+    document.getElementById(`${containerId}-save`).addEventListener("click", async () => {
+      const errEl = document.getElementById(`${containerId}-error`);
+      errEl.textContent = "";
+      try {
+        const extra = {};
+        for (const f of fields) extra[f.key] = document.getElementById(`${containerId}-${f.key}`).value.trim();
+        await Api.put(`/integrations/${provider}/${environment}`, {
+          keyId: document.getElementById(`${containerId}-key-id`).value.trim(),
+          keySecret: document.getElementById(`${containerId}-key-secret`).value,
+          enabled: document.getElementById(`${containerId}-enabled`).checked,
+          extra,
+        });
+        document.getElementById(`${containerId}-key-secret`).value = "";
+        Toast.show("Saved", "success");
+        loadConfig();
+      } catch (e) {
+        errEl.textContent = e.message;
+      }
+    });
+
+    document.getElementById(`${containerId}-test`).addEventListener("click", async () => {
+      const resultEl = document.getElementById(`${containerId}-test-result`);
+      resultEl.textContent = "Testing...";
+      try {
+        const result = await Api.post(`/integrations/${provider}/${environment}/test-connection`, {});
+        resultEl.innerHTML = result.success
+          ? `<span style="color:#0e7a33;">✅ ${result.message}</span>`
+          : `<span style="color:#b91c1c;">❌ ${result.message}</span>`;
+        loadConfig();
+      } catch (e) {
+        resultEl.innerHTML = `<span style="color:#b91c1c;">${e.message}</span>`;
+      }
+    });
+
+    loadConfig();
+  }
+
+  const EMAIL_FIELDS = Object.assign(
+    [
+      { key: "host", label: "SMTP Host", placeholder: "smtp.example.com" },
+      { key: "port", label: "SMTP Port", placeholder: "587", default: "587" },
+      { key: "secure", label: "Secure (true for port 465, false for STARTTLS)", placeholder: "false", default: "false" },
+      { key: "fromEmail", label: "From Email", placeholder: "orders@yourstore.com" },
+      { key: "fromName", label: "From Name", placeholder: "AyurVeda Store" },
+    ],
+    { keyIdLabel: "SMTP Username", keySecretLabel: "SMTP Password" }
+  );
+  const SMS_FIELDS = Object.assign(
+    [
+      { key: "endpointUrl", label: "Gateway Endpoint URL", placeholder: "https://your-sms-gateway.example.com/send" },
+      { key: "authScheme", label: "Auth Scheme", type: "select", options: ["bearer", "apikey"], default: "bearer" },
+      { key: "authHeaderName", label: "Auth Header Name (only for 'apikey' scheme)", placeholder: "X-API-Key" },
+    ],
+    { keyIdLabel: "Sender ID (optional)", keySecretLabel: "API Key / Token" }
+  );
+  const WHATSAPP_FIELDS = Object.assign(
+    [{ key: "apiVersion", label: "Graph API Version", placeholder: "v19.0", default: "v19.0" }],
+    { keyIdLabel: "Phone Number ID", keySecretLabel: "Access Token" }
+  );
+
+  renderChannelForm("email-test-form", "email", "test", EMAIL_FIELDS);
+  renderChannelForm("email-production-form", "email", "production", EMAIL_FIELDS);
+  renderChannelForm("sms-test-form", "sms", "test", SMS_FIELDS);
+  renderChannelForm("sms-production-form", "sms", "production", SMS_FIELDS);
+  renderChannelForm("whatsapp-test-form", "whatsapp", "test", WHATSAPP_FIELDS);
+  renderChannelForm("whatsapp-production-form", "whatsapp", "production", WHATSAPP_FIELDS);
 </script>
 </body>
 </html>

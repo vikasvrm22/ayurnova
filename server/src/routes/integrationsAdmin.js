@@ -11,12 +11,23 @@ import {
   listIntegrationConfigs, getIntegrationConfig, upsertIntegrationConfig, setEnabled, toSafeView, ENVIRONMENTS,
 } from "../integrations/integrationService.js";
 import * as razorpayProvider from "../integrations/razorpay/provider.js";
+import * as emailProvider from "../integrations/email/provider.js";
+import * as smsProvider from "../integrations/sms/provider.js";
+import * as whatsappProvider from "../integrations/whatsapp/provider.js";
 
 const router = Router();
 router.use(requireStaffAuth, requirePermission("manageIntegrations"));
 
+// Phase 7: email/sms/whatsapp are notification channels, not payment
+// gateways, but they reuse this exact same generic (provider, environment)
+// foundation unchanged - see integrationService.js's own original comment
+// ("Razorpay is its first consumer... a future SMS/email provider reuses
+// this same table"), now realized.
 const PROVIDERS = {
   razorpay: razorpayProvider,
+  email: emailProvider,
+  sms: smsProvider,
+  whatsapp: whatsappProvider,
 };
 
 function assertValidProviderEnv(req, res) {
@@ -54,10 +65,10 @@ router.get("/:provider/:environment", async (req, res, next) => {
 router.put("/:provider/:environment", async (req, res, next) => {
   try {
     if (!assertValidProviderEnv(req, res)) return;
-    const { keyId, keySecret, webhookSecret, enabled } = req.body || {};
+    const { keyId, keySecret, webhookSecret, enabled, extra } = req.body || {};
     const row = await upsertIntegrationConfig(
       req.params.provider, req.params.environment,
-      { keyId, keySecret, webhookSecret, enabled },
+      { keyId, keySecret, webhookSecret, enabled, extra },
       req.staff.email
     );
     res.json({ item: toSafeView(row) });

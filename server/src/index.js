@@ -44,6 +44,9 @@ import addressesPublicRoutes from "./routes/addressesPublic.js";
 // ---- Phase 6B: Returns & Refund Experience ----
 import returnsPublicRoutes from "./routes/returnsPublic.js";
 import returnsAdminRoutes from "./routes/returnsAdmin.js";
+// ---- Phase 7: Customer Communications & Legal Readiness ----
+import notificationsAdminRoutes from "./routes/notificationsAdmin.js";
+import legalAdminRoutes from "./routes/legalAdmin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -167,6 +170,13 @@ app.use("/api/public/addresses", addressesPublicRoutes);
 // ---- Public/Admin Returns & Refund Experience (Phase 6B) ----
 app.use("/api/public/returns", returnsPublicRoutes);
 app.use("/api/admin/returns", returnsAdminRoutes);
+
+// ---- Admin Customer Communications & Legal CMS (Phase 7). No new public
+// API: legal pages are served as SSR routes by pagesRouter below (they're
+// content pages, not client-fetched JSON, same as /faq/blog/about), and
+// there is no customer-facing notification API at all. ----
+app.use("/api/admin/notifications", notificationsAdminRoutes);
+app.use("/api/admin/legal-pages", legalAdminRoutes);
 
 app.get("/api/meta/schema", (req, res) => {
   res.json({ roles: ROLES, rolePermissions: ROLE_PERMISSIONS, productFields: PRODUCT_FIELDS });

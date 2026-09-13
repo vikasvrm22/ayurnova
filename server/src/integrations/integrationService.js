@@ -61,6 +61,12 @@ export function toSafeView(row) {
     keySecretConfigured: !!row.key_secret_encrypted,
     keySecretMasked: row.key_secret_encrypted ? maskSecret(decryptSecret(row.key_secret_encrypted)) : null,
     webhookSecretConfigured: !!row.webhook_secret_encrypted,
+    // Non-secret, provider-specific config (SMTP host/port, an SMS
+    // gateway's endpoint URL, a WhatsApp API version, etc.) - safe to
+    // return as-is, same boundary the column's own comment in
+    // 0002_phase2_payments_and_integrations.sql already documents
+    // ("room for provider-specific non-secret config").
+    extra: row.extra || {},
     lastTestedAt: row.last_tested_at,
     lastTestStatus: row.last_test_status,
     lastTestMessage: row.last_test_message,
@@ -72,8 +78,11 @@ export function toSafeView(row) {
 /** Creates/updates one (provider, environment) config. Only overwrites a
  * secret field when a non-empty new value is explicitly given - omitting
  * it (e.g. the admin is only toggling `enabled`, or updating key_id)
- * leaves the existing encrypted secret untouched rather than blanking it. */
-export async function upsertIntegrationConfig(provider, environment, { keyId, keySecret, webhookSecret, enabled }, actorEmail) {
+ * leaves the existing encrypted secret untouched rather than blanking it.
+ * `extra` (Phase 7) is merged shallowly over whatever's already stored,
+ * so a caller updating one non-secret field (e.g. just `fromEmail`)
+ * never has to resend every other one to avoid blanking it. */
+export async function upsertIntegrationConfig(provider, environment, { keyId, keySecret, webhookSecret, enabled, extra }, actorEmail) {
   if (!ENVIRONMENTS.includes(environment)) {
     throw new AppError(`Invalid environment: must be one of ${ENVIRONMENTS.join(", ")}`, 400, "INVALID_ENVIRONMENT");
   }
@@ -82,6 +91,10 @@ export async function upsertIntegrationConfig(provider, environment, { keyId, ke
   if (keySecret !== undefined && keySecret !== "") patch.key_secret_encrypted = encryptSecret(keySecret);
   if (webhookSecret !== undefined && webhookSecret !== "") patch.webhook_secret_encrypted = encryptSecret(webhookSecret);
   if (enabled !== undefined) patch.enabled = !!enabled;
+  if (extra !== undefined && extra !== null && typeof extra === "object") {
+    const existing = await getIntegrationConfig(provider, environment);
+    patch.extra = { ...(existing?.extra || {}), ...extra };
+  }
 
   const { data, error } = await supabaseAdmin()
     .from("integration_configs")

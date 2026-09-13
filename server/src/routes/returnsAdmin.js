@@ -17,6 +17,7 @@ import { requirePermission } from "../auth/rbac.js";
 import { parsePagination } from "../validation/validators.js";
 import * as paymentService from "../services/paymentService.js";
 import { receiveReturnedItem } from "../services/returnsService.js";
+import { notify } from "../notify/notificationService.js";
 
 const router = Router();
 const RETURN_STATUSES = ["requested", "approved", "rejected", "refunded"];
@@ -63,7 +64,7 @@ router.post("/:id/review", requireStaffAuth, requirePermission("manageReturns"),
 
     const { data: ret, error } = await supabaseAdmin()
       .from("return_requests")
-      .select("*, return_request_items(*, order_items(price_snapshot, qty, variant_id))")
+      .select("*, orders(*), return_request_items(*, order_items(price_snapshot, qty, variant_id))")
       .eq("id", req.params.id).maybeSingle();
     if (error) throw error;
     if (!ret) return res.status(404).json({ error: "Return request not found" });
@@ -88,6 +89,7 @@ router.post("/:id/review", requireStaffAuth, requirePermission("manageReturns"),
       await supabaseAdmin().from("activity_log").insert({
         entity_type: "return_request", entity_id: ret.id, action: "rejected", actor: req.staff.email, note: rejection_reason,
       });
+      await notify("return_rejected", { order: ret.orders, dedupeKey: ret.id, rejectionReason: rejection_reason });
       return res.json({ item: updated });
     }
 
@@ -136,6 +138,7 @@ router.post("/:id/review", requireStaffAuth, requirePermission("manageReturns"),
     await supabaseAdmin().from("activity_log").insert({
       entity_type: "return_request", entity_id: ret.id, action: "approved", actor: req.staff.email, note: `₹${amount}`,
     });
+    await notify("return_approved", { order: ret.orders, dedupeKey: ret.id, refundAmount: amount });
     res.json({ item: updated });
   } catch (e) {
     next(e);
@@ -216,6 +219,12 @@ router.post("/:id/refund", requireStaffAuth, requirePermission("manageReturns"),
       entity_type: "return_request", entity_id: ret.id, action: "cod_refund_recorded", actor: req.staff.email,
       note: `₹${ret.refund_amount} via ${method} (${reference})`,
     });
+    // COD has no gateway transaction, so this never goes through
+    // paymentService.createRefund (the prepaid branch above does, which
+    // already fires refund_completed itself) - notify explicitly here
+    // instead, keyed off this return request (matches the prepaid path's
+    // "at most one refund outcome per return" invariant).
+    await notify("refund_completed", { order, dedupeKey: ret.id, refundAmount: ret.refund_amount });
     res.json({ item: updated });
   } catch (e) {
     next(e);
