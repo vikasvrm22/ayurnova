@@ -42,6 +42,8 @@ ui-judge/
       reporter.js               8. REPORT GENERATOR (JSON + Markdown)
       baseline.js               9. BASELINE / REGRESSION SUPPORT
       imageUtils.js            shared pixel-math primitives (sharp + pixelmatch)
+      referenceDiscovery.js   13. REFERENCE DISCOVERY - scans a design-ref folder into structured metadata
+      referenceInventory.js  13b. REFERENCE INVENTORY - merges discovery with pages.config.json + route mapping
   config/
     pages.config.json      11. MULTI-PAGE SUPPORT - the live page registry for this project
     weights.json             category weights for the scoring engine
@@ -51,13 +53,16 @@ ui-judge/
   screenshots/             actual screenshots + visual diff images (gitignored)
   reports/                 JSON + Markdown reports per run (gitignored)
   baselines/               one JSON file per page - the last score promoted via --save-baseline
+  generated/               reference-inventory.json - output of --list-references (gitignored)
   tests/                    12. TESTING - unit + integration, run headed (npm test)
 ```
 
 Each numbered module corresponds directly to a pipeline stage; `runAudit.js`
 wires them together in order: Design Analyzer → Actual UI Analyzer →
 Functional Checker → Comparison Engine → Scoring → Severity → Fix Planner →
-Baseline → Report Generator.
+Baseline → Report Generator. Reference discovery (13/13b) is a separate,
+parallel utility invoked only by `--list-references` - it never runs as
+part of `runAudit.js` and never affects a page's score.
 
 ## The Design Analyzer: two spec sources
 
@@ -189,6 +194,7 @@ engine code changes needed:
 {
   "baseUrl": "http://localhost:5100",
   "sourceRoots": ["../../admin", "../../public-site"],
+  "designRefDir": "../../public-site/design-ref",
   "pages": [
     {
       "name": "admin-login",
@@ -203,10 +209,87 @@ engine code changes needed:
 }
 ```
 
-All paths resolve relative to the config file itself. `ignoreRegions`
+`designRefDir` is optional and only powers `--list-references` (see
+"Reference discovery" below) - omitting it leaves everything else
+unaffected. All paths resolve relative to the config file itself. `ignoreRegions`
 (fractions of image size) mask out known-dynamic areas - a live timestamp,
 a rotating banner - from the visual diff so real rendering noise doesn't
 get scored as a deviation.
+
+## Reference discovery
+
+Design references pile up in `public-site/design-ref/` faster than anyone
+wants to hand-edit `pages.config.json` for each one - new phases keep
+arriving (Phase 3, Phase 4, ... Phase 9 and beyond). `--list-references`
+scans that folder and turns filenames into structured metadata **without
+ever moving, renaming, converting, or deleting a single reference file** -
+it is a read-only scanner, same audit-only spirit as the rest of the tool.
+
+**Filename convention it understands:** `Phase<N> <sequence>? <page name>.<ext>`
+(`.png`/`.jpg`/`.jpeg`/`.webp`, matched case-insensitively). The sequence
+number, and the punctuation around it, are optional and inconsistent in
+practice ("Phase1 08 AdminLogin.png", "Phase2 7. Admin Integration
+Management.png", "Phase3 Admin Ayurveda Discovery Management.png" with no
+sequence at all) - the parser (`src/lib/referenceDiscovery.js`,
+`parseReferenceFilename`) degrades gracefully to `null` fields rather than
+guessing, and the phase number itself is unbounded (`Phase10`, `Phase97`,
+...) - nothing about future phases needs a code change. A filename with no
+recognizable `Phase<N>` prefix at all still gets scanned, hashed, and
+listed - just with `phase: null` and (usually) `type: "UNKNOWN"`.
+
+**Explicit configuration always wins.** For every discovered file, the
+scanner checks whether its resolved absolute path is already a `reference`
+in `pages.config.json`; if so, the entry is `mappingStatus: "CONFIGURED"`
+and reports the configured page/route verbatim - this check runs before
+(and regardless of) filename parsing, so even a misspelled or
+unparseable filename (this project genuinely has one:
+`Pahse2 15 Integration Connection Test  Error States.png`) still resolves
+correctly as long as it's the file `pages.config.json` points at. Nothing
+about auto-discovery can change the outcome for an already-configured page.
+
+**Route mapping is conservative on purpose.** For a file that *isn't*
+explicitly configured, the scanner slugifies the parsed page name
+(`"Admin Payments List"` -> `admin-payments-list`) and looks for exactly
+one `.html` file under the project's `sourceRoots` whose own filename
+slugifies to the same thing:
+
+| Outcome | Meaning |
+|---|---|
+| `READY` | exactly one route candidate matched - safe to wire into `pages.config.json` |
+| `AMBIGUOUS` | more than one candidate matched - a human must pick |
+| `NEEDS_MAPPING` | phase + page name parsed fine, but no route file exists yet (the page probably hasn't been built) |
+| `UNMAPPED` | the filename itself couldn't be parsed (no `Phase<N>` prefix) |
+
+It never fuzzy-matches or invents a route - "no confident match" always
+reports `NEEDS_MAPPING`/`UNMAPPED`/`AMBIGUOUS` rather than a guess, same
+philosophy as the Fix Planner's file-location logic above.
+
+**Classification** (best-effort, `UNKNOWN` when not confident) is one of
+`PAGE_REFERENCE`, `STATE_REFERENCE`, `MOBILE_REFERENCE`, `PANEL_REFERENCE`,
+`ASSET_REFERENCE`, or `DUPLICATE` for a redundant copy - see
+`classifyReference` for the exact keyword rules.
+
+**Duplicate detection** hashes every scanned file (sha256 of its bytes) and
+groups identical files together; only the lexicographically-first member of
+a group keeps its natural mapping status, the rest are flagged
+`mappingStatus: "DUPLICATE"` (unless one of them happens to be the
+explicitly configured file, which always wins). Running this against the
+real `design-ref/` folder surfaced a genuine duplicate worth knowing about:
+`ChatGPT Image Sep 13, 2026, 02_41_28 PM.png` is byte-identical to
+`Phase2 9. Admin Payments List.png`. Duplicates are only ever reported,
+never deleted or touched.
+
+Output is written to `ui-judge/generated/reference-inventory.json`
+(gitignored, regenerated every run) with a summary block (counts by
+mapping status, duplicates, unknowns, and a phase-wise breakdown) plus the
+full per-file list.
+
+### Resolving `NEEDS_MAPPING` / `AMBIGUOUS`
+
+Nothing is broken by leaving a file unmapped - it's just not audited yet.
+To wire one in: add a normal entry to `ui-judge/config/pages.config.json`
+(see Configuration above) once its route exists. That immediately reclassifies
+it as `CONFIGURED` on the next `--list-references` run.
 
 ## CLI usage
 
@@ -215,10 +298,15 @@ cd ui-judge
 npm install                          # one-time
 npm run judge -- --page admin-login  # audit a configured page
 npm run judge -- --list              # list configured pages
+npm run judge -- --list-references   # scan designRefDir, print a discovery summary + write the inventory
 npm run judge -- --page admin-login --width 390 --height 844   # ad-hoc viewport override
 npm run judge -- --page admin-login --save-baseline            # promote this run to the baseline
 npm run judge -- --page new-page --url /some/route --reference path/to/mock.png  # ad-hoc, no config entry
 ```
+
+`--list-references` requires `designRefDir` to be set in `pages.config.json`
+(a plain path, resolved the same way `reference` paths are); projects that
+don't set it simply don't get discovery - everything else is unaffected.
 
 The equivalent `npm run ui:judge -- --page <name>` form also works from the
 repo root via the thin pass-through `package.json` at the repository root.
@@ -269,10 +357,20 @@ consumption (CI gating, dashboards, etc.).
 - **No production data or real user interaction is ever exercised** - by
   design (see Safety/Scope in the original brief), so end-to-end business
   flows (checkout, refunds, etc.) are out of scope for this tool.
+- **Reference discovery classification is keyword-based, not a vision
+  model.** It reads filenames, not pixels, so an oddly-named reference
+  (e.g. no "detail"/"mobile"/"error" keyword) may land in `PAGE_REFERENCE`
+  or `UNKNOWN` even when a human would classify it more specifically.
+  Route mapping only ever matches an *exact* slug against an existing
+  `.html` file - it will never fuzzy-match "Payments List" to
+  "payments-list-v2.html", by design.
 
 ## Validation results
 
-Run via `cd ui-judge && npm test` (7 tests, all passing as of this writing):
+Run via `cd ui-judge && npm test` (9 tests, all passing as of this writing -
+7 covering the audit pipeline as below, plus `referenceDiscovery` and
+`referenceInventory` covering filename parsing, classification, duplicate
+detection, explicit-config precedence, and safe route mapping):
 
 1. **`tests/integration/fixture-close-match.test.js`** - a faithful
    implementation of a small reference design (headed browser renders both

@@ -2,6 +2,7 @@
   "_comment": "Live page registry for THIS project. Paths are resolved relative to this file. Add pages by editing this array - no engine code changes needed. See docs/UI-JUDGE.md for the full schema.",
   "baseUrl": "http://localhost:5100",
   "sourceRoots": ["../../admin", "../../public-site"],
+  "designRefDir": "../../public-site/design-ref",
   "auth": { "storageState": "../.auth/admin-storageState.json", "_note": "Generated locally by authenticating with the project's existing SEED_SUPERADMIN_EMAIL/PASSWORD (server/.env) via Playwright; gitignored, never committed. Only pages with requiresAuth:true use it." },
   "pages": [
     {

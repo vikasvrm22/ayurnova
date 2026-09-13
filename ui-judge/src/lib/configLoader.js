@@ -21,7 +21,10 @@ export function loadProjectConfig(configPath) {
   }));
   const sourceRoots = (raw.sourceRoots || []).map((r) => path.resolve(dir, r));
   const authStorageStatePath = raw.auth?.storageState ? path.resolve(dir, raw.auth.storageState) : null;
-  return { baseUrl: raw.baseUrl, pages, sourceRoots, configDir: dir, authStorageStatePath };
+  // Optional - projects that don't set it simply get no reference
+  // auto-discovery; everything else about the config stays unaffected.
+  const designRefDir = raw.designRefDir ? path.resolve(dir, raw.designRefDir) : null;
+  return { baseUrl: raw.baseUrl, pages, sourceRoots, configDir: dir, authStorageStatePath, designRefDir };
 }
 
 export function resolvePage(projectConfig, name, overrides = {}) {
@@ -61,5 +64,6 @@ export function defaultPaths(root = UI_JUDGE_ROOT) {
     screenshotsDir: path.join(root, "screenshots"),
     reportsDir: path.join(root, "reports"),
     baselinesDir: path.join(root, "baselines"),
+    generatedDir: path.join(root, "generated"),
   };
 }
