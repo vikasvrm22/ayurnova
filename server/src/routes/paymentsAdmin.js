@@ -225,8 +225,14 @@ router.get(
       .from("payment_attempts").select("*").eq("payment_id", payment.id).order("attempt_number", { ascending: true });
     const { data: refunds } = await supabaseAdmin()
       .from("refunds").select("*").eq("payment_id", payment.id).order("created_at", { ascending: false });
+    // Order line items for the "Items in Order" breakdown on the payment
+    // detail page - same order_items table/columns dashboard.js and
+    // order-detail.html already read, just scoped to this payment's order.
+    const { data: orderItems } = payment.order_id
+      ? await supabaseAdmin().from("order_items").select("title_snapshot, variant_label_snapshot, qty, price_snapshot, subtotal").eq("order_id", payment.order_id)
+      : { data: [] };
 
-    res.json({ payment, attempts: attempts || [], refunds: refunds || [] });
+    res.json({ payment, attempts: attempts || [], refunds: refunds || [], orderItems: orderItems || [] });
   })
 );
 

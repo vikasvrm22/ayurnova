@@ -80,6 +80,17 @@
       ],
       "requiresAuth": true,
       "waitForSelector": "#payments-summary .stat-card"
+    },
+    {
+      "name": "admin-payment-detail",
+      "route": "/admin/payment-detail.html?id=d153eece-a70f-4e46-9dfd-60c16b524a19",
+      "reference": "../../public-site/design-ref/Phase2 10. Payment Detail  Attempts.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#payment-summary-strip .payment-status-icon"
     }
   ]
 }
