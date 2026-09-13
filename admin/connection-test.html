@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vaidya Bookings — AyurNova Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<title>Razorpay Connection Test — AyurNova Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
 <script>requireAdminAuth();</script>
 </head>
 <body>
@@ -25,7 +25,7 @@
       <a href="returns.html">Returns</a>
       <a href="coupons.html">Coupons</a>
       <a href="reviews.html">Reviews</a>
-      <a href="vaidya-bookings.html" class="active">Vaidya Bookings</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a>
       <div class="sidebar-group-label">Payments</div>
       <a href="payments-list.html">Payments</a>
       <a href="refunds.html">Refunds</a>
@@ -55,36 +55,54 @@
     </div>
   </div>
   <main class="main-area">
-    <div class="page-header"><h2>Consult-a-Vaidya Bookings</h2></div>
-    <table class="data-table">
-      <thead><tr><th>Name</th><th>Phone</th><th>Concern</th><th>Preferred Vaidya</th><th>Status</th><th></th></tr></thead>
-      <tbody id="bookings-rows"><tr><td colspan="6">Loading...</td></tr></tbody>
-    </table>
+    <div class="breadcrumbs"><a href="integrations.html">Integrations</a><span class="current">→ Razorpay Connection Test</span></div>
+    <div class="page-header">
+      <div><h2>Razorpay Connection Test</h2><div class="sub">Run real checks against your saved Razorpay credentials</div></div>
+    </div>
+
+    <div class="filters-row">
+      <select id="f-env">
+        <option value="test">Test Mode (Sandbox)</option>
+        <option value="production">Live Mode (Production)</option>
+      </select>
+      <button class="btn btn-primary" id="run-btn">▶ Run Connection Test</button>
+    </div>
+
+    <div class="card" id="results-card" style="display:none;">
+      <h3 style="margin-top:0;">Test Results</h3>
+      <div id="steps"></div>
+    </div>
+    <div class="alert-banner info" id="empty-note">Choose an environment and click "Run Connection Test" to check API credentials, whether the integration is enabled, live API connectivity, whether a webhook secret is saved, and whether any webhook has been received yet.</div>
   </main>
   </div>
 </div>
 <script src="js/pages/changePassword.js"></script>
 <script>
-  async function load() {
+  document.getElementById("run-btn").addEventListener("click", async () => {
+    const env = document.getElementById("f-env").value;
+    const btn = document.getElementById("run-btn");
+    btn.disabled = true;
+    btn.textContent = "Running...";
+    document.getElementById("empty-note").style.display = "none";
+    document.getElementById("results-card").style.display = "block";
+    document.getElementById("steps").innerHTML = `<p style="color:#888;">Running checks...</p>`;
     try {
-      const { items } = await Api.get("/vaidya-bookings");
-      document.getElementById("bookings-rows").innerHTML = items.length ? items.map(b => `
-        <tr>
-          <td>${b.full_name}</td><td>${b.phone}</td><td>${b.concern || "-"}</td><td>${b.preferred_vaidya || "Any"}</td>
-          <td><select onchange="updateStatus('${b.id}', this.value)">
-            ${["pending","confirmed","completed","cancelled"].map(s => `<option value="${s}" ${b.status===s?"selected":""}>${s}</option>`).join("")}
-          </select></td>
-          <td>${b.description || "-"}</td>
-        </tr>`).join("") : `<tr><td colspan="6">No bookings yet.</td></tr>`;
+      const { steps } = await Api.post(`/integrations/razorpay/${env}/diagnostics`, {});
+      document.getElementById("steps").innerHTML = steps.map((s, i) => `
+        <div class="toggle-row">
+          <div>
+            <div class="label">${i + 1}. ${s.name}</div>
+            <div class="sub">${s.message}${s.durationMs != null ? ` (${s.durationMs}ms)` : ""}</div>
+          </div>
+          <span class="pill-badge ${s.success ? "success" : "danger"}">${s.success ? "Success" : "Failed"}</span>
+        </div>`).join("");
     } catch (e) {
-      document.getElementById("bookings-rows").innerHTML = `<tr><td colspan="6">Could not load: ${e.message}</td></tr>`;
+      document.getElementById("steps").innerHTML = `<p style="color:#b91c1c;">${e.message}</p>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "▶ Run Connection Test";
     }
-  }
-  async function updateStatus(id, status) {
-    try { await Api.put(`/vaidya-bookings/${id}/status`, { status }); Toast.show("Updated", "success"); }
-    catch (e) { Toast.show(e.message, "error"); load(); }
-  }
-  load();
+  });
 </script>
 </body>
 </html>

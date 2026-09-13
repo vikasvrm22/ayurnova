@@ -123,6 +123,48 @@ router.get(
   })
 );
 
+// ---- Webhook / Payment Processing Status (Phase UI-1): exposes the
+// existing `webhook_events` table (every Razorpay webhook this app has
+// ever received is already logged here by paymentService.processWebhookEvent
+// - this just surfaces it in the admin UI, no new logging added). ----
+router.get(
+  "/webhooks",
+  asyncRoute(async (req, res) => {
+    const { status, eventType } = req.query;
+    let query = supabaseAdmin().from("webhook_events").select("*", { count: "exact" }).order("created_at", { ascending: false });
+    if (status) query = query.eq("processing_status", status);
+    if (eventType) query = query.eq("event_type", eventType);
+
+    const { page, pageSize } = parsePagination(req.query);
+    query = query.range((page - 1) * pageSize, page * pageSize - 1);
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+
+    // Stats for the last 24h - the reference dashboard's summary tiles.
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recent } = await supabaseAdmin().from("webhook_events").select("processing_status").gte("created_at", since);
+    const stats = { total24h: (recent || []).length, processed: 0, failed: 0, other: 0 };
+    for (const r of recent || []) {
+      if (r.processing_status === "PROCESSED") stats.processed++;
+      else if (r.processing_status === "ERROR") stats.failed++;
+      else stats.other++;
+    }
+
+    res.json({ items: data, total: count, page, pageSize, stats });
+  })
+);
+
+router.get(
+  "/webhooks/:id",
+  asyncRoute(async (req, res) => {
+    const { data, error } = await supabaseAdmin().from("webhook_events").select("*").eq("id", req.params.id).maybeSingle();
+    if (error) throw error;
+    if (!data) throw new AppError("Webhook event not found", 404, "WEBHOOK_NOT_FOUND");
+    res.json({ item: data });
+  })
+);
+
 // ---- Payment detail: attempts + refunds + order context ----
 router.get(
   "/:id",

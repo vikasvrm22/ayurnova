@@ -8,6 +8,7 @@
 import Razorpay from "razorpay";
 import crypto from "node:crypto";
 import { getDecryptedCredentials, getIntegrationConfig, recordConnectionTest } from "../integrationService.js";
+import { supabaseAdmin } from "../../db/supabaseClient.js";
 
 export const PROVIDER = "razorpay";
 
@@ -81,6 +82,56 @@ export async function testConnection(environment) {
     await recordConnectionTest(PROVIDER, environment, "failed", message);
     return { success: false, message };
   }
+}
+
+/**
+ * Granular connection diagnostics for the admin "Connection Test" page
+ * (Phase UI-1). Each step is a REAL check this app can actually perform -
+ * no step is fabricated to fill out a fixed-length checklist. Reuses the
+ * exact same config/client resolution as testConnection() above; this is
+ * additive detail on top of it, not a second source of truth.
+ */
+export async function runDiagnostics(environment) {
+  const steps = [];
+  const row = await getIntegrationConfig(PROVIDER, environment);
+
+  if (!row || !row.key_id || !row.key_secret_encrypted) {
+    steps.push({ name: "API Credentials", success: false, message: !row ? "No credentials saved yet for this environment." : "Credentials are incomplete." });
+    return steps;
+  }
+  steps.push({ name: "API Credentials", success: true, message: "Key ID and Key Secret are present." });
+
+  if (!row.enabled) {
+    steps.push({ name: "Integration Enabled", success: false, message: "Credentials are saved, but this integration is currently disabled." });
+    return steps;
+  }
+  steps.push({ name: "Integration Enabled", success: true, message: "Enabled." });
+
+  const result = await getClient(environment);
+  const start = Date.now();
+  try {
+    await result.client.orders.all({ count: 1 });
+    steps.push({ name: "API Connectivity", success: true, message: `Successfully connected to Razorpay's API.`, durationMs: Date.now() - start });
+  } catch (e) {
+    steps.push({ name: "API Connectivity", success: false, message: e?.error?.description || e.message || "Connection failed", durationMs: Date.now() - start });
+    return steps;
+  }
+
+  steps.push({
+    name: "Webhook Secret Configured",
+    success: Boolean(row.webhook_secret_encrypted),
+    message: row.webhook_secret_encrypted ? "A webhook secret is saved for this environment." : "No webhook secret saved yet - webhook signature verification will fail until one is set.",
+  });
+
+  const { data: recentWebhooks } = await supabaseAdmin().from("webhook_events")
+    .select("id, created_at").eq("gateway", PROVIDER).order("created_at", { ascending: false }).limit(1);
+  steps.push({
+    name: "Recent Webhook Activity",
+    success: Boolean(recentWebhooks?.length),
+    message: recentWebhooks?.length ? `Last webhook received ${new Date(recentWebhooks[0].created_at).toLocaleString("en-IN")}.` : "No webhook has been received yet for this gateway.",
+  });
+
+  return steps;
 }
 
 /** Creates a Razorpay Order for one payment attempt. `amount` is in

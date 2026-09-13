@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Refund Management — AyurNova Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<title>Webhook / Payment Processing Status — AyurNova Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
 <script>requireAdminAuth();</script>
 </head>
 <body>
@@ -28,9 +28,9 @@
       <a href="vaidya-bookings.html">Vaidya Bookings</a>
       <div class="sidebar-group-label">Payments</div>
       <a href="payments-list.html">Payments</a>
-      <a href="refunds.html" class="active">Refunds</a>
+      <a href="refunds.html">Refunds</a>
       <a href="reconciliation.html">Reconciliation</a>
-      <a href="webhooks.html">Webhooks</a>
+      <a href="webhooks.html" class="active">Webhooks</a>
       <a href="invoices.html">Invoices</a>
       <a href="integrations.html">Integrations</a>
       <div class="sidebar-group-label">Admin</div>
@@ -56,71 +56,94 @@
   </div>
   <main class="main-area">
     <div class="page-header">
-      <div><h2>Refund Management</h2><div class="sub">View and track every refund processed across all payments</div></div>
+      <div><h2>Webhook / Payment Processing Status</h2><div class="sub">Every Razorpay webhook this app has received, and how it was processed</div></div>
     </div>
 
     <div class="cards-row" id="stat-cards">Loading...</div>
 
-    <div class="filters-row">
-      <select id="f-status">
-        <option value="">All Refund Status</option>
-        <option value="PROCESSED">Processed</option>
-        <option value="PENDING">Pending</option>
-        <option value="FAILED">Failed</option>
-      </select>
+    <div class="two-col">
+      <div>
+        <div class="filters-row">
+          <select id="f-status">
+            <option value="">All Statuses</option>
+            <option value="PROCESSED">Processed</option>
+            <option value="IGNORED">Ignored</option>
+            <option value="ERROR">Error</option>
+            <option value="RECEIVED">Received</option>
+          </select>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>Time</th><th>Event Type</th><th>Signature</th><th>Status</th><th>Note</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="5">Loading...</td></tr></tbody>
+        </table>
+        <div class="pagination-row" id="pagination"></div>
+      </div>
+      <div>
+        <div class="card" id="detail-card" style="display:none;">
+          <h3 style="margin-top:0;">Event Details</h3>
+          <div id="detail-body" style="font-size:12.5px; line-height:1.8;"></div>
+          <h4 style="margin-bottom:6px;">Payload</h4>
+          <pre id="detail-payload" style="background:#0f1720; color:#c9e2c9; padding:12px; border-radius:8px; font-size:11px; overflow:auto; max-height:400px;"></pre>
+        </div>
+        <div class="card" id="detail-empty">
+          <p style="color:#888; font-size:13px;">Select an event on the left to see its full payload and processing note.</p>
+        </div>
+      </div>
     </div>
-
-    <table class="data-table">
-      <thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Reason</th><th>Status</th><th>Processed By</th><th>Date</th><th></th></tr></thead>
-      <tbody id="refunds-rows"><tr><td colspan="8">Loading...</td></tr></tbody>
-    </table>
-    <div class="pagination-row" id="pagination"></div>
   </main>
   </div>
 </div>
 <script src="js/pages/changePassword.js"></script>
 <script>
   const state = { page: 1, pageSize: 20 };
-  function fmt(n){ return "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-  function fmtDate(s){ return s ? new Date(s).toLocaleString("en-IN") : "-"; }
+  function fmtDate(s){ return new Date(s).toLocaleString("en-IN"); }
+  const STATUS_BADGE = { PROCESSED: "delivered", IGNORED: "shipped", ERROR: "cancelled", RECEIVED: "pending" };
 
   async function load() {
     const status = document.getElementById("f-status").value;
     const params = new URLSearchParams({ page: state.page, pageSize: state.pageSize });
     if (status) params.set("status", status);
     try {
-      const data = await Api.get(`/payments/refunds?${params.toString()}`);
-      const items = data.items || [];
-
-      const totalRefunded = items.filter(r => r.status === "PROCESSED").reduce((s, r) => s + Number(r.amount), 0);
+      const data = await Api.get(`/payments/webhooks?${params.toString()}`);
+      const s = data.stats;
       document.getElementById("stat-cards").innerHTML = `
-        <div class="stat-card"><div class="num">${data.total}</div><div class="label">Total Refunds (this page's filter)</div></div>
-        <div class="stat-card"><div class="num">${items.filter(r => r.status === "PROCESSED").length}</div><div class="label">Completed (this page)</div></div>
-        <div class="stat-card"><div class="num">${items.filter(r => r.status === "PENDING").length}</div><div class="label">Pending (this page)</div></div>
-        <div class="stat-card"><div class="num">${fmt(totalRefunded)}</div><div class="label">Refunded (this page)</div></div>`;
+        <div class="stat-card"><div class="num">${s.total24h}</div><div class="label">Total Events (24h)</div></div>
+        <div class="stat-card"><div class="num">${s.processed}</div><div class="label">Processed (24h)</div></div>
+        <div class="stat-card"><div class="num">${s.failed}</div><div class="label">Failed / Invalid Signature (24h)</div></div>
+        <div class="stat-card"><div class="num">${s.other}</div><div class="label">Ignored / Received (24h)</div></div>`;
 
-      document.getElementById("refunds-rows").innerHTML = items.length ? items.map(r => `
-        <tr>
-          <td>${r.payments?.orders?.order_number || "-"}</td>
-          <td>${r.payments?.orders?.guest_email || r.payments?.orders?.guest_phone || "-"}</td>
-          <td>${fmt(r.amount)}</td>
-          <td>${r.reason || "-"}</td>
-          <td><span class="badge badge-${r.status === "PROCESSED" ? "delivered" : r.status === "FAILED" ? "cancelled" : "pending"}">${r.status}</span></td>
-          <td>${r.created_by || "-"}</td>
-          <td>${fmtDate(r.created_at)}</td>
-          <td><a href="payment-detail.html?id=${r.payments?.id || ""}">View Payment →</a></td>
-        </tr>`).join("") : `<tr><td colspan="8">No refunds found.</td></tr>`;
+      document.getElementById("rows").innerHTML = data.items.length ? data.items.map(w => `
+        <tr style="cursor:pointer;" onclick='showDetail(${JSON.stringify(w).replace(/'/g, "&#39;")})'>
+          <td>${fmtDate(w.created_at)}</td>
+          <td>${w.event_type}</td>
+          <td>${w.signature_valid ? "✅ Valid" : "❌ Invalid"}</td>
+          <td><span class="badge badge-${STATUS_BADGE[w.processing_status] || "pending"}">${w.processing_status}</span></td>
+          <td style="color:#888; font-size:11.5px;">${w.processing_note || "-"}</td>
+        </tr>`).join("") : `<tr><td colspan="5">No webhook events received yet.</td></tr>`;
 
       const totalPages = Math.max(1, Math.ceil(data.total / state.pageSize));
       document.getElementById("pagination").innerHTML = `
         <button ${state.page <= 1 ? "disabled" : ""} id="pg-prev">‹</button>
-        <span style="padding:0 10px; font-size:12.5px;">Page ${state.page} of ${totalPages}</span>
+        <span style="padding:0 10px; font-size:12.5px;">Page ${state.page} of ${totalPages} (${data.total} total)</span>
         <button ${state.page >= totalPages ? "disabled" : ""} id="pg-next">›</button>`;
       document.getElementById("pg-prev")?.addEventListener("click", () => { state.page--; load(); });
       document.getElementById("pg-next")?.addEventListener("click", () => { state.page++; load(); });
     } catch (e) {
-      document.getElementById("refunds-rows").innerHTML = `<tr><td colspan="8">Could not load: ${e.message}</td></tr>`;
+      document.getElementById("rows").innerHTML = `<tr><td colspan="5">Could not load: ${e.message}</td></tr>`;
     }
+  }
+
+  function showDetail(w) {
+    document.getElementById("detail-empty").style.display = "none";
+    document.getElementById("detail-card").style.display = "block";
+    document.getElementById("detail-body").innerHTML = `
+      <div><b>Event ID:</b> ${w.event_id}</div>
+      <div><b>Event Type:</b> ${w.event_type}</div>
+      <div><b>Received:</b> ${fmtDate(w.created_at)}</div>
+      <div><b>Signature Verified:</b> ${w.signature_valid ? "Yes" : "No"}</div>
+      <div><b>Processing Status:</b> <span class="badge badge-${STATUS_BADGE[w.processing_status] || "pending"}">${w.processing_status}</span></div>
+      ${w.processing_note ? `<div><b>Note:</b> ${w.processing_note}</div>` : ""}`;
+    document.getElementById("detail-payload").textContent = JSON.stringify(w.payload, null, 2);
   }
 
   document.getElementById("f-status").addEventListener("change", () => { state.page = 1; load(); });

@@ -100,6 +100,11 @@ table.data-table th{ background:#f8f9fd; color:var(--muted); font-weight:600; }
 .badge-cancelled{ background:#f2f2f2; color:#888; }
 .badge-rto{ background:#fdecec; color:var(--danger); }
 
+.pill-badge{ display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; }
+.pill-badge.success{ background:var(--success-bg); color:var(--success); }
+.pill-badge.warn{ background:var(--warn-bg); color:var(--warn); }
+.pill-badge.danger{ background:var(--danger-bg); color:var(--danger); }
+
 .form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 .form-field{ display:flex; flex-direction:column; gap:4px; }
 .form-field.full{ grid-column:1/-1; }

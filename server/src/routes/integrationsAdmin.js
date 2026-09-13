@@ -116,4 +116,22 @@ router.post("/:provider/:environment/test-connection", async (req, res, next) =>
   }
 });
 
+// ---- Granular connection diagnostics (Phase UI-1). Only providers that
+// export runDiagnostics() support this (currently Razorpay) - a provider
+// without one gets an honest 404 rather than a fabricated single-step
+// result. ----
+router.post("/:provider/:environment/diagnostics", async (req, res, next) => {
+  try {
+    if (!assertValidProviderEnv(req, res)) return;
+    const provider = PROVIDERS[req.params.provider];
+    if (typeof provider.runDiagnostics !== "function") {
+      return res.status(404).json({ error: `Granular diagnostics are not available for ${req.params.provider} yet - use Test Connection instead.` });
+    }
+    const steps = await provider.runDiagnostics(req.params.environment);
+    res.json({ steps });
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default router;
