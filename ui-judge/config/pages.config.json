@@ -102,6 +102,17 @@
       ],
       "requiresAuth": true,
       "waitForSelector": "#stat-cards .stat-card"
+    },
+    {
+      "name": "admin-refund-detail",
+      "route": "/admin/refund-detail.html?id=204406aa-8922-4eab-b187-e10f37b67021",
+      "reference": "../../public-site/design-ref/Phase2 12. Refund Detail  Partial Refund.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#refund-timeline .timeline-step"
     }
   ]
 }

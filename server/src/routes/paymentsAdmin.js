@@ -128,6 +128,36 @@ router.get(
   })
 );
 
+// ---- Single refund detail (Refund Detail / Partial Refund page): the
+// refund row plus its payment, order and order line items - same tables
+// already read elsewhere in this file (payment detail, order items),
+// just joined together for this one refund. ----
+router.get(
+  "/refunds/:id",
+  asyncRoute(async (req, res) => {
+    const { data: refund, error } = await supabaseAdmin()
+      .from("refunds")
+      .select("*, payments(*, orders(*))")
+      .eq("id", req.params.id).maybeSingle();
+    if (error) throw error;
+    if (!refund) throw new AppError("Refund not found", 404, "REFUND_NOT_FOUND");
+
+    const orderId = refund.payments?.order_id;
+    const { data: orderItems } = orderId
+      ? await supabaseAdmin().from("order_items").select("title_snapshot, variant_label_snapshot, qty, price_snapshot, subtotal").eq("order_id", orderId)
+      : { data: [] };
+    const { data: allRefundsForPayment } = await supabaseAdmin()
+      .from("refunds").select("*").eq("payment_id", refund.payment_id).order("created_at", { ascending: true });
+    const { data: attempts } = await supabaseAdmin()
+      .from("payment_attempts").select("gateway_payment_id, method").eq("payment_id", refund.payment_id).eq("status", "SUCCESS").order("created_at", { ascending: false }).limit(1);
+
+    res.json({
+      refund, orderItems: orderItems || [], refundsForPayment: allRefundsForPayment || [],
+      successAttempt: (attempts && attempts[0]) || null,
+    });
+  })
+);
+
 // ---- Refund summary KPIs (Refund Management header cards) - read-only
 // aggregate over the same `refunds` table used above. ----
 router.get(
