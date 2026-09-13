@@ -117,6 +117,32 @@ a{ color:var(--green-dark); }
 .mega-menu a{ color:var(--ink); font-size:13px; padding:5px 8px; text-decoration:none; border-radius:4px; }
 .mega-menu a:hover{ background:var(--green-light); color:var(--green-dark); }
 
+/* Phase 9A (P0-1): below a phone-width breakpoint, .main-nav's row of
+   white-space:nowrap links (line 112) is wider than the viewport with no
+   wrap/scroll escape, forcing 275-504px of horizontal page overflow that
+   cuts off/overlaps the trailing links ("Knowledge Hub"/"About Us") on
+   every storefront page - confirmed via headed-browser measurement at
+   390x844. Fixing it as an in-row horizontal-scroll strip (rather than a
+   hamburger drawer) keeps every existing link reachable with zero markup
+   changes needed across the ~18 public-site page templates that each
+   embed their own copy of this nav, so desktop rendering (no media query
+   match) is byte-for-byte unaffected. */
+@media (max-width:640px){
+  .main-nav .container{
+    overflow-x:auto;
+    flex-wrap:nowrap;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .main-nav .container::-webkit-scrollbar{ display:none; }
+  .main-nav > .container > a, .main-nav .has-mega{ flex-shrink:0; }
+  /* Mega-menus are hover-triggered (no touch equivalent) and absolutely
+     positioned against the now-scrolling .container, which would clip/
+     misplace them under touch/pointer interaction on mobile - hide them
+     below this breakpoint rather than ship a broken dropdown. */
+  .mega-menu{ display:none !important; }
+}
+
 /* ---- Hero ---- */
 .hero{ background:linear-gradient(120deg,#f3f8f1,var(--green-light)); padding:44px 0; }
 .hero-inner{ display:flex; align-items:center; gap:40px; }

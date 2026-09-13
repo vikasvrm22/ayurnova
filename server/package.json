@@ -9,7 +9,8 @@
     "seed-admin": "node src/scripts/seedAdmin.js",
     "reset-password": "node src/scripts/resetPassword.js",
     "dev:healthcheck": "node dev-harness/healthcheck.js",
-    "dev:seed-test-data": "node dev-harness/seed-test-data.js"
+    "dev:seed-test-data": "node dev-harness/seed-test-data.js",
+    "dev:test-phase9a-secrets": "node dev-harness/test-phase9a-secrets.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

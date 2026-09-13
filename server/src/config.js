@@ -1,12 +1,51 @@
 import "dotenv/config.js";
 
+// -----------------------------------------------------------------------
+// Phase 9A (P0-3): JWT_SECRET and INTEGRATION_ENCRYPTION_KEY used to fall
+// back to a hardcoded, source-committed default ("dev-secret-change-me" /
+// "dev-insecure-integration-key-change-me") whenever the env var was
+// unset, with no startup check. If either var were ever missing in
+// production, admin JWTs become forgeable and/or integration credentials
+// (Razorpay etc.) are encrypted with a key visible in the public source
+// tree - as bad as plaintext. Fixed by removing both fallbacks entirely
+// and failing fast (before the server ever binds a port) whenever either
+// var is missing or is an obviously weak/placeholder value, in every
+// environment - not just production - so a misconfigured local/CI/test
+// run can never mask what would be a critical failure in production. The
+// error messages below name only the variable, never a secret value.
+// -----------------------------------------------------------------------
+const KNOWN_WEAK_SECRETS = new Set([
+  "dev-secret-change-me",
+  "dev-insecure-integration-key-change-me",
+  "change-this-to-a-long-random-string",
+  "changeme", "change-me", "secret", "password", "12345678", "",
+]);
+
+function requireSecret(envVar, { minLength = 32 } = {}) {
+  const raw = process.env[envVar];
+  const value = raw ? raw.trim() : "";
+  if (!value) {
+    throw new Error(
+      `FATAL: ${envVar} is not set. Refusing to start without it. Set a real random value in server/.env ` +
+      `(see server/.env.example) - generate one with: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`
+    );
+  }
+  if (value.length < minLength || KNOWN_WEAK_SECRETS.has(value.toLowerCase())) {
+    throw new Error(
+      `FATAL: ${envVar} is set but too weak (must be a real random secret of at least ${minLength} characters, ` +
+      `not a placeholder/example value). Generate one with: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`
+    );
+  }
+  return value;
+}
+
 export const config = {
   // Default local port changed from 4000 to 5100 (local-dev config task) to
   // stay clear of other unrelated local projects that may already occupy
   // lower ports (e.g. 3000) on a shared dev machine - still overridable via
   // server/.env's PORT, as before.
   port: process.env.PORT || 5100,
-  jwtSecret: process.env.JWT_SECRET || "dev-secret-change-me",
+  jwtSecret: requireSecret("JWT_SECRET"),
   // Accepts a single origin ("*" or one URL) or a comma-separated list -
   // this app is a single server serving the API, the SSR public site, and
   // the static admin panel together, so normal same-origin browser usage
@@ -46,9 +85,9 @@ export const config = {
 
   // Phase 2: encrypts Razorpay (and any future provider's) credentials at
   // rest in integration_configs - see server/src/integrations/crypto.js.
-  // The fallback is a clearly-labelled dev-only value, same pattern as
-  // jwtSecret above - set a real INTEGRATION_ENCRYPTION_KEY in production.
-  integrationEncryptionKey: process.env.INTEGRATION_ENCRYPTION_KEY || "dev-insecure-integration-key-change-me",
+  // No insecure fallback (Phase 9A P0-3, see requireSecret above) - must
+  // be set in every environment, including local dev.
+  integrationEncryptionKey: requireSecret("INTEGRATION_ENCRYPTION_KEY"),
 };
 
 export const ROLES = ["SuperAdmin", "Admin", "Editor", "Viewer"];
