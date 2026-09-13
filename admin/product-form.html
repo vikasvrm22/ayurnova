@@ -23,6 +23,7 @@
       <a href="vaidya-bookings.html">Vaidya Bookings</a>
       <a href="users.html">Users &amp; Roles</a>
       <a href="payments-list.html">Payments</a>
+      <a href="invoices.html">Invoices</a>
       <a href="integrations.html">Integrations</a>
       <a href="notifications.html">Notifications</a>
       <a href="legal-pages.html">Legal Pages</a>
@@ -69,6 +70,7 @@
 
           <div class="form-field full">
             <label>Pack Size Variants</label>
+            <p id="tax-mode-explainer" style="font-size:12px; color:#666; margin:0 0 6px;">Loading tax mode...</p>
             <div id="variant-rows"></div>
             <button type="button" class="btn btn-outline" id="add-variant-btn">+ Add Variant</button>
           </div>
@@ -173,6 +175,18 @@
     } catch (e) { /* non-fatal */ }
   }
 
+  const TAX_MODE_EXPLAINER = {
+    inclusive: "Store pricing mode: GST-Inclusive. The Price/MRP you enter below IS the final customer-facing price - GST (once the business is registered) is calculated by working backwards out of it, so entering an HSN/GST rate here never changes what a customer pays.",
+    exclusive: "Store pricing mode: GST-Exclusive. The Price/MRP you enter below is BEFORE tax - GST (once the business is registered) is added on top at checkout, so a variant's GST rate directly increases what a customer pays.",
+  };
+  fetch("/api/public/tax-mode").then(r => r.json()).then(({ pricingMode, gstRegistered }) => {
+    document.getElementById("tax-mode-explainer").textContent =
+      (TAX_MODE_EXPLAINER[pricingMode] || TAX_MODE_EXPLAINER.inclusive) +
+      (gstRegistered ? "" : " (GST is currently OFF store-wide - Settings → Tax & GST - so no tax is actually applied yet regardless of any rate set here.)");
+  }).catch(() => {
+    document.getElementById("tax-mode-explainer").textContent = "";
+  });
+
   function renderVariantRows() {
     document.getElementById("variant-rows").innerHTML = variants.map((v, i) => `
       <div class="variant-row">
@@ -180,6 +194,8 @@
         <input value="${v.price || ""}" type="number" placeholder="Price" style="flex:1;" oninput="variants[${i}].price=this.value; updatePreview();">
         <input value="${v.mrp || ""}" type="number" placeholder="MRP" style="flex:1;" oninput="variants[${i}].mrp=this.value;">
         <input value="${v.id ? (v.stock ?? 0) : "—"}" type="text" disabled title="Stock is now maintained from Inventory batches (Phase 5A) and can no longer be set here." style="flex:1; background:#f3f3f3; color:#777;">
+        <input value="${v.hsn_code || ""}" placeholder="HSN/SAC" title="HSN/SAC code (Phase 8A) - optional until the business is GST-registered" style="flex:1;" oninput="variants[${i}].hsn_code=this.value;">
+        <input value="${v.tax_rate_percent ?? ""}" type="number" step="0.01" min="0" max="100" placeholder="GST %" title="GST rate % (Phase 8A) - optional; ignored entirely while the business is not GST-registered (Settings → Tax & GST)" style="flex:1;" oninput="variants[${i}].tax_rate_percent=this.value;">
         ${v.id ? `<a class="btn btn-outline" href="inventory.html?variant_id=${v.id}" title="View/manage this variant's batches">Batches</a>` : ""}
         <button type="button" class="btn btn-danger" onclick="removeVariantRow(${i})">Remove</button>
       </div>`).join("");
@@ -289,7 +305,11 @@
     for (const v of variants) {
       // `stock` is no longer sent - it's a maintained aggregate of sellable
       // batch quantity as of Phase 5A, not admin-editable here.
-      const body = { label: v.label, price: Number(v.price), mrp: v.mrp ? Number(v.mrp) : null };
+      const body = {
+        label: v.label, price: Number(v.price), mrp: v.mrp ? Number(v.mrp) : null,
+        hsn_code: v.hsn_code || null,
+        tax_rate_percent: v.tax_rate_percent !== undefined && v.tax_rate_percent !== "" ? Number(v.tax_rate_percent) : null,
+      };
       if (v.id) await Api.put(`/products/${id}/variants/${v.id}`, body).catch(err => Toast.show(err.message, "error"));
       else { const res = await Api.post(`/products/${id}/variants`, body).catch(err => { Toast.show(err.message, "error"); return null; }); if (res) v.id = res.item.id; }
     }

@@ -97,6 +97,18 @@ router.post("/:id/review", requireStaffAuth, requirePermission("manageReturns"),
     // items' own value (price_snapshot * qty), never client-trusted
     // beyond that ceiling. Defaults to the full returned-items value if
     // not explicitly given.
+    //
+    // Phase 8A note (deliberately NOT changed here - Phase 6B stays
+    // unredesigned): price_snapshot is the line's ORIGINAL sale price,
+    // which under GST-INCLUSIVE mode (the default, and the only mode
+    // possible before the business is GST-registered) already includes
+    // any tax, so this cap is correct as-is with zero change needed. It
+    // would UNDER-cap by the line's tax amount under GST-EXCLUSIVE mode
+    // specifically (price_snapshot excludes tax there, but the customer
+    // paid price_snapshot + tax) - order_items.taxable_value_snapshot +
+    // cgst/sgst/igst_amount_snapshot already carry everything a future
+    // credit-note phase needs to correct this for that one mode; no new
+    // data is missing, only the (out-of-scope for Phase 8A) logic to use it.
     const maxRefundable = ret.return_request_items.reduce((sum, i) => sum + Number(i.order_items?.price_snapshot || 0) * i.qty, 0);
     const amount = refund_amount !== undefined && refund_amount !== "" ? Number(refund_amount) : maxRefundable;
     if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: "refund_amount must be a positive number" });

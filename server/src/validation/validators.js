@@ -1,4 +1,5 @@
 import { PRODUCT_FIELDS } from "../config.js";
+import { isValidGstStateCode } from "../utils/gstStateCodes.js";
 
 export function sanitizeText(str) {
   if (typeof str !== "string") return str;
@@ -45,6 +46,17 @@ export function validateVariant(variant) {
     const mrp = Number(variant.mrp);
     if (!Number.isFinite(mrp) || mrp < price) errors.mrp = "MRP must be a number greater than or equal to price";
   }
+  // Phase 8A: HSN/tax rate are optional (nullable) - the business is not
+  // GST-registered yet, so most variants legitimately have neither set
+  // yet. Only validate the SHAPE of whatever is actually provided, never
+  // require it.
+  if (variant.tax_rate_percent !== undefined && variant.tax_rate_percent !== null && variant.tax_rate_percent !== "") {
+    const rate = Number(variant.tax_rate_percent);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) errors.tax_rate_percent = "GST rate must be a number between 0 and 100";
+  }
+  if (variant.hsn_code !== undefined && variant.hsn_code !== null && String(variant.hsn_code).length > 20) {
+    errors.hsn_code = "HSN/SAC code must be 20 characters or fewer";
+  }
   return { valid: Object.keys(errors).length === 0, errors };
 }
 
@@ -82,6 +94,22 @@ export function validatePhone(phone) {
 }
 
 const PINCODE_RE = /^\d{6}$/;
+// GSTIN: 2-digit state code + 10-char PAN + 1 entity code + 'Z' (fixed by
+// the GSTIN spec) + 1 checksum char. Format-only validation - this never
+// calls out to GSTN to confirm the GSTIN is real/active, same "validate
+// shape, don't invent a live lookup" boundary as everything else here.
+const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z][Z][0-9A-Z]$/;
+export function validateGSTIN(gstin) {
+  return typeof gstin === "string" && GSTIN_RE.test(gstin.trim().toUpperCase());
+}
+
+/** Address validation, extended (Phase 8A) with two OPTIONAL fields:
+ * `state_code` (the structured GST state/UT code - see gstStateCodes.js;
+ * only validated when actually provided, so every existing address row
+ * and API caller that never sends it stays exactly as valid as before)
+ * and `gstin` (for a business/B2B buyer's saved address). Neither is
+ * required - the free-text `state` field's own existing validation is
+ * completely unchanged. */
 export function validateAddress(addr) {
   const errors = {};
   if (isBlank(addr.full_name)) errors.full_name = "Name is required";
@@ -90,6 +118,33 @@ export function validateAddress(addr) {
   if (isBlank(addr.city)) errors.city = "City is required";
   if (isBlank(addr.state)) errors.state = "State is required";
   if (!PINCODE_RE.test(addr.pincode || "")) errors.pincode = "Enter a valid 6-digit pincode";
+  if (!isBlank(addr.state_code) && !isValidGstStateCode(addr.state_code)) errors.state_code = "Select a valid state/UT";
+  if (!isBlank(addr.gstin) && !validateGSTIN(addr.gstin)) errors.gstin = "Enter a valid 15-character GSTIN";
+  return { valid: Object.keys(errors).length === 0, errors };
+}
+
+/** Validates the admin-configured `tax_profile` settings value (Phase
+ * 8A). GSTIN is only REQUIRED when gst_registered is on - the locked
+ * business rule is that this store is not GST-registered yet, so the
+ * default/blank state must always pass validation cleanly. */
+export function validateTaxProfile(profile) {
+  const errors = {};
+  const p = profile || {};
+  if (p.gst_registered) {
+    if (!validateGSTIN(p.gstin || "")) errors.gstin = "A valid 15-character GSTIN is required while GST-registered is on";
+    if (isBlank(p.legal_business_name)) errors.legal_business_name = "Legal business name is required while GST-registered is on";
+  } else if (!isBlank(p.gstin) && !validateGSTIN(p.gstin)) {
+    errors.gstin = "GSTIN format is invalid";
+  }
+  if (p.pricing_mode && !["inclusive", "exclusive"].includes(p.pricing_mode)) {
+    errors.pricing_mode = "pricing_mode must be 'inclusive' or 'exclusive'";
+  }
+  const regState = p.registered_address?.state_code;
+  if (!isBlank(regState) && !isValidGstStateCode(regState)) errors.registered_address = "Registered address has an invalid state code";
+  if (p.invoice_number_padding !== undefined) {
+    const padding = Number(p.invoice_number_padding);
+    if (!Number.isInteger(padding) || padding < 1 || padding > 12) errors.invoice_number_padding = "Invoice number padding must be a whole number between 1 and 12";
+  }
   return { valid: Object.keys(errors).length === 0, errors };
 }
 

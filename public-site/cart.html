@@ -34,6 +34,7 @@
       <div class="row"><span>Shipping</span><span id="sum-shipping">FREE</span></div>
       <div class="row" id="sum-discount-row" style="display:none;"><span>Discount</span><span id="sum-discount">−₹0</span></div>
       <div class="row total"><span>Total</span><span id="sum-total">₹0</span></div>
+      <div id="tax-note" style="font-size:11px; color:#888; margin-top:2px;"></div>
 
       <div style="margin:14px 0; display:flex; gap:6px;">
         <input type="text" id="coupon-input" placeholder="Coupon code" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px;">
@@ -50,9 +51,33 @@
         <input type="text" id="addr-line1" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
         <div style="display:flex; gap:6px;">
           <input type="text" id="addr-city" placeholder="City" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
-          <input type="text" id="addr-state" placeholder="State" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+          <select id="addr-state-code" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+            <option value="">State...</option>
+          </select>
         </div>
         <input type="text" id="addr-pincode" placeholder="Pincode" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+
+        <label style="font-size:12.5px; font-weight:700;">GSTIN (optional, for a business order's tax invoice)</label>
+        <input type="text" id="addr-gstin" placeholder="Leave blank for a personal order" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px; text-transform:uppercase;">
+
+        <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; margin-bottom:8px;">
+          <input type="checkbox" id="billing-different-check" style="width:auto;"> Billing address is different from shipping
+        </label>
+        <div id="billing-address-block" style="display:none; border:1px dashed var(--hairline); border-radius:6px; padding:10px; margin-bottom:8px;">
+          <label style="font-size:12.5px; font-weight:700;">Billing Full Name</label>
+          <input type="text" id="bill-name" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+          <label style="font-size:12.5px; font-weight:700;">Billing Phone</label>
+          <input type="text" id="bill-phone" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+          <label style="font-size:12.5px; font-weight:700;">Billing Address Line</label>
+          <input type="text" id="bill-line1" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="bill-city" placeholder="City" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+            <select id="bill-state-code" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
+              <option value="">State...</option>
+            </select>
+          </div>
+          <input type="text" id="bill-pincode" placeholder="Pincode" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px;">
+        </div>
 
         <div style="display:flex; gap:10px; margin:10px 0; font-size:13px;">
           <label><input type="radio" name="pay" value="cod" checked> Cash on Delivery</label>
@@ -92,6 +117,32 @@
       b.return ? "🔄 Easy 7-day return" : null,
     ].filter(Boolean);
     document.getElementById("trust-badges").innerHTML = badges.join(" &nbsp;|&nbsp; ");
+  }).catch(() => {});
+
+  // Phase 8A: structured state code (not free-text) - powers both
+  // CGST+SGST vs IGST determination server-side and the GSTIN-invoice
+  // buyer address. `state` (the human-readable name checkout has always
+  // sent) is derived from whichever option the customer picks, so
+  // existing server-side validation is unaffected.
+  fetch("/api/public/gst-state-codes").then(r => r.json()).then(({ items }) => {
+    const optionsHtml = items.map(s => `<option value="${s.code}">${s.name}</option>`).join("");
+    document.getElementById("addr-state-code").innerHTML += optionsHtml;
+    document.getElementById("bill-state-code").innerHTML += optionsHtml;
+  }).catch(() => {});
+
+  document.getElementById("billing-different-check").addEventListener("change", (e) => {
+    document.getElementById("billing-address-block").style.display = e.target.checked ? "block" : "none";
+  });
+
+  fetch("/api/public/tax-mode").then(r => r.json()).then(({ pricingMode, gstRegistered }) => {
+    if (!gstRegistered) { document.getElementById("tax-note").textContent = ""; return; }
+    // Exclusive mode: the total shown above is pre-tax - the exact
+    // GST-inclusive payable amount is computed server-side (never
+    // duplicated here) and confirmed on the order/payment step, so this
+    // is deliberately a note, not a client-computed number.
+    document.getElementById("tax-note").textContent = pricingMode === "exclusive"
+      ? "GST will be added to this total - the final payable amount is confirmed on the next step."
+      : "Prices shown already include GST.";
   }).catch(() => {});
 
   let appliedDiscount = 0;
@@ -255,19 +306,35 @@
     const cart = getCart();
     if (!cart.length) return;
 
+    const stateSelect = document.getElementById("addr-state-code");
     const address = {
       full_name: document.getElementById("addr-name").value.trim(),
       phone: document.getElementById("addr-phone").value.trim(),
       line1: document.getElementById("addr-line1").value.trim(),
       city: document.getElementById("addr-city").value.trim(),
-      state: document.getElementById("addr-state").value.trim(),
+      state: stateSelect.value ? stateSelect.selectedOptions[0].textContent : "",
+      state_code: stateSelect.value || undefined,
       pincode: document.getElementById("addr-pincode").value.trim(),
     };
+    const gstin = document.getElementById("addr-gstin").value.trim();
+    let billing_address;
+    if (document.getElementById("billing-different-check").checked) {
+      const billStateSelect = document.getElementById("bill-state-code");
+      billing_address = {
+        full_name: document.getElementById("bill-name").value.trim(),
+        phone: document.getElementById("bill-phone").value.trim(),
+        line1: document.getElementById("bill-line1").value.trim(),
+        city: document.getElementById("bill-city").value.trim(),
+        state: billStateSelect.value ? billStateSelect.selectedOptions[0].textContent : "",
+        state_code: billStateSelect.value || undefined,
+        pincode: document.getElementById("bill-pincode").value.trim(),
+      };
+    }
     const payment_method = document.querySelector('input[name="pay"]:checked').value;
 
     try {
       const res = await apiPost("/api/public/checkout", {
-        items: cart, address, payment_method,
+        items: cart, address, billing_address, gstin: gstin || undefined, payment_method,
         coupon_code: appliedCoupon || undefined,
         guest_email: "", guest_phone: address.phone,
       });

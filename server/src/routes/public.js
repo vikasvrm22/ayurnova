@@ -1,13 +1,16 @@
 import { Router } from "express";
 import { supabaseAdmin } from "../db/supabaseClient.js";
 import { attachCustomerIfPresent } from "../auth/customerAuth.js";
-import { validateAddress, validatePhone, sanitizeText } from "../validation/validators.js";
+import { validateAddress, validatePhone, validateGSTIN, sanitizeText } from "../validation/validators.js";
 import { computeCouponDiscount } from "./coupons.js";
 import { recomputeProductRating } from "./reviews.js";
 import { config } from "../config.js";
 import { startPaymentAttempt } from "../services/paymentService.js";
 import { getActiveEnvironment } from "../integrations/razorpay/provider.js";
 import { notify } from "../notify/notificationService.js";
+import { getTaxProfile, calculateOrderTax } from "../services/taxService.js";
+import { generateInvoiceForOrder } from "../services/invoiceService.js";
+import { GST_STATE_CODES } from "../utils/gstStateCodes.js";
 
 const router = Router();
 router.use(attachCustomerIfPresent);
@@ -28,6 +31,27 @@ router.get("/settings", async (req, res, next) => {
   }
 });
 
+// ---- Phase 8A: the fixed GST state/UT code list - static reference data,
+// never sensitive, so no auth needed. Powers the checkout/address-book
+// State dropdowns (structured state_code, not free-text). ----
+router.get("/gst-state-codes", (req, res) => {
+  res.json({ items: GST_STATE_CODES });
+});
+
+// ---- Phase 8A: exposes ONLY the pricing mode (never GSTIN/registered
+// address/invoice numbering) - safe for any storefront/admin page to
+// read without auth, purely so the "how does this affect the price"
+// explainer (product-form.html, cart.html) can reflect the real
+// admin-configured mode rather than assuming one. ----
+router.get("/tax-mode", async (req, res, next) => {
+  try {
+    const taxProfile = await getTaxProfile();
+    res.json({ pricingMode: taxProfile.pricing_mode, gstRegistered: taxProfile.gst_registered });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ---- Coupon validation (cart page calls this before checkout) ----
 router.post("/coupons/validate", async (req, res, next) => {
   try {
@@ -43,7 +67,7 @@ router.post("/coupons/validate", async (req, res, next) => {
 // ---- Checkout: creates an order (guest or logged-in customer) ----
 router.post("/checkout", async (req, res, next) => {
   try {
-    const { items, address, payment_method, coupon_code, guest_email, guest_phone } = req.body || {};
+    const { items, address, billing_address, gstin, payment_method, coupon_code, guest_email, guest_phone } = req.body || {};
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: "Cart is empty" });
@@ -55,6 +79,17 @@ router.post("/checkout", async (req, res, next) => {
     if (!valid) return res.status(400).json({ error: "Invalid address", fields: errors });
     if (!req.customer && !validatePhone(guest_phone || "")) {
       return res.status(400).json({ error: "A valid phone number is required for guest checkout" });
+    }
+    // Phase 8A: both optional. A billing address is only meaningful if the
+    // customer actually provided one (omitting it means "same as
+    // shipping", the default/backward-compatible behaviour for every
+    // order) - only validated as a real address when present.
+    if (billing_address) {
+      const billingCheck = validateAddress(billing_address);
+      if (!billingCheck.valid) return res.status(400).json({ error: "Invalid billing address", fields: billingCheck.errors });
+    }
+    if (gstin && !validateGSTIN(gstin)) {
+      return res.status(400).json({ error: "Enter a valid 15-character GSTIN, or leave it blank" });
     }
     // Fail BEFORE creating an order if prepaid checkout has nowhere to go -
     // otherwise a Razorpay outage/misconfiguration would leave a real,
@@ -82,6 +117,10 @@ router.post("/checkout", async (req, res, next) => {
         product_id: variant.product_id, variant_id: variant.id,
         title_snapshot: variant.products.title, variant_label_snapshot: variant.label,
         price_snapshot: variant.price, qty, subtotal: lineSubtotal,
+        // Phase 8A: carried through purely to feed calculateOrderTax()
+        // below - never written to order_items directly (that uses the
+        // _snapshot columns, set from the tax calculation's own output).
+        hsn_code: variant.hsn_code || null, tax_rate_percent: variant.tax_rate_percent || null,
       });
     }
 
@@ -95,7 +134,32 @@ router.post("/checkout", async (req, res, next) => {
 
     const shippingFee = subtotal >= freeShippingThreshold ? 0 : 60;
     const prepaidDiscount = payment_method === "prepaid" ? Math.round((subtotal * prepaidDiscountPercent) / 100) : 0;
-    const total = subtotal + shippingFee - discount - prepaidDiscount;
+    const totalDiscount = discount + prepaidDiscount;
+
+    // Phase 8A: server-authoritative tax calculation. Place of supply is
+    // taken from the SHIPPING/delivery address's state code - the common
+    // treatment for goods shipped to the buyer - not the billing address;
+    // this is an engineering default, not a confirmed legal position, and
+    // should be reviewed with the business's tax advisor before the store
+    // goes GST-live (see taxService.js's own doc comment).
+    const taxProfile = await getTaxProfile();
+    const homeStateCode = taxProfile.registered_address?.state_code || null;
+    const placeOfSupplyStateCode = address?.state_code || null;
+    const taxResult = calculateOrderTax({
+      lines: pricedItems.map((i) => ({ lineSubtotal: i.subtotal, hsnCode: i.hsn_code, taxRatePercent: i.tax_rate_percent })),
+      discountTotal: totalDiscount,
+      taxMode: taxProfile.pricing_mode,
+      homeStateCode, placeOfSupplyStateCode,
+      gstRegistered: taxProfile.gst_registered,
+    });
+
+    // Inclusive mode: tax is already embedded in `subtotal` - the total
+    // formula is UNCHANGED from before Phase 8A, so nothing is ever
+    // double-added. Exclusive mode: tax is genuine additional money owed,
+    // added here exactly once.
+    const total = taxProfile.pricing_mode === "exclusive"
+      ? subtotal + shippingFee - totalDiscount + taxResult.taxAmount
+      : subtotal + shippingFee - totalDiscount;
 
     const orderNumber = generateOrderNumber();
     const { data: order, error: orderError } = await supabaseAdmin().from("orders").insert({
@@ -104,13 +168,30 @@ router.post("/checkout", async (req, res, next) => {
       guest_email: req.customer ? null : sanitizeText(guest_email || ""),
       guest_phone: req.customer ? null : sanitizeText(guest_phone || ""),
       payment_method, payment_status: payment_method === "cod" ? "unpaid" : "unpaid",
-      subtotal, shipping_fee: shippingFee, discount: discount + prepaidDiscount, total,
+      subtotal, shipping_fee: shippingFee, discount: totalDiscount, total,
       coupon_code: coupon_code || null,
       shipping_address: address,
+      billing_address: billing_address || null,
+      buyer_gstin: gstin ? gstin.trim().toUpperCase() : null,
+      place_of_supply_state_code: placeOfSupplyStateCode,
+      tax_mode: taxProfile.pricing_mode,
+      taxable_value: taxResult.taxableValue,
+      cgst_amount: taxResult.cgstAmount, sgst_amount: taxResult.sgstAmount, igst_amount: taxResult.igstAmount,
+      tax_amount: taxResult.taxAmount,
     }).select().single();
     if (orderError) throw orderError;
 
-    const itemsWithOrderId = pricedItems.map((i) => ({ ...i, order_id: order.id }));
+    const itemsWithOrderId = pricedItems.map((i, idx) => {
+      const t = taxResult.lines[idx];
+      return {
+        product_id: i.product_id, variant_id: i.variant_id,
+        title_snapshot: i.title_snapshot, variant_label_snapshot: i.variant_label_snapshot,
+        price_snapshot: i.price_snapshot, qty: i.qty, subtotal: i.subtotal,
+        order_id: order.id,
+        hsn_code_snapshot: t.hsnCode, tax_rate_snapshot: t.taxRatePercent, taxable_value_snapshot: t.taxableValue,
+        cgst_amount_snapshot: t.cgstAmount, sgst_amount_snapshot: t.sgstAmount, igst_amount_snapshot: t.igstAmount,
+      };
+    });
     const { error: itemsError } = await supabaseAdmin().from("order_items").insert(itemsWithOrderId);
     if (itemsError) throw itemsError;
 
@@ -161,6 +242,20 @@ router.post("/checkout", async (req, res, next) => {
     // above) - notify right away. Awaited but internally bulletproofed
     // against ever throwing (see notificationService.js).
     await notify("order_placed", { order, total });
+
+    // Phase 8A: "generate only after the order is successfully created
+    // AND order acceptance is confirmed" - for COD that's exactly this
+    // point (stock already allocated above, no payment gate). Idempotent
+    // and must never block the checkout response on a PDF/DB hiccup, same
+    // tolerance as every other non-critical side effect here.
+    try {
+      await generateInvoiceForOrder(order.id, { actor: "system(cod)" });
+    } catch (invoiceError) {
+      await supabaseAdmin().from("activity_log").insert({
+        entity_type: "order", entity_id: order.id, action: "invoice_generation_failed", actor: "system",
+        note: (invoiceError.message || "generateInvoiceForOrder failed").slice(0, 500),
+      });
+    }
 
     res.status(201).json({ order_number: orderNumber, total, payment_required: false });
   } catch (e) {

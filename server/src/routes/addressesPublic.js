@@ -25,6 +25,11 @@ function cleanAddressInput(body) {
     city: sanitizeText(String(body.city).trim()),
     state: sanitizeText(String(body.state).trim()),
     pincode: String(body.pincode).trim(),
+    // Phase 8A: both optional - validateAddress() (already run by every
+    // caller of this function before it's invoked) only checks their
+    // shape when actually present.
+    state_code: body.state_code || null,
+    gstin: body.gstin ? String(body.gstin).trim().toUpperCase() : null,
     is_default: !!body.is_default,
   };
 }

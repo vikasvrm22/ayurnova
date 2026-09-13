@@ -18,6 +18,7 @@ import { AppError } from "../utils/apiResponse.js";
 import * as razorpayProvider from "../integrations/razorpay/provider.js";
 import { getDecryptedCredentials } from "../integrations/integrationService.js";
 import { notify } from "../notify/notificationService.js";
+import { generateInvoiceForOrder } from "./invoiceService.js";
 
 /**
  * Starts (or restarts) a Razorpay payment for an order: creates/reuses
@@ -187,6 +188,19 @@ export async function markAttemptOutcome(attempt, { success, gatewayPaymentId, m
     // "order placed" to the customer, whether that arrived via the
     // Checkout.js verify callback or the webhook, whichever wins the race.
     await notify("order_placed", { order, total: order.total });
+    // Phase 8A: "prepaid -> after verified successful payment", exactly
+    // this branch (the one call that actually won the payment-success
+    // race - see this function's own idempotency comment above).
+    // Idempotent (invoices.unique(order_id)) and must never block the
+    // payment-verification response.
+    try {
+      await generateInvoiceForOrder(order.id, { actor: "system(razorpay)" });
+    } catch (invoiceError) {
+      await supabaseAdmin().from("activity_log").insert({
+        entity_type: "order", entity_id: order.id, action: "invoice_generation_failed", actor: "system",
+        note: (invoiceError.message || "generateInvoiceForOrder failed").slice(0, 500),
+      });
+    }
     return { attempt: updatedAttempt, payment: updatedPayment };
   }
 

@@ -47,6 +47,8 @@ import returnsAdminRoutes from "./routes/returnsAdmin.js";
 // ---- Phase 7: Customer Communications & Legal Readiness ----
 import notificationsAdminRoutes from "./routes/notificationsAdmin.js";
 import legalAdminRoutes from "./routes/legalAdmin.js";
+// ---- Phase 8A: Tax & Invoicing ----
+import invoicesAdminRoutes from "./routes/invoicesAdmin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -177,6 +179,12 @@ app.use("/api/admin/returns", returnsAdminRoutes);
 // there is no customer-facing notification API at all. ----
 app.use("/api/admin/notifications", notificationsAdminRoutes);
 app.use("/api/admin/legal-pages", legalAdminRoutes);
+
+// ---- Admin Tax & Invoicing (Phase 8A). No new public API for tax
+// config itself - the customer-facing pieces (GSTIN/billing address at
+// checkout, own-invoice view/download) live on the existing checkout
+// route and orderDetailPublic.js's /:id/invoice sub-routes. ----
+app.use("/api/admin/invoices", invoicesAdminRoutes);
 
 app.get("/api/meta/schema", (req, res) => {
   res.json({ roles: ROLES, rolePermissions: ROLE_PERMISSIONS, productFields: PRODUCT_FIELDS });

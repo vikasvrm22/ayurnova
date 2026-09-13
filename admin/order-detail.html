@@ -23,6 +23,7 @@
       <a href="vaidya-bookings.html">Vaidya Bookings</a>
       <a href="users.html">Users &amp; Roles</a>
       <a href="payments-list.html">Payments</a>
+      <a href="invoices.html">Invoices</a>
       <a href="integrations.html">Integrations</a>
       <a href="notifications.html">Notifications</a>
       <a href="legal-pages.html">Legal Pages</a>
@@ -76,6 +77,11 @@
           <h3 style="margin-top:0;">Payment</h3>
           <p style="font-size:13px;" id="payment-block"></p>
         </div>
+        <div class="card">
+          <h3 style="margin-top:0;">Tax &amp; Invoice</h3>
+          <p style="font-size:13px; line-height:1.7;" id="tax-block">Loading...</p>
+          <div id="invoice-block"></div>
+        </div>
       </div>
     </div>
   </main>
@@ -127,9 +133,47 @@
         paymentHtml += `<br><span style="color:#888; font-size:12px;">No payment attempt started yet.</span>`;
       }
       document.getElementById("payment-block").innerHTML = paymentHtml;
+
+      const taxLines = [`Mode: <b style="text-transform:capitalize;">${order.tax_mode || "-"}</b>`];
+      if (order.tax_amount) {
+        taxLines.push(`Taxable Value: ${fmt(order.taxable_value)}`);
+        if (order.cgst_amount) taxLines.push(`CGST: ${fmt(order.cgst_amount)}`);
+        if (order.sgst_amount) taxLines.push(`SGST: ${fmt(order.sgst_amount)}`);
+        if (order.igst_amount) taxLines.push(`IGST: ${fmt(order.igst_amount)}`);
+        taxLines.push(`<b>Total Tax: ${fmt(order.tax_amount)}</b>`);
+      } else {
+        taxLines.push(`<span style="color:#888;">No tax applied (business not GST-registered, or rate not yet configured).</span>`);
+      }
+      document.getElementById("tax-block").innerHTML = taxLines.join("<br>");
+
+      await loadInvoiceBlock(order.id);
     } catch (e) {
       Toast.show(`Could not load order: ${e.message}`, "error");
     }
+  }
+
+  async function loadInvoiceBlock(id) {
+    const el = document.getElementById("invoice-block");
+    try {
+      const data = await Api.get(`/invoices?order_id=${id}`);
+      const inv = data.items[0];
+      el.innerHTML = inv
+        ? `<a class="btn btn-outline" href="/api/admin/invoices/${inv.id}/pdf" target="_blank" onclick="return openInvoicePdf(event, '${inv.id}')">View Invoice (${inv.invoice_number})</a>`
+        : `<span style="font-size:12.5px; color:#888;">No invoice generated yet.</span>`;
+    } catch (e) {
+      el.innerHTML = `<span style="font-size:12.5px; color:#888;">Could not load invoice status.</span>`;
+    }
+  }
+
+  async function openInvoicePdf(event, id) {
+    event.preventDefault();
+    try {
+      const resp = await fetch(`/api/admin/invoices/${id}/pdf`, { headers: { Authorization: `Bearer ${localStorage.getItem("ayur_admin_token")}` } });
+      if (!resp.ok) throw new Error("Could not load PDF");
+      const blob = await resp.blob();
+      window.open(URL.createObjectURL(blob), "_blank");
+    } catch (e) { Toast.show(e.message, "error"); }
+    return false;
   }
 
   document.getElementById("update-btn").addEventListener("click", async () => {

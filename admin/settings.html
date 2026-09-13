@@ -13,6 +13,7 @@
       <a href="customers.html">Customers</a><a href="coupons.html">Coupons</a><a href="reviews.html">Reviews</a>
       <a href="blog.html">Blog Posts</a><a href="discovery.html">Discovery</a><a href="faqs.html">FAQs</a><a href="wellness.html">Wellness</a><a href="inventory.html">Inventory</a><a href="returns.html">Returns</a><a href="vaidya-bookings.html">Vaidya Bookings</a><a href="users.html">Users &amp; Roles</a>
       <a href="payments-list.html">Payments</a>
+      <a href="invoices.html">Invoices</a>
       <a href="integrations.html">Integrations</a><a href="notifications.html">Notifications</a><a href="legal-pages.html">Legal Pages</a><a href="settings.html" class="active">Settings</a>
     </nav>
     <div class="sidebar-user"><div class="name"></div><div class="role-badge"></div>
@@ -26,6 +27,43 @@
       <div class="form-field"><label>Free Shipping Threshold (₹)</label><input type="number" id="f-free-shipping"></div>
       <div class="form-field" style="margin-top:10px;"><label>Prepaid Discount (%)</label><input type="number" id="f-prepaid-discount"></div>
       <button class="btn btn-primary" style="margin-top:10px;" id="save-shipping">Save</button>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Tax &amp; GST (Phase 8A)</h3>
+      <p style="font-size:12.5px; color:#888; margin-top:-6px;">
+        This store is not GST-registered yet by default - leave "GST Registered" off and every order/invoice will show
+        zero tax, regardless of any HSN/rate set on a product variant. Turn it on only once the business is actually
+        GST-registered and you have a real GSTIN to enter.
+      </p>
+      <div class="toggle-row">
+        <div><div class="label">GST Registered</div><div class="sub">Off = every order/invoice shows zero tax, no matter what variants are configured. Turn on only once actually registered.</div></div>
+        <label class="switch"><input type="checkbox" id="tax-gst-registered"><span class="slider"></span></label>
+      </div>
+      <div class="form-field" style="margin-top:10px;"><label>GSTIN</label><input id="tax-gstin" placeholder="Leave blank until registered" style="text-transform:uppercase;"></div>
+      <div class="form-field" style="margin-top:10px;"><label>Legal Business Name</label><input id="tax-legal-name"></div>
+      <div class="form-field" style="margin-top:10px;"><label>Registered Address - Line 1</label><input id="tax-addr-line1"></div>
+      <div class="form-field" style="margin-top:10px;"><label>Registered Address - Line 2</label><input id="tax-addr-line2"></div>
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <div class="form-field" style="flex:1;"><label>City</label><input id="tax-addr-city"></div>
+        <div class="form-field" style="flex:1;"><label>Registered State</label><select id="tax-addr-state-code"><option value="">Select state...</option></select></div>
+        <div class="form-field" style="width:110px;"><label>Pincode</label><input id="tax-addr-pincode"></div>
+      </div>
+
+      <div class="form-field" style="margin-top:14px;">
+        <label>Pricing Mode</label>
+        <select id="tax-pricing-mode"><option value="inclusive">GST-Inclusive (default)</option><option value="exclusive">GST-Exclusive</option></select>
+      </div>
+      <p id="tax-pricing-mode-explainer" style="font-size:12px; color:#666; margin-top:4px;"></p>
+
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <div class="form-field" style="flex:1;"><label>Invoice Number Prefix</label><input id="tax-invoice-prefix" placeholder="INV-"></div>
+        <div class="form-field" style="width:160px;"><label>Number Padding (digits)</label><input type="number" min="1" max="12" id="tax-invoice-padding"></div>
+      </div>
+      <p style="font-size:12px; color:#666; margin-top:4px;">Invoice numbers are allocated from a single, concurrency-safe internal counter and are not guaranteed to be gap-free (a failed/retried checkout can leave a gap) - they are always unique, in order, and never reused.</p>
+
+      <div id="tax-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+      <button class="btn btn-primary" style="margin-top:12px;" id="save-tax">Save</button>
     </div>
 
     <div class="card">
@@ -102,10 +140,65 @@
 
       const returns = settings.returns || { cod_refund_enabled: false };
       document.getElementById("toggle-cod-refund").checked = !!returns.cod_refund_enabled;
+
+      const tax = settings.tax_profile || {};
+      document.getElementById("tax-gst-registered").checked = !!tax.gst_registered;
+      document.getElementById("tax-gstin").value = tax.gstin || "";
+      document.getElementById("tax-legal-name").value = tax.legal_business_name || "";
+      const regAddr = tax.registered_address || {};
+      document.getElementById("tax-addr-line1").value = regAddr.line1 || "";
+      document.getElementById("tax-addr-line2").value = regAddr.line2 || "";
+      document.getElementById("tax-addr-city").value = regAddr.city || "";
+      document.getElementById("tax-addr-state-code").value = regAddr.state_code || "";
+      document.getElementById("tax-addr-pincode").value = regAddr.pincode || "";
+      document.getElementById("tax-pricing-mode").value = tax.pricing_mode || "inclusive";
+      document.getElementById("tax-invoice-prefix").value = tax.invoice_number_prefix ?? "INV-";
+      document.getElementById("tax-invoice-padding").value = tax.invoice_number_padding ?? 6;
+      updatePricingModeExplainer();
     } catch (e) {
       Toast.show(`Could not load settings: ${e.message}`, "error");
     }
   }
+
+  const PRICING_MODE_EXPLAINER = {
+    inclusive: "The price shown on a product IS the final price the customer pays - GST (once registered) is calculated by working backwards out of that price, so turning this on/off never changes what a customer sees or pays.",
+    exclusive: "The price shown on a product is BEFORE tax - GST (once registered) is added on top at checkout, so the customer's payable total goes up by the tax amount.",
+  };
+  function updatePricingModeExplainer() {
+    document.getElementById("tax-pricing-mode-explainer").textContent =
+      PRICING_MODE_EXPLAINER[document.getElementById("tax-pricing-mode").value] || "";
+  }
+  document.getElementById("tax-pricing-mode").addEventListener("change", updatePricingModeExplainer);
+
+  fetch("/api/public/gst-state-codes").then(r => r.json()).then(({ items }) => {
+    const sel = document.getElementById("tax-addr-state-code");
+    sel.innerHTML += items.map(s => `<option value="${s.code}">${s.name} (${s.code})</option>`).join("");
+  }).catch(() => {});
+
+  document.getElementById("save-tax").addEventListener("click", async () => {
+    const errEl = document.getElementById("tax-error");
+    errEl.textContent = "";
+    try {
+      await Api.put("/settings/tax_profile", {
+        value: {
+          gst_registered: document.getElementById("tax-gst-registered").checked,
+          gstin: document.getElementById("tax-gstin").value.trim().toUpperCase(),
+          legal_business_name: document.getElementById("tax-legal-name").value.trim(),
+          registered_address: {
+            line1: document.getElementById("tax-addr-line1").value.trim(),
+            line2: document.getElementById("tax-addr-line2").value.trim(),
+            city: document.getElementById("tax-addr-city").value.trim(),
+            state_code: document.getElementById("tax-addr-state-code").value,
+            pincode: document.getElementById("tax-addr-pincode").value.trim(),
+          },
+          pricing_mode: document.getElementById("tax-pricing-mode").value,
+          invoice_number_prefix: document.getElementById("tax-invoice-prefix").value.trim() || "INV-",
+          invoice_number_padding: Number(document.getElementById("tax-invoice-padding").value) || 6,
+        },
+      });
+      Toast.show("Tax & GST settings saved", "success");
+    } catch (e) { errEl.textContent = e.fields ? Object.values(e.fields).join(" ") : e.message; }
+  });
 
   document.getElementById("save-badges").addEventListener("click", async () => {
     try {

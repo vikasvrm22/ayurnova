@@ -162,6 +162,12 @@
     }
   }
 
+  // Phase 8A: fetched once and cached - openAddressForm() below builds its
+  // <select> synchronously from this on every open, rather than re-fetching
+  // (small, stable, static reference data - see gstStateCodes.js).
+  window.__gstStates = [];
+  fetch("/api/public/gst-state-codes").then(r => r.json()).then(({ items }) => { window.__gstStates = items; }).catch(() => {});
+
   // Phase 6A: customer address book - straight CRUD over
   // server/src/routes/addressesPublic.js, which sits on the `addresses`
   // table/RLS that have existed since the Phase 1 schema.
@@ -207,8 +213,13 @@
         <label>Address Line 1</label><input id="a-line1" value="${existing?.line1 || ""}">
         <label>Address Line 2 (optional)</label><input id="a-line2" value="${existing?.line2 || ""}">
         <label>City</label><input id="a-city" value="${existing?.city || ""}">
-        <label>State</label><input id="a-state" value="${existing?.state || ""}">
+        <label>State</label>
+        <select id="a-state-code">
+          <option value="">Select state...</option>
+          ${(window.__gstStates || []).map(s => `<option value="${s.code}" ${existing?.state_code === s.code ? "selected" : ""}>${s.name}</option>`).join("")}
+        </select>
         <label>Pincode</label><input id="a-pincode" value="${existing?.pincode || ""}">
+        <label>GSTIN (optional, for a business address)</label><input id="a-gstin" value="${existing?.gstin || ""}" style="text-transform:uppercase;">
         <label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" id="a-default" style="width:auto;" ${existing?.is_default ? "checked" : ""}> Set as default address</label>
         <div id="a-error" style="color:#B23A2E; font-size:12.5px; margin-top:8px;"></div>
         <div style="display:flex; gap:8px; margin-top:14px;">
@@ -219,14 +230,17 @@
     document.body.appendChild(backdrop);
     backdrop.querySelector("#a-cancel").onclick = () => backdrop.remove();
     backdrop.querySelector("#a-save").onclick = async () => {
+      const stateSelect = backdrop.querySelector("#a-state-code");
       const body = {
         full_name: backdrop.querySelector("#a-full-name").value.trim(),
         phone: backdrop.querySelector("#a-phone").value.trim(),
         line1: backdrop.querySelector("#a-line1").value.trim(),
         line2: backdrop.querySelector("#a-line2").value.trim(),
         city: backdrop.querySelector("#a-city").value.trim(),
-        state: backdrop.querySelector("#a-state").value.trim(),
+        state: stateSelect.value ? stateSelect.selectedOptions[0].textContent : "",
+        state_code: stateSelect.value || undefined,
         pincode: backdrop.querySelector("#a-pincode").value.trim(),
+        gstin: backdrop.querySelector("#a-gstin").value.trim() || undefined,
         is_default: backdrop.querySelector("#a-default").checked,
       };
       try {

@@ -24,6 +24,7 @@ import { supabaseAdmin } from "../db/supabaseClient.js";
 import { requireCustomer } from "../auth/customerAuth.js";
 import { AppError, sendOk, asyncRoute, catalogErrorHandler } from "../utils/apiResponse.js";
 import { notify } from "../notify/notificationService.js";
+import { getInvoiceByOrderId, renderInvoicePdfBuffer } from "../services/invoiceService.js";
 
 const router = Router();
 router.use(requireCustomer);
@@ -42,7 +43,17 @@ function toCustomerOrder(order) {
     couponCode: order.coupon_code,
     trackingNumber: order.tracking_number,
     shippingAddress: order.shipping_address,
+    billingAddress: order.billing_address || order.shipping_address,
     createdAt: order.created_at,
+    // Phase 8A: a customer-safe tax breakdown - amounts only, never any
+    // internal batch/gateway detail. taxMode/taxAmount are both 0/absent-
+    // safe for every order placed before Phase 8A (nullable columns).
+    taxMode: order.tax_mode || null,
+    taxableValue: order.taxable_value ?? null,
+    cgstAmount: order.cgst_amount || 0,
+    sgstAmount: order.sgst_amount || 0,
+    igstAmount: order.igst_amount || 0,
+    taxAmount: order.tax_amount || 0,
     // The only business rule a customer needs to know is whether the
     // Cancel action is available right now - the actual enforcement
     // happens server-side again at cancel time regardless, this is a UI
@@ -155,6 +166,55 @@ router.post(
     await notify("order_cancelled", { order: updated });
 
     sendOk(res, { id: updated.id, status: updated.status });
+  })
+);
+
+// ---- GET /api/public/my-orders/:id/invoice - own-order-only, Phase 8A ----
+router.get(
+  "/:id/invoice",
+  asyncRoute(async (req, res) => {
+    const { data: order } = await supabaseAdmin()
+      .from("orders").select("id").eq("id", req.params.id).eq("customer_id", req.customer.id).maybeSingle();
+    if (!order) throw new AppError("Order not found", 404, "ORDER_NOT_FOUND");
+    const invoice = await getInvoiceByOrderId(order.id);
+    if (!invoice) throw new AppError("No invoice has been generated for this order yet.", 404, "INVOICE_NOT_FOUND");
+    // Customer-safe subset only - never gateway ids/payment internals
+    // (the invoice row never stores those to begin with - see
+    // invoiceService.js's own snapshot construction).
+    sendOk(res, {
+      invoiceNumber: invoice.invoice_number,
+      issuedAt: invoice.created_at,
+      taxMode: invoice.tax_mode,
+      placeOfSupplyStateCode: invoice.place_of_supply_state_code,
+      seller: invoice.seller_snapshot,
+      buyer: invoice.buyer_snapshot,
+      lineItems: invoice.line_items,
+      subtotal: invoice.subtotal,
+      discountAmount: invoice.discount_amount,
+      shippingAmount: invoice.shipping_amount,
+      taxableValue: invoice.taxable_value,
+      cgstAmount: invoice.cgst_amount,
+      sgstAmount: invoice.sgst_amount,
+      igstAmount: invoice.igst_amount,
+      taxAmount: invoice.tax_amount,
+      grandTotal: invoice.grand_total,
+    });
+  })
+);
+
+// ---- GET /api/public/my-orders/:id/invoice/pdf ----
+router.get(
+  "/:id/invoice/pdf",
+  asyncRoute(async (req, res) => {
+    const { data: order } = await supabaseAdmin()
+      .from("orders").select("id").eq("id", req.params.id).eq("customer_id", req.customer.id).maybeSingle();
+    if (!order) throw new AppError("Order not found", 404, "ORDER_NOT_FOUND");
+    const invoice = await getInvoiceByOrderId(order.id);
+    if (!invoice) throw new AppError("No invoice has been generated for this order yet.", 404, "INVOICE_NOT_FOUND");
+    const pdf = await renderInvoicePdfBuffer(invoice);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${invoice.invoice_number}.pdf"`);
+    res.send(pdf);
   })
 );
 

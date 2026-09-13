@@ -269,9 +269,14 @@ router.post("/:id/variants", requireStaffAuth, requirePermission("manageProducts
     // `stock` is intentionally not accepted here (Phase 5A) - a new variant
     // always starts at the column default (0) and only ever changes via a
     // batch/inventory operation (see routes/inventoryAdmin.js).
+    // hsn_code/tax_rate_percent (Phase 8A) are optional/nullable - the
+    // business is not GST-registered yet, so a new variant legitimately
+    // has neither set until an admin fills them in later.
     const { data, error } = await supabaseAdmin().from("product_variants").insert({
       product_id: req.params.id, label: req.body.label, sku: req.body.sku || null,
       price: req.body.price, mrp: req.body.mrp || null, weight_grams: req.body.weight_grams || null,
+      hsn_code: req.body.hsn_code || null,
+      tax_rate_percent: req.body.tax_rate_percent !== undefined && req.body.tax_rate_percent !== "" ? req.body.tax_rate_percent : null,
     }).select().single();
     if (error) throw error;
     res.status(201).json({ item: data });
@@ -290,6 +295,8 @@ router.put("/:id/variants/:variantId", requireStaffAuth, requirePermission("mana
     const { data, error } = await supabaseAdmin().from("product_variants").update({
       label: req.body.label, sku: req.body.sku || null, price: req.body.price,
       mrp: req.body.mrp || null, weight_grams: req.body.weight_grams || null,
+      hsn_code: req.body.hsn_code || null,
+      tax_rate_percent: req.body.tax_rate_percent !== undefined && req.body.tax_rate_percent !== "" ? req.body.tax_rate_percent : null,
     }).eq("id", req.params.variantId).select().single();
     if (error) throw error;
     res.json({ item: data });
