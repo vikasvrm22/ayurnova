@@ -14,7 +14,7 @@
   <div class="container">
     <div class="brand"><div class="brand-mark">AV</div><div class="brand-text"><h1>AyurVeda Store</h1><span>Authentic Ayurvedic Wellness</span></div></div>
     <form class="header-search" action="/shop" method="get"><input type="text" name="q" placeholder="Search products, concerns, ingredients..."><button type="submit">Search</button></form>
-    <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/cart">🛒<span class="cart-count">2</span></a></div>
+    <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/account#wishlist-section" title="Wishlist">🤍<span class="wishlist-count">0</span></a><a href="/cart">🛒<span class="cart-count">2</span></a></div>
   </div>
 </header>
 
@@ -60,6 +60,7 @@
       <div class="pd-actions">
         <button class="btn-addcart" onclick="siteAddToCart(false)">Add to Cart</button>
         <button class="btn-buynow" onclick="siteAddToCart(true)">Buy Now</button>
+        <button id="pd-wishlist-btn" class="pd-wishlist-btn" data-wishlist-product-id="" title="Add to Wishlist">♡ Wishlist</button>
       </div>
       <div id="add-to-cart-msg" style="font-size:12.5px; color:#0e7a33; margin-top:6px;"></div>
       <div style="margin-top:8px;">
@@ -189,6 +190,12 @@
     refreshCompareUI();
   }
   refreshCompareUI();
+
+  // Phase 8C: wishlist toggle (see js/site.js - initWishlistButtons runs on
+  // DOMContentLoaded, which fires after this inline script has already set
+  // the real product id here).
+  const pdWishlistBtn = document.getElementById('pd-wishlist-btn');
+  if (window.__PRODUCT__?.id && pdWishlistBtn) pdWishlistBtn.dataset.wishlistProductId = window.__PRODUCT__.id;
 </script>
 </body>
 </html>

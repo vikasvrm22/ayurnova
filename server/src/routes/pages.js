@@ -106,6 +106,7 @@ function productCardHtml(product) {
   const bullets = parseListLines(product.short_description).slice(0, 1)[0] || "";
   return `
     <div class="product-card">
+      <button class="wishlist-toggle" data-wishlist-product-id="${product.id}" title="Add to Wishlist">♡</button>
       <div class="img">${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.title)}" style="width:100%;height:100%;object-fit:cover;">` : "Product Image"}</div>
       <div class="body">
         <div class="title">${escapeHtml(product.title)}</div>

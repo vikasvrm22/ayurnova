@@ -345,6 +345,29 @@ export async function compareProducts(ids) {
 }
 
 /**
+ * Phase 8C - bulk-fetch currently PUBLISHED products by id, for hydrating
+ * a customer-owned collection of saved product ids (a wishlist) with live
+ * price/mrp/stock. Silently omits any id that is no longer published or
+ * no longer exists at all - the caller (wishlistPublic.js) diffs the
+ * returned set against the requested ids to know which saved items are
+ * now unavailable, the same "gracefully drop, never error" behavior
+ * compareProducts() above already established. Uncapped (unlike
+ * compareProducts' MAX_COMPARE_PRODUCTS) - a wishlist is a customer's own
+ * saved list, not a share-link parameter a stranger could inflate.
+ */
+export async function getProductsByIds(ids) {
+  const uniqueIds = [...new Set(ids)];
+  if (!uniqueIds.length) return [];
+  const { data, error } = await supabaseAdmin()
+    .from("products")
+    .select(LIST_COLUMNS)
+    .in("id", uniqueIds)
+    .eq("status", "published");
+  if (error) throw error;
+  return data || [];
+}
+
+/**
  * Phase 4: deterministic, explainable product recommendations from
  * already-derived profile signals (dosha + goal/concern ids) - this
  * function is intentionally customer-agnostic (matching this whole

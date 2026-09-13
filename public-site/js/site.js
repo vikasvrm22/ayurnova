@@ -155,6 +155,7 @@ function forYouCardHtml(p) {
   const stars = "★".repeat(Math.round(p.avgRating || 0)) + "☆".repeat(5 - Math.round(p.avgRating || 0));
   return `
     <div class="product-card">
+      <button class="wishlist-toggle" data-wishlist-product-id="${p.id}" title="Add to Wishlist">♡</button>
       <div class="img">${p.image ? `<img src="${p.image}" alt="${p.title}" style="width:100%;height:100%;object-fit:cover;">` : "Product Image"}</div>
       <div class="body">
         <div class="title">${p.title}</div>
@@ -188,10 +189,106 @@ async function loadForYouSection(gridId, sectionId, pageSize = 6) {
   }
 }
 
+/**
+ * Phase 8C - customer wishlist (server-side, login-required, unlike the
+ * guest-friendly localStorage cart/compare above). Every page that renders
+ * a product card or a wishlist toggle button (product cards from
+ * server/src/routes/pages.js's productCardHtml(), forYouCardHtml() above,
+ * and product.html's own detail-page button) shares this one client-side
+ * module so a toggle click behaves identically everywhere.
+ *
+ * `__wishlistIds` is loaded at most once per page view (null = not yet
+ * loaded) - a guest (no Supabase session) gets an empty set without ever
+ * calling the API, since GET /api/public/wishlist requireCustomer's every
+ * request anyway.
+ */
+let __wishlistIds = null;
+
+async function loadWishlistIds() {
+  if (__wishlistIds) return __wishlistIds;
+  const token = await getCustomerToken();
+  if (!token) {
+    __wishlistIds = new Set();
+    return __wishlistIds;
+  }
+  try {
+    const res = await apiGet("/api/public/wishlist?pageSize=100");
+    __wishlistIds = new Set((res.data.items || []).map((i) => i.productId));
+  } catch (e) {
+    __wishlistIds = new Set();
+  }
+  return __wishlistIds;
+}
+
+function updateWishlistCountBadge() {
+  const count = __wishlistIds ? __wishlistIds.size : 0;
+  document.querySelectorAll(".wishlist-count").forEach((el) => (el.textContent = count));
+}
+
+function setWishlistButtonState(btn, active) {
+  btn.classList.toggle("active", active);
+  // The small circular card toggle is icon-only; the product-detail page's
+  // own button (`.pd-wishlist-btn`) also carries a text label.
+  const icon = active ? "♥" : "♡";
+  btn.textContent = btn.classList.contains("pd-wishlist-btn") ? `${icon} ${active ? "Wishlisted" : "Wishlist"}` : icon;
+  btn.title = active ? "Remove from Wishlist" : "Add to Wishlist";
+  btn.setAttribute("aria-pressed", active ? "true" : "false");
+}
+
+async function toggleWishlistButton(btn, productId) {
+  const token = await getCustomerToken();
+  if (!token) {
+    location.href = "/account";
+    return;
+  }
+  const ids = await loadWishlistIds();
+  const wasActive = ids.has(productId);
+  btn.disabled = true;
+  try {
+    if (wasActive) {
+      await apiDelete(`/api/public/wishlist/${productId}`);
+      ids.delete(productId);
+    } else {
+      await apiPost("/api/public/wishlist", { product_id: productId });
+      ids.add(productId);
+    }
+    setWishlistButtonState(btn, !wasActive);
+    updateWishlistCountBadge();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/** Binds every not-yet-bound `[data-wishlist-product-id]` button on the
+ * page to the current wishlist state - safe to call more than once (e.g.
+ * again after a client-rendered grid like "Recommended For You" injects
+ * new cards asynchronously), since already-bound buttons are skipped via
+ * `data-wishlist-bound`. Always refreshes the header count badge too,
+ * even on a page with no wishlistable product on it at all (cart.html,
+ * contact.html, ...), so the header icon stays accurate site-wide. */
+async function initWishlistButtons() {
+  const ids = await loadWishlistIds();
+  updateWishlistCountBadge();
+  const buttons = document.querySelectorAll("[data-wishlist-product-id]:not([data-wishlist-bound])");
+  buttons.forEach((btn) => {
+    const productId = btn.dataset.wishlistProductId;
+    if (!productId) return; // product.html's own button starts empty until window.__PRODUCT__ fills it in
+    btn.dataset.wishlistBound = "true";
+    setWishlistButtonState(btn, ids.has(productId));
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      toggleWishlistButton(btn, productId);
+    });
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   updateCartBadge();
+  initWishlistButtons();
   // Only pages that actually have this markup (index.html, product.html)
   // get anything rendered here - every other page's call is a no-op via
   // loadForYouSection's own auth/session guard returning early.
-  if (document.getElementById("for-you-section")) loadForYouSection("for-you-grid", "for-you-section");
+  if (document.getElementById("for-you-section")) loadForYouSection("for-you-grid", "for-you-section").then(initWishlistButtons);
 });

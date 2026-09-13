@@ -52,6 +52,8 @@ import invoicesAdminRoutes from "./routes/invoicesAdmin.js";
 // ---- Phase 8B: Shipping & Logistics ----
 import shipmentsAdminRoutes from "./routes/shipmentsAdmin.js";
 import shipmentWebhooksPublicRoutes from "./routes/shipmentWebhooksPublic.js";
+// ---- Phase 8C: Customer Wishlist ----
+import wishlistPublicRoutes from "./routes/wishlistPublic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -196,6 +198,11 @@ app.use("/api/admin/invoices", invoicesAdminRoutes);
 // (app.use("/api", apiLimiter)), same as every other /api/public route. ----
 app.use("/api/admin/shipments", shipmentsAdminRoutes);
 app.use("/api/public/shipping-webhooks", shipmentWebhooksPublicRoutes);
+
+// ---- Public Customer Wishlist (Phase 8C). No admin API - wishlist is
+// customer-owned personal data, same as addresses/wellness profile,
+// neither of which has an admin view either. ----
+app.use("/api/public/wishlist", wishlistPublicRoutes);
 
 app.get("/api/meta/schema", (req, res) => {
   res.json({ roles: ROLES, rolePermissions: ROLE_PERMISSIONS, productFields: PRODUCT_FIELDS });
