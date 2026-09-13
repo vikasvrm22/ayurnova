@@ -8,10 +8,14 @@
 </head>
 <body>
 
-<div class="announce-strip">
+<div class="announce-strip split">
   <div class="container">
-    <span>COD AVAILABLE</span><span>FREE SHIPPING ABOVE ₹599</span><span>2% OFF on Prepaid Orders</span>
-    <span>Toll-Free 1800 1020 230</span><span>Use Code <b>NEW10</b> for 10% Off</span>
+    <div class="announce-left">
+      <span>🌿 COD Available</span><span>🚚 Free Shipping above ₹599</span><span>💳 2% Off on Prepaid Orders</span><span>🏷️ Use Code <b>NEW10</b> for 10% Off</span>
+    </div>
+    <div class="announce-right">
+      <span>📞 Toll-Free 1800 1020 230</span><a href="/account">Track Order</a><a href="/faq">Help</a>
+    </div>
   </div>
 </div>
 
@@ -23,53 +27,51 @@
       <button type="submit">Search</button>
     </form>
     <div class="header-icons">
-      <a href="/account">👤<span>Login</span></a>
-      <a href="/account#wishlist-section" title="Wishlist">🤍<span class="wishlist-count">0</span></a>
-      <a href="/cart">🛒<span class="cart-count">2</span></a>
+      <a href="/account"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Account</span></a>
+      <a href="/account#wishlist-section" title="Wishlist"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7.5-4.6-10-9.3C.4 8.4 2 5 5.4 5c2 0 3.4 1 4.6 2.6C11.2 6 12.6 5 14.6 5 18 5 19.6 8.4 22 11.7 19.5 16.4 12 21 12 21z"/></svg><span class="wishlist-count">0</span></a>
+      <a href="/cart"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h2l1.4 10.6a2 2 0 0 0 2 1.7h8.2a2 2 0 0 0 2-1.6L20 9H6"/><circle cx="9.5" cy="21" r="1.2" fill="currentColor" stroke="none"/><circle cx="17" cy="21" r="1.2" fill="currentColor" stroke="none"/></svg><span class="cart-count">0</span></a>
     </div>
   </div>
 </header>
 
 <nav class="main-nav">
   <div class="container">
-    <a href="/" class="active">Home</a>
     <a href="/shop">Shop All</a>
     <div class="has-mega" style="position:relative;">
-      <a href="/shop?f=concern">Shop by Health Concern ▾</a>
+      <a href="/shop?f=concern">By Concern ▾</a>
       <div class="mega-menu"><!--MEGA_CONCERN--></div>
     </div>
     <div class="has-mega" style="position:relative;">
-      <a href="/shop?f=benefit">Shop by Benefit ▾</a>
+      <a href="/shop?f=benefit">By Benefit ▾</a>
       <div class="mega-menu"><!--MEGA_BENEFIT--></div>
     </div>
+    
+    <a href="/dosha-test">Wellness Test</a>
+    <a href="/routines">Routines</a>
     <a href="/consult-vaidya">Consult a Vaidya</a>
-    <a href="/dosha-test">Dosha Test</a>
-    <a href="/routines">Routines</a><a href="/for-you">For You</a><a href="/blog">Blog</a>
+    <a href="/blog">Knowledge Hub</a>
+    <a href="/about">About Us</a>
   </div>
 </nav>
 
 <div class="hero">
-  <div class="container">
-    <h2>Find the Root Cause of Your Problems</h2>
-    <p>As per Ayurveda, no two individuals are alike. Get personalised, root-cause-based treatment from our expert Vaidyas — from the comfort of your home.</p>
-    <a class="btn" href="/consult-vaidya">Consult a Vaidya →</a>
+  <div class="container hero-inner">
+    <div class="hero-copy">
+      <p class="hero-eyebrow">NATURAL CARE FOR A HEALTHIER YOU</p>
+      <h2>Ancient Ayurveda for Modern Lives</h2>
+      <p class="hero-sub">Pure. Effective. Trusted. Discover Ayurvedic solutions for your everyday wellness, backed by science and centuries of tradition.</p>
+      <a class="btn-solid hero-cta" href="/shop">Shop Bestsellers →</a>
+      <div class="hero-usps">
+        <span>🌿 100% Natural Ingredients</span><span>📜 Ayurveda Backed</span><span>🛡️ Safe &amp; Trusted for Daily Use</span>
+      </div>
+    </div>
+    <div class="hero-media"><img src="/img/hero-home-bottles.webp" alt="AyurNova herbal supplement bottles with fresh herbs and turmeric" width="500" height="300"></div>
   </div>
 </div>
 
 <div class="container">
-  <div id="for-you-section" style="display:none;">
-    <h3 class="section-title">Recommended For You</h3>
-    <p class="section-sub">Based on your Wellness Profile</p>
-    <div class="product-grid" id="for-you-grid"></div>
-  </div>
-
-  <h3 class="section-title">Product Highlights</h3>
-  <p class="section-sub">Our most-loved formulations, trusted by thousands</p>
-  <div class="product-grid"><!--PRODUCT_HIGHLIGHTS--></div>
-
-  <h3 class="section-title">Best Sellers</h3>
-  <p class="section-sub">Scroll to browse →</p>
-  <div class="carousel-strip"><!--BEST_SELLERS--></div>
+  <div class="section-head-row"><h3 class="section-title">Shop by Category</h3></div>
+  <div class="category-tiles"><!--SHOP_CATEGORIES--></div>
 
   <div class="usp-row">
     <div class="usp"><div class="icon">🔬</div>Scientifically Researched</div>
@@ -80,12 +82,41 @@
     <div class="usp"><div class="icon">📋</div>GMP Certified</div>
   </div>
 
-  <h3 class="section-title">Our Team of Ayurvedic Experts</h3>
+  <div id="for-you-section" style="display:none;">
+    <h3 class="section-title">Recommended For You</h3>
+    <p class="section-sub">Based on your Wellness Profile</p>
+    <div class="product-grid" id="for-you-grid"></div>
+  </div>
+
+  <div class="section-head-row"><h3 class="section-title">Our Bestsellers</h3><a class="view-all-link" href="/shop?sort=bestselling">View All →</a></div>
+  <p class="section-sub">Loved by thousands for better everyday wellness</p>
+  <div class="product-grid"><!--BEST_SELLERS--></div>
+
+  <div class="section-head-row"><h3 class="section-title">New Arrivals</h3><a class="view-all-link" href="/shop?sort=newest">View All →</a></div>
+  <p class="section-sub">Our latest formulations, fresh on the shelf</p>
+  <div class="product-grid"><!--PRODUCT_HIGHLIGHTS--></div>
+
+  <h3 class="section-title" style="text-align:center;">Wellness for Every You</h3>
+  <p class="section-sub" style="text-align:center;">Explore by your goals, concerns or ingredients and find what suits you best.</p>
+  <div class="wellness-cta-grid">
+    <a class="wellness-cta green" href="/shop?f=concern">Shop by Concern<span>Targeted solutions for your health concerns →</span></a>
+    <a class="wellness-cta gold" href="/shop?f=benefit">Shop by Benefit<span>Support your wellness goals naturally →</span></a>
+    <a class="wellness-cta green" href="/shop">Shop by Product<span>Browse our full range of Ayurvedic products →</span></a>
+    <a class="wellness-cta pink" href="/dosha-test">Take a Wellness Test<span>Understand your dosha and get personalised picks →</span></a>
+  </div>
+
+  <div class="section-head-row"><h3 class="section-title">From Our Knowledge Hub</h3><a class="view-all-link" href="/blog">View All Articles →</a></div>
+  <p class="section-sub">Learn, explore and embrace the wisdom of Ayurveda</p>
+  <div class="hub-grid"><!--KNOWLEDGE_HUB--></div>
+
+  <h3 class="section-title" style="text-align:center;">Our Team of Ayurvedic Experts</h3>
+  <p class="section-sub" style="text-align:center;">Consult a Vaidya for personalised, root-cause-based treatment from the comfort of your home.</p>
   <div class="expert-grid">
     <div class="expert-card"><div class="avatar"></div><h4>Dr. Priyanka Jagota</h4><div class="role">Expert Vaidya</div><p>7+ years of clinical practice. Specialises in fatty liver, digestive disorders, joint pain and hormonal imbalances.</p></div>
     <div class="expert-card"><div class="avatar"></div><h4>Dr. Bhanu Sharma</h4><div class="role">Expert Vaidya</div><p>15+ years in holistic healing. Specialises in Pulse Diagnosis, Agni Karma and Marma Therapy.</p></div>
     <div class="expert-card"><div class="avatar"></div><h4>Dr. Saloni Garg</h4><div class="role">Expert Vaidya</div><p>5+ years of clinical experience blending classical Ayurveda with modern diagnosis.</p></div>
   </div>
+  <p style="text-align:center;"><a class="btn-outline-solid" href="/consult-vaidya">Consult a Vaidya →</a></p>
 
   <div class="dosha-banner">
     <h3>Don't Know Your Dosha Yet?</h3>
@@ -94,8 +125,8 @@
     <a class="btn" href="/dosha-test">Discover Your Dosha →</a>
   </div>
 
-  <h3 class="section-title">What Our Customers Are Saying</h3>
-  <p class="section-sub">Trusted by 10 Lakh+ customers across 3,600+ cities</p>
+  <h3 class="section-title" style="text-align:center;">What Our Customers Are Saying</h3>
+  <p class="section-sub" style="text-align:center;">Trusted by thousands of customers across India</p>
   <div class="testimonial-grid">
     <div class="testimonial-card"><div class="name">Sumit Kaushik</div><p>"I try to use only Ayurvedic products from different brands, but this is by far the best. Great quality and fast shipping."</p></div>
     <div class="testimonial-card"><div class="name">S. Solanki</div><p>"One-stop shop for all my Ayurveda needs. Regular customer for 5 years — authentic formulations, dependable service."</p></div>
@@ -103,15 +134,21 @@
   </div>
 </div>
 
+<div class="newsletter-band">
+  <div class="container newsletter-inner">
+    <div><h3>Join Our Wellness Journey</h3><p>Get exclusive offers, wellness tips and new product updates.</p></div>
+    <form class="newsletter-form"><input type="email" placeholder="Enter your email address" required><button type="submit">Subscribe</button></form>
+  </div>
+</div>
+
 <footer class="mega-footer">
   <div class="container">
     <div><h5>Top Categories</h5><!--FOOTER_CATEGORIES--></div>
-    <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a><a href="/faq">FAQ</a><a href="#">Careers</a></div>
+    <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a><a href="/faq">FAQ</a></div>
     <div><h5>Policies</h5><a href="/terms-and-conditions">Terms of Service</a><a href="/return-refund-policy">Return &amp; Refund</a><a href="/privacy-policy">Privacy Policy</a><a href="/shipping-policy">Shipping Policy</a></div>
     <div><h5>Quick Links</h5><a href="/shop">Shop by Product</a><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a></div>
-    <div><h5>Newsletter</h5><input type="email" placeholder="Your email" style="width:100%;padding:8px;border-radius:6px;border:none;margin-bottom:8px;"><button style="width:100%;padding:8px;background:var(--gold);color:#fff;border:none;border-radius:6px;">Subscribe</button></div>
   </div>
-  <div class="footer-bottom">© 2026 AyurNova</div>
+  <div class="footer-bottom">© 2026 AyurNova. All rights reserved.</div>
 </footer>
 
 </body>

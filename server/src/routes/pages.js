@@ -73,6 +73,27 @@ function renderMegaMenu(categories, pathPrefix) {
 /** Footer "Top Categories" - same landing-page links as the mega-menu,
  * mixing concern+benefit so the footer isn't empty when only one type has
  * real content yet. */
+/** Real prev/next/numbered pagination for /shop and search results -
+ * preserves every current query param except `page`. Previously the shop
+ * page just had two decorative, unwired buttons (Category B gap). */
+function renderPagination(currentQuery, page, totalPages) {
+  if (totalPages <= 1) return "";
+  const urlFor = (p) => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(currentQuery || {})) if (typeof v === "string" && v) params.set(k, v);
+    params.set("page", String(p));
+    return `/shop?${params.toString()}`;
+  };
+  const windowStart = Math.max(1, page - 2);
+  const windowEnd = Math.min(totalPages, page + 2);
+  let html = `<a href="${page > 1 ? urlFor(page - 1) : "#"}" class="${page <= 1 ? "disabled" : ""}" ${page <= 1 ? "aria-disabled=\"true\" onclick=\"return false;\"" : ""}>&lsaquo;</a>`;
+  if (windowStart > 1) html += `<a href="${urlFor(1)}">1</a>${windowStart > 2 ? "<span>…</span>" : ""}`;
+  for (let p = windowStart; p <= windowEnd; p++) html += `<a href="${urlFor(p)}" class="${p === page ? "active" : ""}">${p}</a>`;
+  if (windowEnd < totalPages) html += `${windowEnd < totalPages - 1 ? "<span>…</span>" : ""}<a href="${urlFor(totalPages)}">${totalPages}</a>`;
+  html += `<a href="${page < totalPages ? urlFor(page + 1) : "#"}" class="${page >= totalPages ? "disabled" : ""}" ${page >= totalPages ? "aria-disabled=\"true\" onclick=\"return false;\"" : ""}>&rsaquo;</a>`;
+  return html;
+}
+
 function renderFooterCategories(concerns, benefits) {
   const links = [
     ...concerns.slice(0, 4).map((c) => `<a href="/concern/${escapeHtml(c.slug)}">${escapeHtml(c.name)}</a>`),
@@ -80,6 +101,19 @@ function renderFooterCategories(concerns, benefits) {
   ];
   return links.length ? links.join("") : `<a href="/shop">Shop All</a>`;
 }
+
+/** Homepage "Shop by Category" tiles - real product_type categories,
+ * linking to the same /shop?category= filter the shop sidebar already
+ * uses. Empty state instead of inventing placeholder categories. */
+function renderCategoryTiles(categories) {
+  if (!categories.length) return `<p style="color:#888; font-size:13px;">Categories coming soon.</p>`;
+  return categories.slice(0, 8).map((c) => `
+    <a class="category-tile" href="/shop?category=${escapeHtml(c.slug)}">
+      <span class="category-tile-icon">${LEAF_ICON}</span>
+      <span class="category-tile-name">${escapeHtml(c.name)}</span>
+    </a>`).join("");
+}
+const LEAF_ICON = `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6C16 12 12 19 12 26c0 6 4 11 12 15 8-4 12-9 12-15 0-7-4-14-12-20z" fill="currentColor"/></svg>`;
 
 function injectHead(html, headMeta) {
   return html.replace("<!--SSR_HEAD-->", headMeta).replace(/<!--SSR_HEAD-->/g, "");
@@ -104,8 +138,11 @@ function productCardHtml(product) {
   const image = product.product_images?.[0]?.url;
   const stars = "★".repeat(Math.round(product.avg_rating)) + "☆".repeat(5 - Math.round(product.avg_rating));
   const bullets = parseListLines(product.short_description).slice(0, 1)[0] || "";
+  const inStock = variant ? Number(variant.stock) > 0 : false;
+  const off = variant?.mrp && variant.mrp > variant.price ? Math.round((1 - variant.price / variant.mrp) * 100) : 0;
   return `
     <div class="product-card">
+      ${off > 0 ? `<span class="pill-badge danger card-badge">${off}% OFF</span>` : ""}
       <button class="wishlist-toggle" data-wishlist-product-id="${product.id}" title="Add to Wishlist">♡</button>
       <div class="img">${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.title)}" style="width:100%;height:100%;object-fit:cover;">` : "Product Image"}</div>
       <div class="body">
@@ -115,9 +152,28 @@ function productCardHtml(product) {
         <div class="price-row">
           ${variant ? `<span class="price">${fmtPrice(variant.price)}</span>${variant.mrp && variant.mrp > variant.price ? `<span class="mrp">${fmtPrice(variant.mrp)}</span>` : ""}` : ""}
         </div>
-        <button class="add-btn" onclick="location.href='/product/${escapeHtml(product.slug)}'">View Product</button>
+        <div class="stock-row"><span class="stock-dot ${inStock ? "in" : "out"}"></span>${inStock ? "In Stock" : "Out of Stock"}</div>
+        <button class="add-btn" onclick="location.href='/product/${escapeHtml(product.slug)}'" ${inStock ? "" : "disabled"}>${inStock ? "View Product" : "Out of Stock"}</button>
       </div>
     </div>`;
+}
+
+/** Homepage "From Our Knowledge Hub" teaser - reuses the same
+ * published-posts query /blog itself runs, just capped at 3. Real
+ * cover images where set, honest "no articles yet" empty state. */
+function knowledgeHubCardHtml(post) {
+  const img = post.cover_image
+    ? `<img src="${escapeHtml(post.cover_image)}" alt="${escapeHtml(post.title)}" style="width:100%;height:100%;object-fit:cover;">`
+    : "";
+  return `
+    <a class="hub-card" href="/blog/${escapeHtml(post.slug)}">
+      <div class="hub-card-img">${img}</div>
+      <div class="hub-card-body">
+        <h4>${escapeHtml(post.title)}</h4>
+        <p>${escapeHtml(truncate(post.excerpt || "", 90))}</p>
+        <span class="hub-card-link">Read More →</span>
+      </div>
+    </a>`;
 }
 
 // ============================= HOMEPAGE =============================
@@ -126,7 +182,17 @@ router.get("/", trackPageView, async (req, res, next) => {
     const html = await cached("home", async () => {
       let template = getTemplate("index.html");
       const { items: highlights } = await listPublishedProducts({ page: 1, pageSize: 4, sort: "newest" });
-      const { items: bestSellers } = await listPublishedProducts({ page: 1, pageSize: 6, sort: "bestselling" });
+      const { items: bestSellers } = await listPublishedProducts({ page: 1, pageSize: 4, sort: "bestselling" });
+      const { data: recentPosts } = await supabaseAdmin()
+        .from("blog_posts")
+        .select("title, slug, excerpt, cover_image, published_at")
+        .eq("status", "published")
+        .order("published_at", { ascending: false })
+        .limit(3);
+      template = template.replace(
+        "<!--KNOWLEDGE_HUB-->",
+        (recentPosts || []).length ? recentPosts.map(knowledgeHubCardHtml).join("") : `<p style="color:#888;">No articles published yet - check back soon.</p>`
+      );
 
       // Phase 0 §3.1 CONFIRMED LIVE BUG: this used to regex-match
       // `<div class="product-grid">[\s\S]*?<\/div>` (non-greedy), which
@@ -141,7 +207,10 @@ router.get("/", trackPageView, async (req, res, next) => {
       template = template.replace("<!--PRODUCT_HIGHLIGHTS-->", highlights.map(productCardHtml).join(""));
       template = template.replace("<!--BEST_SELLERS-->", bestSellers.map(productCardHtml).join(""));
 
-      const [concerns, benefits] = await Promise.all([listCategories({ type: "concern" }), listCategories({ type: "benefit" })]);
+      const [concerns, benefits, productTypes] = await Promise.all([
+        listCategories({ type: "concern" }), listCategories({ type: "benefit" }), listCategories({ type: "product_type" }),
+      ]);
+      template = template.replace("<!--SHOP_CATEGORIES-->", renderCategoryTiles(productTypes));
       template = template.replace("<!--MEGA_CONCERN-->", renderMegaMenu(concerns, "concern"));
       template = template.replace("<!--MEGA_BENEFIT-->", renderMegaMenu(benefits, "benefit"));
       template = template.replace("<!--FOOTER_CATEGORIES-->", renderFooterCategories(concerns, benefits));
@@ -196,11 +265,28 @@ router.get("/shop", trackPageView, async (req, res, next) => {
         /Showing 1–12 of 86 products/,
         `Showing ${total === 0 ? 0 : (page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total} products${q ? ` for "${escapeHtml(q)}"` : ""}`
       );
+      template = template.replace("<!--SHOP_PAGINATION-->", renderPagination({ concern, benefit, goal, category, q, sort }, page, Math.max(1, Math.ceil(total / pageSize))));
 
       const [concerns, benefits, goals, productTypes] = await Promise.all([
         listCategories({ type: "concern" }), listCategories({ type: "benefit" }),
         listCategories({ type: "goal" }), listCategories({ type: "product_type" }),
       ]);
+
+      // Banner headline: the real matched category/concern/benefit/goal name
+      // when one filter is active, a search-results headline for `q`,
+      // otherwise the generic "Shop All Products" banner - never an invented
+      // category name.
+      const activeSlug = category || concern || benefit || goal;
+      const activeName = activeSlug
+        ? [...productTypes, ...concerns, ...benefits, ...goals].find((c) => c.slug === activeSlug)?.name
+        : null;
+      const bannerTitle = q ? `Search Results for "${escapeHtml(q)}"` : activeName ? escapeHtml(activeName) : "Shop All Products";
+      const bannerSub = q ? "" : activeName ? "Curated Ayurvedic solutions for this category." : "Browse our full range of authentic Ayurvedic wellness products.";
+      const crumbLabel = q ? "Search" : activeName ? escapeHtml(activeName) : "Shop All";
+      template = template.replace("<!--SHOP_BANNER_TITLE-->", bannerTitle);
+      template = template.replace("<!--SHOP_BANNER_SUB-->", bannerSub);
+      template = template.replace("<!--SHOP_CRUMB-->", crumbLabel);
+
       const currentQuery = { concern, benefit, goal, category, q };
       template = template.replace("<!--FILTER_CONCERN-->", renderFilterBlock(concerns, "concern", currentQuery));
       template = template.replace("<!--FILTER_BENEFIT-->", renderFilterBlock(benefits, "benefit", currentQuery));
@@ -239,11 +325,37 @@ router.get("/product/:slug", trackPageView, async (req, res, next) => {
     const { data: reviews } = await supabaseAdmin()
       .from("reviews").select("*").eq("product_id", product.id).eq("status", "approved").order("created_at", { ascending: false }).limit(10);
 
+    // "You May Also Like" - real products from the same category (never
+    // hardcoded demo products). Empty when this item has no category or no
+    // other published product shares it - an honest empty section, not a
+    // fabricated one.
+    let related = [];
+    if (product.category_id) {
+      const { data: relatedData } = await supabaseAdmin()
+        .from("products")
+        .select("id, title, slug, avg_rating, review_count, short_description, product_variants(id, label, sku, price, mrp, stock, sort_order), product_images(url, sort_order)")
+        .eq("status", "published")
+        .eq("category_id", product.category_id)
+        .neq("id", product.id)
+        .limit(4);
+      related = relatedData || [];
+    }
+
+    let category = null;
+    if (product.category_id) {
+      const { data: categoryData } = await supabaseAdmin().from("categories").select("id, name, slug").eq("id", product.category_id).maybeSingle();
+      category = categoryData || null;
+    }
+
     let template = getTemplate("product.html");
     const images = (product.product_images || []).sort((a, b) => a.sort_order - b.sort_order);
     const variants = (product.product_variants || []).sort((a, b) => a.sort_order - b.sort_order);
     const mainImage = images[0]?.url;
     const stars = "★".repeat(Math.round(product.avg_rating)) + "☆".repeat(5 - Math.round(product.avg_rating));
+    template = template.replace(
+      '<nav class="breadcrumbs"><a href="/">Home</a><span class="sep">&rsaquo;</span><a href="/shop">Shop</a><span class="sep">&rsaquo;</span><span class="current pd-crumb-title">Product</span></nav>',
+      `<nav class="breadcrumbs"><a href="/">Home</a><span class="sep">&rsaquo;</span><a href="/shop">Shop</a><span class="sep">&rsaquo;</span>${category ? `<a href="/shop?category=${escapeHtml(category.slug)}">${escapeHtml(category.name)}</a><span class="sep">&rsaquo;</span>` : ""}<span class="current pd-crumb-title">${escapeHtml(product.title)}</span></nav>`
+    );
 
     template = template.replace(
       /<div class="gallery-main">[\s\S]*?<\/div>/,
@@ -300,6 +412,11 @@ router.get("/product/:slug", trackPageView, async (req, res, next) => {
       ? faqs.map((f) => `<div style="margin-bottom:12px;"><b>${escapeHtml(f.question)}</b><p style="margin:4px 0 0; color:#666; font-size:13px;">${escapeHtml(f.answer)}</p></div>`).join("")
       : `<p style="color:#888;">No FAQs for this product yet.</p>`;
     template = template.replace("<!--PD_FAQS-->", faqsHtml);
+
+    template = template.replace(
+      "<!--PD_RELATED-->",
+      related.length ? related.map(productCardHtml).join("") : `<p style="color:#888;">No related products yet.</p>`
+    );
 
     const [footerConcerns, footerBenefits] = await Promise.all([listCategories({ type: "concern" }), listCategories({ type: "benefit" })]);
     template = template.replace("<!--FOOTER_CATEGORIES-->", renderFooterCategories(footerConcerns, footerBenefits));

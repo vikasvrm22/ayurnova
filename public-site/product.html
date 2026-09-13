@@ -8,46 +8,46 @@
 </head>
 <body>
 
-<div class="announce-strip"><div class="container"><span>COD AVAILABLE</span><span>FREE SHIPPING ABOVE ₹599</span><span>Use Code <b>NEW10</b> for 10% Off</span></div></div>
+<div class="announce-strip"><div class="container"><span>🌿 COD Available</span><span>🚚 Free Shipping above ₹599</span><span>🏷️ Use Code <b>NEW10</b> for 10% Off</span></div></div>
 
 <header class="site-header">
   <div class="container">
     <a class="brand" href="/"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4C13 4 6 13 6 24c0 4 1.3 8.4 4.3 12.4C13.6 40.8 18.3 44 24 44c5.7 0 10.4-3.2 13.7-7.6C40.7 32.4 42 28 42 24 42 13 35 4 24 4z" fill="currentColor" opacity=".12"/><path d="M24 6C16 12 12 19 12 26c0 6 4 11 12 15 8-4 12-9 12-15 0-7-4-14-12-20z" fill="currentColor"/><path d="M24 10v26" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".55"/></svg><div class="brand-text"><h1>AyurNova</h1><span>Ancient Wisdom | Modern Wellness</span></div></a>
     <form class="header-search" action="/shop" method="get"><input type="text" name="q" placeholder="Search products, concerns, ingredients..."><button type="submit">Search</button></form>
-    <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/account#wishlist-section" title="Wishlist">🤍<span class="wishlist-count">0</span></a><a href="/cart">🛒<span class="cart-count">2</span></a></div>
+    <div class="header-icons">
+      <a href="/account"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Account</span></a>
+      <a href="/account#wishlist-section" title="Wishlist"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7.5-4.6-10-9.3C.4 8.4 2 5 5.4 5c2 0 3.4 1 4.6 2.6C11.2 6 12.6 5 14.6 5 18 5 19.6 8.4 22 11.7 19.5 16.4 12 21 12 21z"/></svg><span class="wishlist-count">0</span></a>
+      <a href="/cart"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h2l1.4 10.6a2 2 0 0 0 2 1.7h8.2a2 2 0 0 0 2-1.6L20 9H6"/><circle cx="9.5" cy="21" r="1.2" fill="currentColor" stroke="none"/><circle cx="17" cy="21" r="1.2" fill="currentColor" stroke="none"/></svg><span class="cart-count">0</span></a>
+    </div>
   </div>
 </header>
 
 <nav class="main-nav">
   <div class="container">
-    <a href="/">Home</a><a href="/shop">Shop All</a>
-    <a href="/shop?f=concern">Shop by Health Concern</a><a href="/shop?f=benefit">Shop by Benefit</a>
-    <a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a><a href="/blog">Blog</a>
+    <a href="/shop">Shop All</a>
+    <div class="has-mega" style="position:relative;"><a href="/shop?f=concern">By Concern ▾</a><div class="mega-menu"><!--MEGA_CONCERN--></div></div>
+    <div class="has-mega" style="position:relative;"><a href="/shop?f=benefit">By Benefit ▾</a><div class="mega-menu"><!--MEGA_BENEFIT--></div></div>
+    <a href="/dosha-test">Wellness Test</a><a href="/routines">Routines</a><a href="/consult-vaidya">Consult a Vaidya</a><a href="/blog">Knowledge Hub</a><a href="/about">About Us</a>
   </div>
 </nav>
 
 <div class="container">
-  <p style="font-size:12.5px; color:#888; margin:14px 0 0;"><a href="/">Home</a> &rsaquo; <a href="/shop">Digestive Health</a> &rsaquo; Amlant Tablet</p>
+  <nav class="breadcrumbs"><a href="/">Home</a><span class="sep">&rsaquo;</span><a href="/shop">Shop</a><span class="sep">&rsaquo;</span><span class="current pd-crumb-title">Product</span></nav>
 
-  <div class="product-detail" style="margin-top:14px;">
-    <div>
+  <div class="product-detail">
+    <div class="pd-gallery">
       <div class="gallery-main">Main Product Image</div>
       <div class="gallery-thumbs"><div></div><div></div><div></div><div></div></div>
     </div>
-    <div>
+    <div class="pd-info">
       <h2 class="pd-title">Maharishi Ayurveda Amlant Tablet — Ayurvedic Support for Recurring Acidity</h2>
       <div class="stars">★★★★★ <span class="reviews">313 reviews</span></div>
       <div class="pd-price-row"><span class="pd-price">₹380</span></div>
-
-      <ul class="pd-benefits">
-        <li>Natural acid balancer</li>
-        <li>Reduces reoccurrence of acidity</li>
-        <li>Reduces stomach bloating and constipation</li>
-      </ul>
+      <p class="pd-tax-note">Inclusive of all taxes</p>
 
       <div id="pd-tags" style="display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;"></div>
 
-      <div style="font-size:13px; font-weight:700; margin-top:14px;">Select Pack Size:</div>
+      <div class="pd-section-label">Pack Size:</div>
       <div class="pd-packs">
         <span class="pack-pill sel">Pack of 60 Tablets — ₹380</span>
         <span class="pack-pill">Pack of 120 Tablets — ₹699</span>
@@ -83,6 +83,28 @@
       <div id="tab-reviews" class="pd-tab-content" style="display:none;"><!--PD_REVIEWS--></div>
       <div id="tab-faqs" class="pd-tab-content" style="display:none;"><!--PD_FAQS--></div>
     </div>
+    <aside class="pd-sidebar">
+      <div class="pd-sidebar-card">
+        <h4>Key Benefits</h4>
+        <ul class="pd-benefits">
+          <li>Natural acid balancer</li>
+          <li>Reduces reoccurrence of acidity</li>
+          <li>Reduces stomach bloating and constipation</li>
+        </ul>
+      </div>
+      <div class="pd-sidebar-card trust">
+        <h4>Trust &amp; Quality</h4>
+        <div class="pd-trust-grid">
+          <div>🌿 100% Natural</div><div>📜 Ayurveda Backed</div>
+          <div>🧪 Lab Tested</div><div>🇮🇳 Made in India</div>
+        </div>
+      </div>
+      <div class="pd-sidebar-card highlight">
+        <h4>Need Help Choosing?</h4>
+        <p>Take our free wellness test to find products that suit your unique needs.</p>
+        <a class="btn-outline-solid" href="/dosha-test">Take Wellness Test →</a>
+      </div>
+    </aside>
   </div>
 
   <div id="for-you-section" style="display:none;">
@@ -92,11 +114,7 @@
   </div>
 
   <h3 class="section-title">You May Also Like</h3>
-  <div class="carousel-strip">
-    <div class="product-card"><div class="img">Image</div><div class="body"><div class="title">Dizomap — Gas &amp; Indigestion</div><div class="stars">★★★★★ <span class="reviews">(276)</span></div><div class="price-row"><span class="price">₹197</span></div><button class="add-btn" onclick="location.href='product.html'">View</button></div></div>
-    <div class="product-card"><div class="img">Image</div><div class="body"><div class="title">Livomap — Liver Health</div><div class="stars">★★★★★ <span class="reviews">(165)</span></div><div class="price-row"><span class="price">₹550</span></div><button class="add-btn" onclick="location.href='product.html'">View</button></div></div>
-    <div class="product-card"><div class="img">Image</div><div class="body"><div class="title">Triphala Tablets</div><div class="stars">★★★★★ <span class="reviews">(52)</span></div><div class="price-row"><span class="price">₹190</span></div><button class="add-btn" onclick="location.href='product.html'">View</button></div></div>
-  </div>
+  <div class="product-grid"><!--PD_RELATED--></div>
 </div>
 
 <footer class="mega-footer">
@@ -105,9 +123,8 @@
     <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a><a href="/faq">FAQ</a></div>
     <div><h5>Policies</h5><a href="/terms-and-conditions">Terms of Service</a><a href="/return-refund-policy">Return &amp; Refund</a><a href="/privacy-policy">Privacy Policy</a><a href="/shipping-policy">Shipping Policy</a></div>
     <div><h5>Quick Links</h5><a href="/shop">Shop by Product</a><a href="/consult-vaidya">Consult a Vaidya</a></div>
-    <div><h5>Newsletter</h5><input type="email" placeholder="Your email" style="width:100%;padding:8px;border-radius:6px;border:none;margin-bottom:8px;"><button style="width:100%;padding:8px;background:var(--gold);color:#fff;border:none;border-radius:6px;">Subscribe</button></div>
   </div>
-  <div class="footer-bottom">© 2026 AyurNova</div>
+  <div class="footer-bottom">© 2026 AyurNova. All rights reserved.</div>
 </footer>
 
 <script>

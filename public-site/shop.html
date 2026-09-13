@@ -8,33 +8,48 @@
 </head>
 <body>
 
-<div class="announce-strip"><div class="container"><span>COD AVAILABLE</span><span>FREE SHIPPING ABOVE ₹599</span><span>Use Code <b>NEW10</b> for 10% Off</span></div></div>
+<div class="announce-strip"><div class="container"><span>🌿 COD Available</span><span>🚚 Free Shipping above ₹599</span><span>🏷️ Use Code <b>NEW10</b> for 10% Off</span></div></div>
 
 <header class="site-header">
   <div class="container">
     <a class="brand" href="/"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4C13 4 6 13 6 24c0 4 1.3 8.4 4.3 12.4C13.6 40.8 18.3 44 24 44c5.7 0 10.4-3.2 13.7-7.6C40.7 32.4 42 28 42 24 42 13 35 4 24 4z" fill="currentColor" opacity=".12"/><path d="M24 6C16 12 12 19 12 26c0 6 4 11 12 15 8-4 12-9 12-15 0-7-4-14-12-20z" fill="currentColor"/><path d="M24 10v26" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".55"/></svg><div class="brand-text"><h1>AyurNova</h1><span>Ancient Wisdom | Modern Wellness</span></div></a>
     <form class="header-search" action="/shop" method="get"><input type="text" name="q" placeholder="Search products, concerns, ingredients..."><button type="submit">Search</button></form>
-    <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/account#wishlist-section" title="Wishlist">🤍<span class="wishlist-count">0</span></a><a href="/cart">🛒<span class="cart-count">2</span></a></div>
+    <div class="header-icons">
+      <a href="/account"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Account</span></a>
+      <a href="/account#wishlist-section" title="Wishlist"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7.5-4.6-10-9.3C.4 8.4 2 5 5.4 5c2 0 3.4 1 4.6 2.6C11.2 6 12.6 5 14.6 5 18 5 19.6 8.4 22 11.7 19.5 16.4 12 21 12 21z"/></svg><span class="wishlist-count">0</span></a>
+      <a href="/cart"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h2l1.4 10.6a2 2 0 0 0 2 1.7h8.2a2 2 0 0 0 2-1.6L20 9H6"/><circle cx="9.5" cy="21" r="1.2" fill="currentColor" stroke="none"/><circle cx="17" cy="21" r="1.2" fill="currentColor" stroke="none"/></svg><span class="cart-count">0</span></a>
+    </div>
   </div>
 </header>
 
 <nav class="main-nav">
   <div class="container">
-    <a href="/">Home</a><a href="/shop" class="active">Shop All</a>
+    <a href="/shop" class="active">Shop All</a>
     <div class="has-mega" style="position:relative;">
-      <a href="/shop?f=concern">Shop by Health Concern ▾</a>
+      <a href="/shop?f=concern">By Concern ▾</a>
       <div class="mega-menu"><!--MEGA_CONCERN--></div>
     </div>
     <div class="has-mega" style="position:relative;">
-      <a href="/shop?f=benefit">Shop by Benefit ▾</a>
+      <a href="/shop?f=benefit">By Benefit ▾</a>
       <div class="mega-menu"><!--MEGA_BENEFIT--></div>
     </div>
-    <a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a><a href="/routines">Routines</a><a href="/for-you">For You</a><a href="/blog">Blog</a>
+    
+    <a href="/dosha-test">Wellness Test</a>
+    <a href="/routines">Routines</a>
+    <a href="/consult-vaidya">Consult a Vaidya</a>
+    <a href="/blog">Knowledge Hub</a>
+    <a href="/about">About Us</a>
   </div>
 </nav>
 
 <div class="container">
-  <p style="font-size:12.5px; color:#888; margin:14px 0 0;"><a href="/">Home</a> &rsaquo; Shop All</p>
+  <nav class="breadcrumbs"><a href="/">Home</a><span class="sep">&rsaquo;</span><span class="current"><!--SHOP_CRUMB--></span></nav>
+
+  <div class="shop-banner">
+    <h2><!--SHOP_BANNER_TITLE--></h2>
+    <p><!--SHOP_BANNER_SUB--></p>
+  </div>
+
   <div class="page-layout">
     <aside class="filter-sidebar">
       <div class="filter-block">
@@ -55,31 +70,32 @@
       </div>
       <div class="filter-block">
         <h4>Price Range</h4>
-        <label><input type="checkbox"> Under ₹200</label>
-        <label><input type="checkbox"> ₹200 – ₹500</label>
-        <label><input type="checkbox"> ₹500 – ₹1000</label>
-        <label><input type="checkbox"> Above ₹1000</label>
+        <label><input type="checkbox" disabled> Under ₹200</label>
+        <label><input type="checkbox" disabled> ₹200 – ₹500</label>
+        <label><input type="checkbox" disabled> ₹500 – ₹1000</label>
+        <label><input type="checkbox" disabled> Above ₹1000</label>
       </div>
       <div class="filter-block">
         <h4>Rating</h4>
-        <label><input type="checkbox"> ★★★★ &amp; up</label>
-        <label><input type="checkbox"> ★★★ &amp; up</label>
+        <label><input type="checkbox" disabled> ★★★★ &amp; up</label>
+        <label><input type="checkbox" disabled> ★★★ &amp; up</label>
       </div>
     </aside>
 
     <main>
       <div class="sort-row">
         <div style="font-size:13.5px; color:#555;">Showing 1–12 of 86 products</div>
-        <select><option>Sort by: Best Selling</option><option>Price: Low to High</option><option>Price: High to Low</option><option>Newest</option><option>Rating</option></select>
+        <select onchange="location.href=this.value">
+          <option value="/shop?sort=bestselling">Sort by: Best Selling</option>
+          <option value="/shop?sort=newest">Newest First</option>
+          <option value="/shop?sort=oldest">Oldest First</option>
+          <option value="/shop?sort=rating">Highest Rated</option>
+        </select>
       </div>
 
       <div class="product-grid"><!--SHOP_PRODUCTS--></div>
 
-      <div style="display:flex; gap:8px; justify-content:center; margin-top:24px;">
-        <button class="btn-outline" style="padding:8px 14px; border:1px solid var(--hairline); background:#fff; border-radius:6px;">Prev</button>
-        <span style="padding:8px;">Page 1 of 8</span>
-        <button style="padding:8px 14px; border:1px solid var(--hairline); background:#fff; border-radius:6px;">Next</button>
-      </div>
+      <div class="pagination-row"><!--SHOP_PAGINATION--></div>
     </main>
   </div>
 </div>
@@ -90,9 +106,8 @@
     <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a><a href="/faq">FAQ</a></div>
     <div><h5>Policies</h5><a href="/terms-and-conditions">Terms of Service</a><a href="/return-refund-policy">Return &amp; Refund</a><a href="/privacy-policy">Privacy Policy</a><a href="/shipping-policy">Shipping Policy</a></div>
     <div><h5>Quick Links</h5><a href="/shop">Shop by Product</a><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a></div>
-    <div><h5>Newsletter</h5><input type="email" placeholder="Your email" style="width:100%;padding:8px;border-radius:6px;border:none;margin-bottom:8px;"><button style="width:100%;padding:8px;background:var(--gold);color:#fff;border:none;border-radius:6px;">Subscribe</button></div>
   </div>
-  <div class="footer-bottom">© 2026 AyurNova</div>
+  <div class="footer-bottom">© 2026 AyurNova. All rights reserved.</div>
 </footer>
 </body>
 </html>
