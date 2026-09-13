@@ -233,10 +233,12 @@ router.get(
 router.get(
   "/webhooks",
   asyncRoute(async (req, res) => {
-    const { status, eventType } = req.query;
+    const { status, eventType, from, to } = req.query;
     let query = supabaseAdmin().from("webhook_events").select("*", { count: "exact" }).order("created_at", { ascending: false });
     if (status) query = query.eq("processing_status", status);
     if (eventType) query = query.eq("event_type", eventType);
+    if (from) query = query.gte("created_at", from);
+    if (to) query = query.lte("created_at", to);
 
     const { page, pageSize } = parsePagination(req.query);
     query = query.range((page - 1) * pageSize, page * pageSize - 1);
@@ -247,14 +249,18 @@ router.get(
     // Stats for the last 24h - the reference dashboard's summary tiles.
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: recent } = await supabaseAdmin().from("webhook_events").select("processing_status").gte("created_at", since);
-    const stats = { total24h: (recent || []).length, processed: 0, failed: 0, other: 0 };
+    const stats = { total24h: (recent || []).length, processed: 0, failed: 0, processing: 0, other: 0 };
     for (const r of recent || []) {
       if (r.processing_status === "PROCESSED") stats.processed++;
       else if (r.processing_status === "ERROR") stats.failed++;
+      else if (r.processing_status === "RECEIVED") stats.processing++;
       else stats.other++;
     }
 
-    res.json({ items: data, total: count, page, pageSize, stats });
+    const { data: latest } = await supabaseAdmin().from("webhook_events").select("event_type, created_at").order("created_at", { ascending: false }).limit(1);
+    const lastEvent = (latest && latest[0]) || null;
+
+    res.json({ items: data, total: count, page, pageSize, stats, lastEvent });
   })
 );
 

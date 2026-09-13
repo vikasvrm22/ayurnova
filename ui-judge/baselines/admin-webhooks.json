@@ -1,0 +1,16 @@
+{
+  "page": "admin-webhooks",
+  "overall": 80,
+  "categoryScores": {
+    "layout": 48,
+    "components": 100,
+    "typography": 100,
+    "spacing": null,
+    "assets": 100,
+    "colors": 99,
+    "responsive": 60,
+    "functional": 87
+  },
+  "savedAt": "2026-09-13T19:59:06.092Z",
+  "reportPath": "D:\\FinalAyurveda\\ayurveda-store-full-project\\ayur-app\\ui-judge\\reports\\admin-webhooks__2026-09-13T19-59-06-086Z.json"
+}

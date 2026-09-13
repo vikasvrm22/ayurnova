@@ -56,40 +56,68 @@
     </div>
   </div>
   <main class="main-area">
+    <div class="breadcrumb"><a href="payments-list.html">Payments</a> <span>&rsaquo;</span> <span>Webhooks</span></div>
     <div class="page-header">
-      <div><h2>Webhook / Payment Processing Status</h2><div class="sub">Every Razorpay webhook this app has received, and how it was processed</div></div>
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <span class="page-icon">🔗</span>
+        <div><h2>Webhook / Payment Processing</h2><div class="sub">View and monitor Razorpay webhook events and payment processing status.</div></div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <span id="webhook-active-indicator" style="font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:6px;"></span>
+        <a class="btn btn-outline" href="integrations.html#section-razorpay" style="text-decoration:none;">⚙️ Webhook Settings</a>
+      </div>
     </div>
 
     <div class="cards-row" id="stat-cards">Loading...</div>
 
+    <div class="tabs-row" id="webhook-tabs">
+      <button data-status="" class="active">Event Logs</button>
+      <button data-status="RECEIVED">Processing Queue <span id="tab-count-processing"></span></button>
+      <button data-status="ERROR">Failed Events <span id="tab-count-failed"></span></button>
+    </div>
+
     <div class="two-col">
       <div>
         <div class="filters-row">
+          <select id="f-event-type"><option value="">All Events</option></select>
           <select id="f-status">
-            <option value="">All Statuses</option>
+            <option value="">All Status</option>
             <option value="PROCESSED">Processed</option>
             <option value="IGNORED">Ignored</option>
             <option value="ERROR">Error</option>
             <option value="RECEIVED">Received</option>
           </select>
+          <input type="date" id="f-from" title="From date">
+          <input type="date" id="f-to" title="To date">
+          <input type="text" id="f-search" placeholder="Search by Payment ID, Order ID, or Event ID...">
+          <button class="btn btn-outline" id="f-clear">Clear Filters</button>
         </div>
         <table class="data-table">
-          <thead><tr><th>Time</th><th>Event Type</th><th>Signature</th><th>Status</th><th>Note</th></tr></thead>
+          <thead><tr><th>Time</th><th>Event Type</th><th>Payment ID</th><th>Signature</th><th>Status</th></tr></thead>
           <tbody id="rows"><tr><td colspan="5">Loading...</td></tr></tbody>
         </table>
         <div class="pagination-row" id="pagination"></div>
       </div>
       <div>
         <div class="card" id="detail-card" style="display:none;">
-          <h3 style="margin-top:0;">Event Details</h3>
-          <div id="detail-body" style="font-size:12.5px; line-height:1.8;"></div>
-          <h4 style="margin-bottom:6px;">Payload</h4>
-          <pre id="detail-payload" style="background:#0f1720; color:#c9e2c9; padding:12px; border-radius:8px; font-size:11px; overflow:auto; max-height:400px;"></pre>
+          <div class="page-header" style="margin:0 0 10px;"><h3 style="margin:0;">Event Details</h3><span id="detail-status-badge"></span></div>
+          <div id="detail-body" style="font-size:12.5px; line-height:1.9;"></div>
+          <div class="tabs-row" id="detail-tabs" style="margin:14px 0 10px;">
+            <button data-tab="payload" class="active">Payload</button>
+            <button data-tab="log">Processing Log</button>
+          </div>
+          <pre id="detail-payload" style="background:#0f1720; color:#c9e2c9; padding:12px; border-radius:8px; font-size:11px; overflow:auto; max-height:360px;"></pre>
+          <div id="detail-log" style="display:none; font-size:12.5px;"></div>
         </div>
         <div class="card" id="detail-empty">
           <p style="color:#888; font-size:13px;">Select an event on the left to see its full payload and processing note.</p>
         </div>
       </div>
+    </div>
+
+    <div class="alert-banner info" style="margin-top:16px;">
+      <div><strong>Webhook Security:</strong> we verify webhook signatures to ensure all events are from Razorpay. Invalid signatures are automatically rejected.
+      <a href="https://razorpay.com/docs/webhooks/" target="_blank" rel="noopener">View Documentation ↗</a></div>
     </div>
   </main>
   </div>
@@ -100,27 +128,60 @@
   function fmtDate(s){ return new Date(s).toLocaleString("en-IN"); }
   const STATUS_BADGE = { PROCESSED: "delivered", IGNORED: "shipped", ERROR: "cancelled", RECEIVED: "pending" };
 
+  // Best-effort extraction from Razorpay's own webhook payload shape
+  // (payload.payment.entity.*) - already stored as-is in webhook_events.payload,
+  // not a new data source. Falls back to "-" rather than guessing.
+  function paymentEntity(w) { return w.payload?.payload?.payment?.entity || null; }
+  function extractPaymentId(w) { return paymentEntity(w)?.id || "-"; }
+  function extractAmount(w) { const p = paymentEntity(w); return p?.amount != null ? "₹" + (p.amount / 100).toLocaleString("en-IN") : "-"; }
+  function extractMethod(w) { return paymentEntity(w)?.method || "-"; }
+  function extractOrderNotes(w) { return paymentEntity(w)?.notes?.order_id || paymentEntity(w)?.notes?.order_number || "-"; }
+
   async function load() {
     const status = document.getElementById("f-status").value;
+    const eventType = document.getElementById("f-event-type").value;
+    const from = document.getElementById("f-from").value;
+    const to = document.getElementById("f-to").value;
+    const q = document.getElementById("f-search").value.trim().toLowerCase();
     const params = new URLSearchParams({ page: state.page, pageSize: state.pageSize });
     if (status) params.set("status", status);
+    if (eventType) params.set("eventType", eventType);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to + "T23:59:59");
     try {
       const data = await Api.get(`/payments/webhooks?${params.toString()}`);
       const s = data.stats;
       document.getElementById("stat-cards").innerHTML = `
-        <div class="stat-card"><div class="num">${s.total24h}</div><div class="label">Total Events (24h)</div></div>
-        <div class="stat-card"><div class="num">${s.processed}</div><div class="label">Processed (24h)</div></div>
-        <div class="stat-card"><div class="num">${s.failed}</div><div class="label">Failed / Invalid Signature (24h)</div></div>
-        <div class="stat-card"><div class="num">${s.other}</div><div class="label">Ignored / Received (24h)</div></div>`;
+        <div class="stat-card stat-card-total"><div class="stat-card-icon">📋</div><div><div class="num">${s.total24h}</div><div class="label">Total Events (24h)</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#e6f4ea; color:#0e7a33;">✓</div><div><div class="num">${s.processed}</div><div class="label">Processed</div><div class="sub-detail">${s.total24h ? ((s.processed / s.total24h) * 100).toFixed(1) : 0}%</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#fff3e0; color:var(--warn);">🕐</div><div><div class="num">${s.processing}</div><div class="label">Processing</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#fdecec; color:var(--danger);">✕</div><div><div class="num">${s.failed}</div><div class="label">Failed</div><div class="sub-detail">${s.total24h ? ((s.failed / s.total24h) * 100).toFixed(1) : 0}%</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#ede4fb; color:#6b3fa0;">↺</div><div><div class="num" style="font-size:14px;">${data.lastEvent ? fmtDate(data.lastEvent.created_at) : "Never"}</div><div class="label">Last Event</div><div class="sub-detail">${data.lastEvent ? data.lastEvent.event_type : ""}</div></div></div>`;
 
-      document.getElementById("rows").innerHTML = data.items.length ? data.items.map(w => `
+      document.getElementById("webhook-active-indicator").innerHTML = data.lastEvent && (Date.now() - new Date(data.lastEvent.created_at).getTime()) < 24 * 60 * 60 * 1000
+        ? `<span style="width:8px; height:8px; border-radius:50%; background:var(--success); display:inline-block;"></span> Webhook Active`
+        : `<span style="width:8px; height:8px; border-radius:50%; background:var(--muted); display:inline-block;"></span> No events in 24h`;
+
+      document.getElementById("tab-count-processing").textContent = "";
+      document.getElementById("tab-count-failed").textContent = "";
+      const eventTypeSelect = document.getElementById("f-event-type");
+      if (!eventTypeSelect.dataset.populated) {
+        const types = [...new Set(data.items.map((w) => w.event_type))];
+        eventTypeSelect.innerHTML += types.map((t) => `<option value="${t}">${t}</option>`).join("");
+        eventTypeSelect.dataset.populated = "1";
+      }
+
+      let items = data.items;
+      if (q) items = items.filter((w) => [extractPaymentId(w), extractOrderNotes(w), w.event_id].some((v) => (v || "").toLowerCase().includes(q)));
+
+      document.getElementById("rows").innerHTML = items.length ? items.map(w => `
         <tr style="cursor:pointer;" onclick='showDetail(${JSON.stringify(w).replace(/'/g, "&#39;")})'>
           <td>${fmtDate(w.created_at)}</td>
           <td>${w.event_type}</td>
+          <td style="font-size:11px;">${extractPaymentId(w)}</td>
           <td>${w.signature_valid ? "✅ Valid" : "❌ Invalid"}</td>
           <td><span class="badge badge-${STATUS_BADGE[w.processing_status] || "pending"}">${w.processing_status}</span></td>
-          <td style="color:#888; font-size:11.5px;">${w.processing_note || "-"}</td>
-        </tr>`).join("") : `<tr><td colspan="5">No webhook events received yet.</td></tr>`;
+        </tr>`).join("") : `<tr><td colspan="5">No webhook events found.</td></tr>`;
 
       const totalPages = Math.max(1, Math.ceil(data.total / state.pageSize));
       document.getElementById("pagination").innerHTML = `
@@ -137,17 +198,56 @@
   function showDetail(w) {
     document.getElementById("detail-empty").style.display = "none";
     document.getElementById("detail-card").style.display = "block";
+    document.getElementById("detail-status-badge").innerHTML = `<span class="badge badge-${STATUS_BADGE[w.processing_status] || "pending"}">${w.processing_status}</span>`;
     document.getElementById("detail-body").innerHTML = `
       <div><b>Event ID:</b> ${w.event_id}</div>
       <div><b>Event Type:</b> ${w.event_type}</div>
-      <div><b>Received:</b> ${fmtDate(w.created_at)}</div>
-      <div><b>Signature Verified:</b> ${w.signature_valid ? "Yes" : "No"}</div>
-      <div><b>Processing Status:</b> <span class="badge badge-${STATUS_BADGE[w.processing_status] || "pending"}">${w.processing_status}</span></div>
-      ${w.processing_note ? `<div><b>Note:</b> ${w.processing_note}</div>` : ""}`;
+      <div><b>Received At:</b> ${fmtDate(w.created_at)}</div>
+      <div><b>Payment ID:</b> ${extractPaymentId(w)}</div>
+      <div><b>Order Reference:</b> ${extractOrderNotes(w)}</div>
+      <div><b>Amount:</b> ${extractAmount(w)}</div>
+      <div><b>Method:</b> ${extractMethod(w)}</div>
+      <div><b>Signature Verified:</b> <span class="badge badge-${w.signature_valid ? "instock" : "outofstock"}">${w.signature_valid ? "Valid" : "Invalid"}</span></div>`;
     document.getElementById("detail-payload").textContent = JSON.stringify(w.payload, null, 2);
+    document.getElementById("detail-log").innerHTML = `
+      <div style="display:flex; gap:8px;"><span class="micro">${fmtDate(w.created_at)}</span><span>${w.processing_note || `Event ${w.processing_status.toLowerCase()}.`}</span></div>
+    `;
+    document.querySelectorAll("#detail-tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === "payload"));
+    document.getElementById("detail-payload").style.display = "block";
+    document.getElementById("detail-log").style.display = "none";
   }
 
+  document.getElementById("detail-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-tab]");
+    if (!btn) return;
+    document.querySelectorAll("#detail-tabs button").forEach((b) => b.classList.toggle("active", b === btn));
+    document.getElementById("detail-payload").style.display = btn.dataset.tab === "payload" ? "block" : "none";
+    document.getElementById("detail-log").style.display = btn.dataset.tab === "log" ? "block" : "none";
+  });
+
+  document.getElementById("webhook-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-status]");
+    if (!btn) return;
+    document.getElementById("f-status").value = btn.dataset.status;
+    state.page = 1;
+    document.querySelectorAll("#webhook-tabs button").forEach((b) => b.classList.toggle("active", b === btn));
+    load();
+  });
   document.getElementById("f-status").addEventListener("change", () => { state.page = 1; load(); });
+  document.getElementById("f-event-type").addEventListener("change", () => { state.page = 1; load(); });
+  document.getElementById("f-from").addEventListener("change", () => { state.page = 1; load(); });
+  document.getElementById("f-to").addEventListener("change", () => { state.page = 1; load(); });
+  document.getElementById("f-search").addEventListener("input", () => { state.page = 1; load(); });
+  document.getElementById("f-clear").addEventListener("click", () => {
+    document.getElementById("f-status").value = "";
+    document.getElementById("f-event-type").value = "";
+    document.getElementById("f-from").value = "";
+    document.getElementById("f-to").value = "";
+    document.getElementById("f-search").value = "";
+    document.querySelectorAll("#webhook-tabs button").forEach((b) => b.classList.toggle("active", b.dataset.status === ""));
+    state.page = 1;
+    load();
+  });
   load();
 </script>
 </body>

@@ -124,6 +124,17 @@
       ],
       "requiresAuth": true,
       "waitForSelector": "#stat-cards .stat-card"
+    },
+    {
+      "name": "admin-webhooks",
+      "route": "/admin/webhooks.html",
+      "reference": "../../public-site/design-ref/Phase2 14. Webhook  Payment Processing Status.png",
+      "viewport": { "width": 1672, "height": 941 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#stat-cards .stat-card"
     }
   ]
 }
