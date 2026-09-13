@@ -6,7 +6,7 @@
     {
       "name": "admin-login",
       "route": "/admin/login.html",
-      "reference": "../../public-site/design-ref/Phase1 08 AdminLogin.png",
+      "reference": "../references/admin-login-panel1.png",
       "viewport": { "width": 1440, "height": 900 },
       "additionalViewports": [
         { "name": "mobile", "width": 390, "height": 844 }

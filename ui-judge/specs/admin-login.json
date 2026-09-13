@@ -1,0 +1,53 @@
+{
+  "page": "admin-login",
+  "source": "authored",
+  "generatedAt": "2026-09-13T17:30:00.000Z",
+  "reference": { "path": "../references/admin-login-panel1.png", "width": 520, "height": 540 },
+  "sections": {
+    "expectedOrder": [".login-side", ".login-side-brand", ".login-side-list", ".login-side-art", ".login-box", "#login-email", "#login-password", "button[type=submit]"],
+    "confidence": "high",
+    "note": "Split-screen login: green brand/feature panel on the left, white credentials form on the right, per Phase1 08 AdminLogin.png panel 1 (Admin Login - Default)."
+  },
+  "colors": {
+    "dominant": [
+      { "hex": "#1e3a22", "pct": 0.30 },
+      { "hex": "#ffffff", "pct": 0.45 },
+      { "hex": "#f4f6fb", "pct": 0.15 },
+      { "hex": "#c9932f", "pct": 0.03 }
+    ],
+    "confidence": "medium"
+  },
+  "typography": {
+    "hierarchy": [
+      { "selector": ".login-box h1", "expectedFontSizePx": 24, "expectedFontWeight": "700" },
+      { "selector": ".login-sub", "expectedFontSizePx": 13, "expectedFontWeight": "400" },
+      { "selector": ".login-side h2", "expectedFontSizePx": 22, "expectedFontWeight": "700" },
+      { "selector": ".login-box label", "expectedFontSizePx": 13, "expectedFontWeight": "600" }
+    ],
+    "confidence": "medium"
+  },
+  "spacing": {
+    "expectations": [
+      { "selectorA": ".login-box h1", "selectorB": ".login-sub", "axis": "vertical", "expectedGapPx": 4, "tolerancePx": 4 },
+      { "selectorA": ".login-sub", "selectorB": "label", "axis": "vertical", "expectedGapPx": 22, "tolerancePx": 10 }
+    ],
+    "confidence": "medium"
+  },
+  "components": {
+    "expected": [
+      { "name": "Brand mark + wordmark", "selector": ".login-side-brand", "critical": true },
+      { "name": "Feature bullet list", "selector": ".login-side-list", "critical": true },
+      { "name": "Decorative art panel with caption", "selector": ".login-side-art", "critical": false },
+      { "name": "Login heading", "selector": ".login-box h1", "critical": true, "expectedText": "Welcome Back" },
+      { "name": "Email field", "selector": "#login-email", "critical": true },
+      { "name": "Password field", "selector": "#login-password", "critical": true },
+      { "name": "Password visibility toggle", "selector": "#login-password-toggle", "critical": false },
+      { "name": "Login submit button", "selector": "button[type=submit]", "critical": true, "expectedText": "Login", "expectedStyle": { "borderRadius": "8px" } },
+      { "name": "Footnote", "selector": ".login-footnote", "critical": false }
+    ],
+    "confidence": "medium"
+  },
+  "assets": { "images": [], "confidence": "medium", "note": "Decorative art panel is an inline SVG, not a raster asset - reference uses a stock photo which is not available in the project's asset library; represented with an SVG botanical illustration instead of inventing/fetching a stock photo." },
+  "borders": { "confidence": "low" },
+  "responsive": { "expectations": [], "confidence": "low", "note": "Checked generically via overflow detection at 1440x900 and 390x844 (config) plus an ad-hoc 768x1024 check - no authored per-breakpoint layout rules." }
+}

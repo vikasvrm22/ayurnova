@@ -1,0 +1,16 @@
+{
+  "page": "admin-login",
+  "overall": 89,
+  "categoryScores": {
+    "layout": 57,
+    "components": 100,
+    "typography": 100,
+    "spacing": 100,
+    "assets": 100,
+    "colors": 90,
+    "responsive": 100,
+    "functional": 100
+  },
+  "savedAt": "2026-09-13T17:34:56.011Z",
+  "reportPath": "D:\\FinalAyurveda\\ayurveda-store-full-project\\ayur-app\\ui-judge\\reports\\admin-login__2026-09-13T17-34-56-003Z.json"
+}
