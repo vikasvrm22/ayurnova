@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vaidya Bookings — AyurNova Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<title>Payment Reconciliation — AyurNova Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
 <script>requireAdminAuth();</script>
 </head>
 <body>
@@ -25,11 +25,11 @@
       <a href="returns.html">Returns</a>
       <a href="coupons.html">Coupons</a>
       <a href="reviews.html">Reviews</a>
-      <a href="vaidya-bookings.html" class="active">Vaidya Bookings</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a>
       <div class="sidebar-group-label">Payments</div>
       <a href="payments-list.html">Payments</a>
       <a href="refunds.html">Refunds</a>
-      <a href="reconciliation.html">Reconciliation</a>
+      <a href="reconciliation.html" class="active">Reconciliation</a>
       <a href="invoices.html">Invoices</a>
       <a href="integrations.html">Integrations</a>
       <div class="sidebar-group-label">Admin</div>
@@ -54,34 +54,52 @@
     </div>
   </div>
   <main class="main-area">
-    <div class="page-header"><h2>Consult-a-Vaidya Bookings</h2></div>
+    <div class="page-header">
+      <div><h2>Payment Reconciliation</h2><div class="sub">Track which successful payments have a confirmed, consistent Razorpay record</div></div>
+    </div>
+
+    <div class="alert-banner info">
+      <div><strong>What this shows:</strong> a payment is marked "Matched" once an admin has run a per-payment reconciliation check (Payment Detail → Run Reconciliation) and it came back consistent with Razorpay's API. This app does not yet import Razorpay's bank settlement files, so this view cannot confirm money has landed in your account - only that our record and Razorpay's payment record agree.</div>
+    </div>
+
+    <div class="cards-row" id="stat-cards">Loading...</div>
+
     <table class="data-table">
-      <thead><tr><th>Name</th><th>Phone</th><th>Concern</th><th>Preferred Vaidya</th><th>Status</th><th></th></tr></thead>
-      <tbody id="bookings-rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+      <thead><tr><th>Order</th><th>Amount</th><th>Gateway</th><th>Payment Date</th><th>Reconciliation Status</th><th>Last Checked</th><th></th></tr></thead>
+      <tbody id="rows"><tr><td colspan="7">Loading...</td></tr></tbody>
     </table>
   </main>
   </div>
 </div>
 <script src="js/pages/changePassword.js"></script>
 <script>
+  function fmt(n){ return "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fmtDate(s){ return s ? new Date(s).toLocaleString("en-IN") : "—"; }
+  const STATUS_LABEL = { matched: "Matched", mismatch: "Mismatch", inconclusive: "Inconclusive", not_run: "Not Checked Yet" };
+  const STATUS_BADGE = { matched: "delivered", mismatch: "cancelled", inconclusive: "pending", not_run: "shipped" };
+
   async function load() {
     try {
-      const { items } = await Api.get("/vaidya-bookings");
-      document.getElementById("bookings-rows").innerHTML = items.length ? items.map(b => `
+      const { rows, totals } = await Api.get("/payments/reconciliation-summary");
+      document.getElementById("stat-cards").innerHTML = `
+        <div class="stat-card"><div class="num">${totals.total}</div><div class="label">Successful Payments (last 200)</div></div>
+        <div class="stat-card"><div class="num">${totals.matched || 0}</div><div class="label">Matched</div></div>
+        <div class="stat-card"><div class="num">${totals.mismatch || 0}</div><div class="label">Mismatch</div></div>
+        <div class="stat-card"><div class="num">${totals.not_run || 0}</div><div class="label">Not Checked Yet</div></div>`;
+
+      document.getElementById("rows").innerHTML = rows.length ? rows.map(r => `
         <tr>
-          <td>${b.full_name}</td><td>${b.phone}</td><td>${b.concern || "-"}</td><td>${b.preferred_vaidya || "Any"}</td>
-          <td><select onchange="updateStatus('${b.id}', this.value)">
-            ${["pending","confirmed","completed","cancelled"].map(s => `<option value="${s}" ${b.status===s?"selected":""}>${s}</option>`).join("")}
-          </select></td>
-          <td>${b.description || "-"}</td>
-        </tr>`).join("") : `<tr><td colspan="6">No bookings yet.</td></tr>`;
+          <td>${r.orderNumber || "-"}</td>
+          <td>${fmt(r.amount)}</td>
+          <td>${r.gateway}</td>
+          <td>${fmtDate(r.createdAt)}</td>
+          <td><span class="badge badge-${STATUS_BADGE[r.reconciliationStatus]}">${STATUS_LABEL[r.reconciliationStatus]}</span></td>
+          <td>${fmtDate(r.lastCheckedAt)}</td>
+          <td><a href="payment-detail.html?id=${r.id}">Check / View →</a></td>
+        </tr>`).join("") : `<tr><td colspan="7">No successful payments yet.</td></tr>`;
     } catch (e) {
-      document.getElementById("bookings-rows").innerHTML = `<tr><td colspan="6">Could not load: ${e.message}</td></tr>`;
+      document.getElementById("rows").innerHTML = `<tr><td colspan="7">Could not load: ${e.message}</td></tr>`;
     }
-  }
-  async function updateStatus(id, status) {
-    try { await Api.put(`/vaidya-bookings/${id}/status`, { status }); Toast.show("Updated", "success"); }
-    catch (e) { Toast.show(e.message, "error"); load(); }
   }
   load();
 </script>

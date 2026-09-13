@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Invoices — AyurNova Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
+<title>Refund Management — AyurNova Admin</title><link rel="stylesheet" href="css/admin.css"><script src="js/api.js"></script>
 <script>requireAdminAuth();</script>
 </head>
 <body>
@@ -28,9 +28,9 @@
       <a href="vaidya-bookings.html">Vaidya Bookings</a>
       <div class="sidebar-group-label">Payments</div>
       <a href="payments-list.html">Payments</a>
-      <a href="refunds.html">Refunds</a>
+      <a href="refunds.html" class="active">Refunds</a>
       <a href="reconciliation.html">Reconciliation</a>
-      <a href="invoices.html" class="active">Invoices</a>
+      <a href="invoices.html">Invoices</a>
       <a href="integrations.html">Integrations</a>
       <div class="sidebar-group-label">Admin</div>
       <a href="media.html">Banners & Media</a>
@@ -54,77 +54,75 @@
     </div>
   </div>
   <main class="main-area">
-    <div class="page-header"><h2>Invoices</h2></div>
-    <p style="font-size:12.5px; color:#666; margin-top:-6px;">One invoice is generated automatically once an order is accepted (COD) or its payment is verified (prepaid) - see Order detail / Payment detail for the underlying order. There is no manual "create invoice" action here by design.</p>
+    <div class="page-header">
+      <div><h2>Refund Management</h2><div class="sub">View and track every refund processed across all payments</div></div>
+    </div>
+
+    <div class="cards-row" id="stat-cards">Loading...</div>
 
     <div class="filters-row">
-      <input type="text" id="f-q" placeholder="Search invoice number...">
+      <select id="f-status">
+        <option value="">All Refund Status</option>
+        <option value="PROCESSED">Processed</option>
+        <option value="PENDING">Pending</option>
+        <option value="FAILED">Failed</option>
+      </select>
     </div>
 
     <table class="data-table">
-      <thead><tr><th>Invoice #</th><th>Order</th><th>Tax Mode</th><th>Total</th><th>Issued</th><th></th></tr></thead>
-      <tbody id="invoice-rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+      <thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Reason</th><th>Status</th><th>Processed By</th><th>Date</th><th></th></tr></thead>
+      <tbody id="refunds-rows"><tr><td colspan="8">Loading...</td></tr></tbody>
     </table>
-    <div style="display:flex; gap:8px; align-items:center; margin-top:12px; font-size:13px;" id="pagination"></div>
+    <div class="pagination-row" id="pagination"></div>
   </main>
   </div>
 </div>
 <script src="js/pages/changePassword.js"></script>
 <script>
-  const state = { page: 1, pageSize: 25 };
-  function fmt(n) { return "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  const state = { page: 1, pageSize: 20 };
+  function fmt(n){ return "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fmtDate(s){ return s ? new Date(s).toLocaleString("en-IN") : "-"; }
 
   async function load() {
+    const status = document.getElementById("f-status").value;
     const params = new URLSearchParams({ page: state.page, pageSize: state.pageSize });
-    const q = document.getElementById("f-q").value.trim();
-    if (q) params.set("q", q);
+    if (status) params.set("status", status);
     try {
-      const data = await Api.get(`/invoices?${params.toString()}`);
-      const rowsEl = document.getElementById("invoice-rows");
-      if (!data.items.length) { rowsEl.innerHTML = `<tr><td colspan="6">No invoices found.</td></tr>`; document.getElementById("pagination").innerHTML = ""; return; }
-      rowsEl.innerHTML = data.items.map(inv => `
+      const data = await Api.get(`/payments/refunds?${params.toString()}`);
+      const items = data.items || [];
+
+      const totalRefunded = items.filter(r => r.status === "PROCESSED").reduce((s, r) => s + Number(r.amount), 0);
+      document.getElementById("stat-cards").innerHTML = `
+        <div class="stat-card"><div class="num">${data.total}</div><div class="label">Total Refunds (this page's filter)</div></div>
+        <div class="stat-card"><div class="num">${items.filter(r => r.status === "PROCESSED").length}</div><div class="label">Completed (this page)</div></div>
+        <div class="stat-card"><div class="num">${items.filter(r => r.status === "PENDING").length}</div><div class="label">Pending (this page)</div></div>
+        <div class="stat-card"><div class="num">${fmt(totalRefunded)}</div><div class="label">Refunded (this page)</div></div>`;
+
+      document.getElementById("refunds-rows").innerHTML = items.length ? items.map(r => `
         <tr>
-          <td>${inv.invoice_number}</td>
-          <td><a href="order-detail.html?id=${inv.order_id}">${inv.orders?.order_number || inv.order_id}</a></td>
-          <td style="text-transform:capitalize;">${inv.tax_mode}</td>
-          <td>${fmt(inv.grand_total)}</td>
-          <td style="font-size:12px;">${new Date(inv.created_at).toLocaleString("en-IN")}</td>
-          <td>
-            <a class="btn btn-outline" href="/api/admin/invoices/${inv.id}/pdf" target="_blank" onclick="return openPdf(event, '${inv.id}')">View PDF</a>
-          </td>
-        </tr>`).join("");
+          <td>${r.payments?.orders?.order_number || "-"}</td>
+          <td>${r.payments?.orders?.guest_email || r.payments?.orders?.guest_phone || "-"}</td>
+          <td>${fmt(r.amount)}</td>
+          <td>${r.reason || "-"}</td>
+          <td><span class="badge badge-${r.status === "PROCESSED" ? "delivered" : r.status === "FAILED" ? "cancelled" : "pending"}">${r.status}</span></td>
+          <td>${r.created_by || "-"}</td>
+          <td>${fmtDate(r.created_at)}</td>
+          <td><a href="payment-detail.html?id=${r.payments?.id || ""}">View Payment →</a></td>
+        </tr>`).join("") : `<tr><td colspan="8">No refunds found.</td></tr>`;
 
       const totalPages = Math.max(1, Math.ceil(data.total / state.pageSize));
       document.getElementById("pagination").innerHTML = `
-        <button class="btn btn-outline" id="pg-prev" ${state.page <= 1 ? "disabled" : ""}>Prev</button>
-        <span>Page ${state.page} of ${totalPages} (${data.total} total)</span>
-        <button class="btn btn-outline" id="pg-next" ${state.page >= totalPages ? "disabled" : ""}>Next</button>`;
+        <button ${state.page <= 1 ? "disabled" : ""} id="pg-prev">‹</button>
+        <span style="padding:0 10px; font-size:12.5px;">Page ${state.page} of ${totalPages}</span>
+        <button ${state.page >= totalPages ? "disabled" : ""} id="pg-next">›</button>`;
       document.getElementById("pg-prev")?.addEventListener("click", () => { state.page--; load(); });
       document.getElementById("pg-next")?.addEventListener("click", () => { state.page++; load(); });
     } catch (e) {
-      document.getElementById("invoice-rows").innerHTML = `<tr><td colspan="6">Could not load: ${e.message}</td></tr>`;
+      document.getElementById("refunds-rows").innerHTML = `<tr><td colspan="8">Could not load: ${e.message}</td></tr>`;
     }
   }
 
-  // A plain <a href> can't carry the admin's Bearer token, and the PDF
-  // route requires it (RBAC-gated, same as every other admin API call) -
-  // fetch the PDF as an authenticated blob instead and open that.
-  async function openPdf(event, id) {
-    event.preventDefault();
-    try {
-      const resp = await fetch(`/api/admin/invoices/${id}/pdf`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("ayur_admin_token")}` },
-      });
-      if (!resp.ok) throw new Error("Could not load PDF");
-      const blob = await resp.blob();
-      window.open(URL.createObjectURL(blob), "_blank");
-    } catch (e) {
-      Toast.show(e.message, "error");
-    }
-    return false;
-  }
-
-  document.getElementById("f-q").addEventListener("input", () => { state.page = 1; load(); });
+  document.getElementById("f-status").addEventListener("change", () => { state.page = 1; load(); });
   load();
 </script>
 </body>
