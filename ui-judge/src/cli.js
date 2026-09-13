@@ -77,6 +77,7 @@ export async function main(argv = process.argv.slice(2)) {
   const result = await runAudit(pageConfig, {
     weightsRaw, severityThresholds,
     sourceRoots: projectConfig.sourceRoots,
+    authStorageStatePath: projectConfig.authStorageStatePath,
     specsDir: paths.specsDir, screenshotsDir: paths.screenshotsDir,
     reportsDir: outputDir, baselinesDir: paths.baselinesDir,
     projectRoot: path.resolve(paths.root, ".."), projectName: path.basename(path.resolve(paths.root, "..")),

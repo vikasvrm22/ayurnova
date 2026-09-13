@@ -26,22 +26,36 @@ export async function runAudit(pageConfig, opts) {
   const extraSelectors = collectSpecSelectors(spec);
 
   const browser = await chromium.launch({ headless: false }); // Section 2 requirement: browser verification MUST run headed.
+  // Protected admin pages redirect to the login page unless a real, previously-established
+  // Admin session is restored first (this app has no test-only auth bypass, by design).
+  // authStorageStatePath comes from pages.config.json's top-level "auth.storageState" and is
+  // only ever applied when the individual page opts in via "requiresAuth": true.
+  const useAuth = !!(pageConfig.requiresAuth && opts.authStorageStatePath && fs.existsSync(opts.authStorageStatePath));
+  if (pageConfig.requiresAuth && !useAuth) {
+    throw new Error(`Page "${pageConfig.name}" requires an authenticated session (requiresAuth: true) but no valid storageState was found at ${opts.authStorageStatePath || "(not configured)"}.`);
+  }
+  const context = useAuth ? await browser.newContext({ storageState: opts.authStorageStatePath }) : await browser.newContext();
   const evidenceByViewport = {};
   try {
-    const primaryPage = await browser.newPage();
+    const primaryPage = await context.newPage();
     evidenceByViewport.primary = await collectEvidence(primaryPage, {
       url: pageConfig.fullUrl, viewport: pageConfig.viewport, waitForSelector: pageConfig.waitForSelector, extraSelectors,
     });
+    const landedUrl = primaryPage.url();
     await primaryPage.close();
+    if (pageConfig.requiresAuth && /login\.html/.test(landedUrl)) {
+      throw new Error(`Page "${pageConfig.name}" requires auth and the stored session was rejected - it redirected to ${landedUrl}. The Admin session likely expired; re-authenticate and regenerate the storageState before re-running this audit.`);
+    }
 
     for (const vp of pageConfig.additionalViewports || []) {
-      const p = await browser.newPage();
+      const p = await context.newPage();
       evidenceByViewport[vp.name] = await collectEvidence(p, {
         url: pageConfig.fullUrl, viewport: { width: vp.width, height: vp.height }, waitForSelector: pageConfig.waitForSelector, extraSelectors,
       });
       await p.close();
     }
   } finally {
+    await context.close();
     await browser.close();
   }
 

@@ -20,7 +20,8 @@ export function loadProjectConfig(configPath) {
     referenceAbsPath: path.resolve(dir, p.reference),
   }));
   const sourceRoots = (raw.sourceRoots || []).map((r) => path.resolve(dir, r));
-  return { baseUrl: raw.baseUrl, pages, sourceRoots, configDir: dir };
+  const authStorageStatePath = raw.auth?.storageState ? path.resolve(dir, raw.auth.storageState) : null;
+  return { baseUrl: raw.baseUrl, pages, sourceRoots, configDir: dir, authStorageStatePath };
 }
 
 export function resolvePage(projectConfig, name, overrides = {}) {
