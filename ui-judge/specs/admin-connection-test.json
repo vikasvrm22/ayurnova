@@ -1,0 +1,28 @@
+{
+  "page": "admin-connection-test",
+  "source": "authored",
+  "generatedAt": "2026-09-13T20:10:00.000Z",
+  "reference": { "path": "../../public-site/design-ref/Pahse2 15 Integration Connection Test  Error States.png", "width": 1536, "height": 1024 },
+  "sections": {
+    "expectedOrder": [".breadcrumb", ".page-icon", "input[name='f-env']", "#run-btn", "#results-card", "#integration-status-card", "#connection-summary-block"],
+    "confidence": "high",
+    "note": "Razorpay Connection Test per Phase2 15 (both identically-named/duplicate reference files map to the same page): breadcrumb, back arrow, icon+title header with a View Integration Settings action, an Environment radio + Run Connection Test, a numbered Test Results list with a real Error Details box on any failed step, and a right column with Integration Status + Connection Summary + Troubleshooting. Test Results come from the app's existing real runDiagnostics() step-by-step checker (5 real steps: API Credentials, Integration Enabled, API Connectivity, Webhook Secret Configured, Recent Webhook Activity) - verified live in both a passing (Test Mode, fully configured) and a failing (Live Mode, not configured) state."
+  },
+  "colors": { "dominant": [{ "hex": "#132615", "pct": 0.14 }, { "hex": "#ffffff", "pct": 0.45 }, { "hex": "#f4f6fb", "pct": 0.3 }], "confidence": "medium" },
+  "typography": { "hierarchy": [{ "selector": ".page-header h2", "expectedFontSizePx": 20, "expectedFontWeight": "700" }], "confidence": "medium" },
+  "spacing": { "expectations": [], "confidence": "low" },
+  "components": {
+    "expected": [
+      { "name": "Breadcrumb", "selector": ".breadcrumb", "critical": false },
+      { "name": "Environment toggle", "selector": "input[name='f-env']", "critical": true },
+      { "name": "Run Connection Test", "selector": "#run-btn", "critical": true },
+      { "name": "Test Results", "selector": "#results-card", "critical": true },
+      { "name": "Integration Status", "selector": "#integration-status-card", "critical": true },
+      { "name": "Connection Summary", "selector": "#connection-summary-block", "critical": true }
+    ],
+    "confidence": "medium"
+  },
+  "assets": { "images": [], "confidence": "low" },
+  "borders": { "confidence": "low" },
+  "responsive": { "expectations": [], "confidence": "low", "note": "Same intentional horizontal-scroll mobile sidebar pattern as other authenticated pages - not real page-level overflow (verified: 0px at 390px)." }
+}

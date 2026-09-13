@@ -56,31 +56,89 @@
     </div>
   </div>
   <main class="main-area">
-    <div class="breadcrumbs"><a href="integrations.html">Integrations</a><span class="current">→ Razorpay Connection Test</span></div>
+    <div class="breadcrumb"><a href="integrations.html">Integrations</a> <span>&rsaquo;</span> <a href="integrations.html#section-razorpay">Razorpay</a> <span>&rsaquo;</span> <span>Connection Test</span></div>
     <div class="page-header">
-      <div><h2>Razorpay Connection Test</h2><div class="sub">Run real checks against your saved Razorpay credentials</div></div>
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <a href="integrations.html#section-razorpay" class="page-icon" style="text-decoration:none;">←</a>
+        <div><h2>Razorpay Connection Test</h2><div class="sub">Test your Razorpay integration to verify credentials, permissions, and connectivity.</div></div>
+      </div>
+      <a class="btn btn-outline" href="integrations.html#section-razorpay" style="text-decoration:none;">⚙️ View Integration Settings</a>
     </div>
 
-    <div class="filters-row">
-      <select id="f-env">
-        <option value="test">Test Mode (Sandbox)</option>
-        <option value="production">Live Mode (Production)</option>
-      </select>
-      <button class="btn btn-primary" id="run-btn">▶ Run Connection Test</button>
-    </div>
+    <div class="two-col refunds-layout">
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0;">Test Configuration</h3>
+          <p style="font-size:12.5px; color:var(--muted); margin:0 0 12px;">Run real checks against your saved Razorpay credentials.</p>
+          <div style="margin-bottom:10px;">
+            <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Environment</label>
+            <label style="margin-right:20px; font-size:13px;"><input type="radio" name="f-env" value="test" checked> Test Mode (Sandbox)</label>
+            <label style="font-size:13px;"><input type="radio" name="f-env" value="production"> Live Mode (Production)</label>
+          </div>
+          <button class="btn btn-primary" id="run-btn">▶ Run Connection Test</button>
+        </div>
 
-    <div class="card" id="results-card" style="display:none;">
-      <h3 style="margin-top:0;">Test Results</h3>
-      <div id="steps"></div>
+        <div class="card" id="results-card" style="display:none;">
+          <h3 style="margin-top:0;">Test Results</h3>
+          <div id="steps"></div>
+        </div>
+        <div class="alert-banner info" id="empty-note">Choose an environment and click "Run Connection Test" to check API credentials, whether the integration is enabled, live API connectivity, whether a webhook secret is saved, and whether any webhook has been received yet.</div>
+      </div>
+
+      <div>
+        <div class="card" id="integration-status-card">Loading...</div>
+        <div class="card">
+          <h3 style="margin-top:0;">Connection Summary</h3>
+          <div id="connection-summary-block" style="font-size:12.5px;">Run a test to see connection details.</div>
+        </div>
+        <div class="card" style="background:var(--primary-light); border-color:var(--primary-light);">
+          <strong style="font-size:13px;">💡 Troubleshooting</strong>
+          <ul style="font-size:12px; color:var(--muted); margin:8px 0 0; padding-left:18px;">
+            <li>Verify your API key and secret are correct</li>
+            <li>Ensure a webhook secret is saved if testing webhooks</li>
+            <li>Check that this server is publicly reachable for Razorpay to deliver webhooks</li>
+          </ul>
+          <a href="https://razorpay.com/docs/" target="_blank" rel="noopener" style="font-size:12px; display:block; margin-top:8px;">Razorpay Documentation ↗</a>
+        </div>
+      </div>
     </div>
-    <div class="alert-banner info" id="empty-note">Choose an environment and click "Run Connection Test" to check API credentials, whether the integration is enabled, live API connectivity, whether a webhook secret is saved, and whether any webhook has been received yet.</div>
   </main>
   </div>
 </div>
 <script src="js/pages/changePassword.js"></script>
 <script>
+  function getEnv() { return document.querySelector('input[name="f-env"]:checked').value; }
+
+  async function loadIntegrationStatus() {
+    const env = getEnv();
+    const card = document.getElementById("integration-status-card");
+    try {
+      const { item } = await Api.get(`/integrations/razorpay/${env}`);
+      const connected = item?.enabled && item?.lastTestStatus === "success";
+      card.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="width:22px; height:22px; border-radius:50%; background:${connected ? "#e6f4ea" : "#fdecec"}; color:${connected ? "var(--success)" : "var(--danger)"}; display:flex; align-items:center; justify-content:center; font-size:13px;">${connected ? "✓" : "!"}</span>
+          <strong style="font-size:13px;">Integration Status</strong>
+          <span class="badge ${connected ? "badge-instock" : "badge-outofstock"}" style="margin-left:auto;">${connected ? "Connected" : "Not Connected"}</span>
+        </div>
+        <p style="font-size:12px; margin:8px 0 0;">Razorpay is ${connected ? "connected and working correctly" : "not currently connected"}.</p>
+        <p style="font-size:11px; color:var(--muted); margin:4px 0 0;">Last Tested: ${item?.lastTestedAt ? new Date(item.lastTestedAt).toLocaleString("en-IN") : "never"}<br>Environment: ${env === "test" ? "Test Mode (Sandbox)" : "Live Mode (Production)"}</p>
+      `;
+      const keyId = item?.keyId || "-";
+      document.getElementById("connection-summary-block").innerHTML = `
+        <div style="display:flex; justify-content:space-between; padding:3px 0;"><span>Status</span><span class="badge ${connected ? "badge-instock" : "badge-outofstock"}">${connected ? "Connected" : "Not Connected"}</span></div>
+        <div style="display:flex; justify-content:space-between; padding:3px 0;"><span>Environment</span><b>${env === "test" ? "Test Mode" : "Live Mode"}</b></div>
+        <div style="display:flex; justify-content:space-between; padding:3px 0;"><span>Key ID</span><b>${keyId}</b></div>
+        <div style="display:flex; justify-content:space-between; padding:3px 0;"><span>API Base URL</span><b>api.razorpay.com/v1</b></div>
+        <div style="display:flex; justify-content:space-between; padding:3px 0; gap:8px;"><span>Webhook URL</span><b style="text-align:right; word-break:break-all; font-size:11px;">${location.origin}/api/public/payments/webhook/razorpay</b></div>
+      `;
+    } catch (e) {
+      card.innerHTML = `<strong>Integration Status</strong><p style="font-size:12px; color:var(--danger);">${e.message}</p>`;
+    }
+  }
+
   document.getElementById("run-btn").addEventListener("click", async () => {
-    const env = document.getElementById("f-env").value;
+    const env = getEnv();
     const btn = document.getElementById("run-btn");
     btn.disabled = true;
     btn.textContent = "Running...";
@@ -92,11 +150,13 @@
       document.getElementById("steps").innerHTML = steps.map((s, i) => `
         <div class="toggle-row">
           <div>
-            <div class="label">${i + 1}. ${s.name}</div>
+            <div class="label">${s.success ? "✅" : "❌"} ${i + 1}. ${s.name}</div>
             <div class="sub">${s.message}${s.durationMs != null ? ` (${s.durationMs}ms)` : ""}</div>
+            ${!s.success ? `<div class="error-details-box">Error Details<br>${s.message}</div>` : ""}
           </div>
           <span class="pill-badge ${s.success ? "success" : "danger"}">${s.success ? "Success" : "Failed"}</span>
         </div>`).join("");
+      await loadIntegrationStatus();
     } catch (e) {
       document.getElementById("steps").innerHTML = `<p style="color:#b91c1c;">${e.message}</p>`;
     } finally {
@@ -104,6 +164,9 @@
       btn.textContent = "▶ Run Connection Test";
     }
   });
+
+  document.querySelectorAll('input[name="f-env"]').forEach((r) => r.addEventListener("change", loadIntegrationStatus));
+  loadIntegrationStatus();
 </script>
 </body>
 </html>

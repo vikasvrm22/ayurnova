@@ -1,0 +1,16 @@
+{
+  "page": "admin-connection-test",
+  "overall": 85,
+  "categoryScores": {
+    "layout": 57,
+    "components": 100,
+    "typography": 100,
+    "spacing": null,
+    "assets": 100,
+    "colors": 100,
+    "responsive": 80,
+    "functional": 94
+  },
+  "savedAt": "2026-09-13T20:11:00.514Z",
+  "reportPath": "D:\\FinalAyurveda\\ayurveda-store-full-project\\ayur-app\\ui-judge\\reports\\admin-connection-test__2026-09-13T20-11-00-408Z.json"
+}

@@ -135,6 +135,17 @@
       ],
       "requiresAuth": true,
       "waitForSelector": "#stat-cards .stat-card"
+    },
+    {
+      "name": "admin-connection-test",
+      "route": "/admin/connection-test.html",
+      "reference": "../../public-site/design-ref/Pahse2 15 Integration Connection Test  Error States.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#integration-status-card"
     }
   ]
 }
