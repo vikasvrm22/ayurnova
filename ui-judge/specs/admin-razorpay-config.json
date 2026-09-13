@@ -1,0 +1,28 @@
+{
+  "page": "admin-razorpay-config",
+  "source": "authored",
+  "generatedAt": "2026-09-13T19:06:00.000Z",
+  "reference": { "path": "../../public-site/design-ref/Phase2 8. Razorpay Integration Configuration.png", "width": 1672, "height": 941 },
+  "sections": {
+    "expectedOrder": [".razorpay-layout", "#razorpay-test-form", "#razorpay-production-form", "#razorpay-connection-status-card", ".payment-methods-grid", ".test-card-numbers", ".feature-checklist"],
+    "confidence": "high",
+    "note": "Razorpay configuration per Phase2 8: two-column layout (API Credentials + Test Integration + Integration Features on the left, Connection Status + Supported Payment Methods + doc links on the right). Implemented as an anchor-scrolled section (#section-razorpay) of the shared Integrations page rather than a standalone route - Test/Live are two independently-configured real environments (existing feature) rather than the reference's single-form Test/Live radio, since forcing one editable form would remove the ability to see and edit both simultaneously."
+  },
+  "colors": { "dominant": [{ "hex": "#ffffff", "pct": 0.55 }, { "hex": "#f4f6fb", "pct": 0.25 }, { "hex": "#132615", "pct": 0.1 }], "confidence": "medium" },
+  "typography": { "hierarchy": [{ "selector": ".razorpay-layout h3", "expectedFontSizePx": 16, "expectedFontWeight": "700" }], "confidence": "medium" },
+  "spacing": { "expectations": [], "confidence": "low" },
+  "components": {
+    "expected": [
+      { "name": "API Credentials card (Test)", "selector": "#razorpay-test-form", "critical": true },
+      { "name": "API Credentials card (Live)", "selector": "#razorpay-production-form", "critical": true },
+      { "name": "Connection Status", "selector": "#razorpay-connection-status-card", "critical": true },
+      { "name": "Supported Payment Methods", "selector": ".payment-methods-grid", "critical": false },
+      { "name": "Test card numbers", "selector": ".test-card-numbers", "critical": false },
+      { "name": "Integration Features checklist", "selector": ".feature-checklist", "critical": false }
+    ],
+    "confidence": "medium"
+  },
+  "assets": { "images": [], "confidence": "low" },
+  "borders": { "confidence": "low" },
+  "responsive": { "expectations": [], "confidence": "low", "note": "Same shared-shell sidebar/topbar pattern as other authenticated pages; the scrolled-to section naturally scrolls the shared topbar out of view at this viewport height, which the flat reference mockup (a standalone page) does not need to account for." }
+}

@@ -57,6 +57,18 @@
       ],
       "requiresAuth": true,
       "waitForSelector": "#integration-cards .integration-card"
+    },
+    {
+      "name": "admin-razorpay-config",
+      "route": "/admin/integrations.html",
+      "reference": "../../public-site/design-ref/Phase2 8. Razorpay Integration Configuration.png",
+      "viewport": { "width": 1672, "height": 941 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#razorpay-connection-status-card",
+      "scrollToSelector": "#section-razorpay"
     }
   ]
 }

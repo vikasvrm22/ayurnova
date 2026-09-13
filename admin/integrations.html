@@ -86,13 +86,61 @@
     </p>
 
     <section id="section-razorpay">
-      <div class="page-header" style="margin:0 0 12px;"><h3 style="margin:0; font-size:16px;">Razorpay — Test / Sandbox</h3><a class="btn btn-outline" href="connection-test.html">🔧 Connection Test</a></div>
-      <div class="card">
-        <div id="razorpay-test-form"></div>
-      </div>
-      <div class="card">
-        <h3 style="margin-top:0;">Razorpay — Production</h3>
-        <div id="razorpay-production-form"></div>
+      <div class="page-header" style="margin:0 0 12px;"><h2 style="margin:0; font-size:18px;">Razorpay Integration Configuration</h2><a class="btn btn-outline" href="connection-test.html">🔧 Connection Test</a></div>
+      <p style="font-size:12.5px; color:var(--muted); margin:-8px 0 14px;">Configure Razorpay to accept payments via UPI, Cards, Net Banking and more. Test and Live are configured and enabled independently.</p>
+
+      <div class="razorpay-layout">
+        <div>
+          <div class="card">
+            <div class="page-header" style="margin:0 0 4px;"><h3 style="margin:0;">API Credentials <span class="badge badge-lowstock" style="text-transform:uppercase; font-size:10px;">Test Mode (Sandbox)</span></h3></div>
+            <p style="font-size:12px; color:var(--muted); margin:0 0 12px;">Use your Razorpay API keys from the Razorpay Dashboard. Keep your keys secure.</p>
+            <div id="razorpay-test-form"></div>
+          </div>
+          <div class="card">
+            <div class="page-header" style="margin:0 0 4px;"><h3 style="margin:0;">API Credentials <span class="badge badge-instock" style="text-transform:uppercase; font-size:10px;">Live Mode (Production)</span></h3></div>
+            <div id="razorpay-production-form"></div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-top:0;">Test Integration</h3>
+            <p style="font-size:12px; color:var(--muted); margin:0 0 12px;">Verify your Razorpay configuration by creating a test payment in Test Mode.</p>
+            <div class="test-card-numbers">
+              <div><span class="badge badge-instock">Success</span> 4111 1111 1111 1111</div>
+              <div><span class="badge badge-outofstock">Failure</span> 4000 0000 0000 0002</div>
+              <div><span class="badge badge-lowstock">Auth Required</span> 4000 0025 0000 3155</div>
+              <div style="margin-top:8px; color:var(--muted);">Test UPI ID: <b>success@razorpay</b></div>
+            </div>
+            <p style="font-size:11px; color:var(--muted); margin-top:10px;">Standard Razorpay sandbox test values (publicly documented by Razorpay) - safe to use in Test Mode only.</p>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-top:0;">Integration Features</h3>
+            <div class="feature-checklist">
+              <span>✅ Secure - credentials encrypted at rest</span>
+              <span>✅ Automatic Payment Verification</span>
+              <span>✅ Webhook Support</span>
+              <span>✅ Refund Management</span>
+              <span>✅ Detailed Transaction &amp; Payment Logs</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card" id="razorpay-connection-status-card">Loading connection status...</div>
+          <div class="card" style="background:var(--primary-light); border-color:var(--primary-light);">
+            <strong style="font-size:13px;">Supported Payment Methods</strong>
+            <div class="payment-methods-grid">
+              <div>💳 Cards</div><div>🏦 Net Banking</div>
+              <div>📱 UPI</div><div>👛 Wallets</div>
+              <div>📅 EMI</div><div>⏳ Pay Later</div>
+            </div>
+            <p style="font-size:11px; color:var(--muted); margin:8px 0 0;">Methods supported by the Razorpay gateway generally - actual availability also depends on your Razorpay account settings.</p>
+          </div>
+          <div class="card">
+            <a href="https://razorpay.com/docs/" target="_blank" rel="noopener" class="btn btn-outline" style="display:block; text-align:center; text-decoration:none; margin-bottom:8px;">Razorpay Documentation ↗</a>
+            <a href="https://dashboard.razorpay.com/" target="_blank" rel="noopener" class="btn btn-outline" style="display:block; text-align:center; text-decoration:none;">View Razorpay Dashboard ↗</a>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -325,6 +373,31 @@
 
   renderForm("razorpay-test-form", "razorpay", "test");
   renderForm("razorpay-production-form", "razorpay", "production");
+
+  async function loadRazorpayConnectionStatus() {
+    const card = document.getElementById("razorpay-connection-status-card");
+    try {
+      const [testRes, prodRes] = await Promise.all([
+        Api.get("/integrations/razorpay/test").catch(() => ({ item: null })),
+        Api.get("/integrations/razorpay/production").catch(() => ({ item: null })),
+      ]);
+      const active = (prodRes.item && prodRes.item.enabled) ? prodRes.item : testRes.item;
+      if (!active) { card.innerHTML = `<strong>Connection Status</strong><p style="font-size:12.5px; color:var(--muted);">Not configured yet.</p>`; return; }
+      const connected = active.enabled && active.lastTestStatus === "success";
+      card.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="width:22px; height:22px; border-radius:50%; background:${connected ? "#e6f4ea" : "#fdecec"}; color:${connected ? "var(--success)" : "var(--danger)"}; display:flex; align-items:center; justify-content:center; font-size:13px;">${connected ? "✓" : "!"}</span>
+          <strong style="font-size:13px;">Connection Status</strong>
+          <span class="badge ${connected ? "badge-instock" : "badge-outofstock"}" style="margin-left:auto;">${connected ? "Connected" : "Not Connected"}</span>
+        </div>
+        <p style="font-size:12px; margin:8px 0 0;">${active.lastTestMessage || "No connection test run yet."} ${active === testRes.item ? "(Test Mode)" : "(Live Mode)"}</p>
+        <p style="font-size:11px; color:var(--muted); margin:4px 0 0;">Last checked: ${active.lastTestedAt ? new Date(active.lastTestedAt).toLocaleString("en-IN") : "never"}</p>
+      `;
+    } catch (e) {
+      card.innerHTML = `<strong>Connection Status</strong><p style="font-size:12px; color:var(--danger);">${e.message}</p>`;
+    }
+  }
+  loadRazorpayConnectionStatus();
 
   // ---- Phase 7 notification channels - same underlying /integrations/
   // :provider/:environment API as Razorpay above (generic foundation),
