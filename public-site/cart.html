@@ -5,29 +5,96 @@
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
 <body>
-<div class="announce-strip"><div class="container"><span>COD AVAILABLE</span><span>FREE SHIPPING ABOVE ₹599</span></div></div>
+<div class="announce-strip"><div class="container"><span>🌿 COD Available</span><span>🚚 Free Shipping above ₹599</span></div></div>
 <header class="site-header"><div class="container">
   <a class="brand" href="/"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4C13 4 6 13 6 24c0 4 1.3 8.4 4.3 12.4C13.6 40.8 18.3 44 24 44c5.7 0 10.4-3.2 13.7-7.6C40.7 32.4 42 28 42 24 42 13 35 4 24 4z" fill="currentColor" opacity=".12"/><path d="M24 6C16 12 12 19 12 26c0 6 4 11 12 15 8-4 12-9 12-15 0-7-4-14-12-20z" fill="currentColor"/><path d="M24 10v26" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".55"/></svg><div class="brand-text"><h1>AyurNova</h1><span>Ancient Wisdom | Modern Wellness</span></div></a>
   <form class="header-search" action="/shop" method="get"><input type="text" name="q" placeholder="Search products..."><button type="submit">Search</button></form>
-  <div class="header-icons"><a href="/account">👤<span>Login</span></a><a href="/account#wishlist-section" title="Wishlist">🤍<span class="wishlist-count">0</span></a><a href="/cart">🛒<span class="cart-count">0</span></a></div>
+  <div class="header-icons">
+    <a href="/account"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><span>Account</span></a>
+    <a href="/account#wishlist-section" title="Wishlist"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s-7.5-4.6-10-9.3C.4 8.4 2 5 5.4 5c2 0 3.4 1 4.6 2.6C11.2 6 12.6 5 14.6 5 18 5 19.6 8.4 22 11.7 19.5 16.4 12 21 12 21z"/></svg><span class="wishlist-count">0</span></a>
+    <a href="/cart"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h2l1.4 10.6a2 2 0 0 0 2 1.7h8.2a2 2 0 0 0 2-1.6L20 9H6"/><circle cx="9.5" cy="21" r="1.2" fill="currentColor" stroke="none"/><circle cx="17" cy="21" r="1.2" fill="currentColor" stroke="none"/></svg><span class="cart-count">0</span></a>
+  </div>
 </div></header>
-<nav class="main-nav"><div class="container">
-  <a href="/">Home</a><a href="/shop">Shop All</a><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a>
-</div></nav>
+<nav class="main-nav">
+  <div class="container">
+    <a href="/shop">Shop All</a><a href="/dosha-test">Wellness Test</a><a href="/routines">Routines</a><a href="/consult-vaidya">Consult a Vaidya</a><a href="/blog">Knowledge Hub</a><a href="/about">About Us</a>
+  </div>
+</nav>
 
-<div class="container" style="padding:24px 16px;">
-  <h3 class="section-title" style="text-align:left; margin-top:0;" id="cart-heading">Your Cart</h3>
+<div class="container" style="padding:16px 16px 40px;">
+  <div class="stepper">
+    <div class="step done"><span class="dot">✓</span><span class="label">Cart</span></div>
+    <div class="bar done"></div>
+    <div class="step active"><span class="dot">2</span><span class="label">Address &amp; Payment</span></div>
+    <div class="bar"></div>
+    <div class="step"><span class="dot">3</span><span class="label">Confirmation</span></div>
+  </div>
+  <h3 class="section-title" id="cart-heading">Your Cart</h3>
 
   <div id="cart-empty" style="display:none; text-align:center; padding:40px;">
     <p style="color:#888;">Your cart is empty.</p>
-    <a href="/shop" class="pill">Continue Shopping</a>
+    <a href="/shop" class="btn-solid">Continue Shopping</a>
   </div>
 
-  <div id="cart-body" class="page-layout" style="grid-template-columns: 2fr 1fr;">
-    <table class="cart-table">
-      <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Subtotal</th><th></th></tr></thead>
-      <tbody id="cart-rows"></tbody>
-    </table>
+  <div id="cart-body" class="checkout-layout">
+    <div class="checkout-main">
+      <div class="checkout-card">
+        <h4>Items in Your Cart</h4>
+        <table class="cart-table">
+          <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Subtotal</th><th></th></tr></thead>
+          <tbody id="cart-rows"></tbody>
+        </table>
+      </div>
+
+      <div class="checkout-card">
+        <h4>Shipping Address</h4>
+        <div id="checkout-form">
+          <div class="form-2col">
+            <div><label>Full Name</label><input type="text" id="addr-name"></div>
+            <div><label>Phone</label><input type="text" id="addr-phone" placeholder="+91XXXXXXXXXX"></div>
+          </div>
+          <label>Address Line</label>
+          <input type="text" id="addr-line1">
+          <div class="form-2col">
+            <div><label>City</label><input type="text" id="addr-city"></div>
+            <div><label>State</label><select id="addr-state-code"><option value="">State...</option></select></div>
+          </div>
+          <label>Pincode</label>
+          <input type="text" id="addr-pincode">
+
+          <label>GSTIN (optional, for a business order's tax invoice)</label>
+          <input type="text" id="addr-gstin" placeholder="Leave blank for a personal order" style="text-transform:uppercase;">
+
+          <label class="checkbox-label"><input type="checkbox" id="billing-different-check"> Billing address is different from shipping</label>
+          <div id="billing-address-block" class="billing-block" style="display:none;">
+            <label>Billing Full Name</label><input type="text" id="bill-name">
+            <label>Billing Phone</label><input type="text" id="bill-phone">
+            <label>Billing Address Line</label><input type="text" id="bill-line1">
+            <div class="form-2col">
+              <div><label>City</label><input type="text" id="bill-city"></div>
+              <div><label>State</label><select id="bill-state-code"><option value="">State...</option></select></div>
+            </div>
+            <label>Pincode</label><input type="text" id="bill-pincode">
+          </div>
+        </div>
+      </div>
+
+      <div class="checkout-card">
+        <h4>Payment Method</h4>
+        <div class="payment-method-grid">
+          <label class="payment-method-card">
+            <input type="radio" name="pay" value="cod" checked>
+            <span class="pm-icon">💵</span><span class="pm-label">Cash on Delivery</span><span class="pm-sub">Pay when your order arrives</span>
+          </label>
+          <label class="payment-method-card recommended">
+            <input type="radio" name="pay" value="prepaid">
+            <span class="pm-icon">💳</span><span class="pm-label">Prepaid (2% off)</span><span class="pm-sub">UPI, Cards &amp; Net Banking via Razorpay</span>
+          </label>
+        </div>
+        <p class="razorpay-note">🔒 Prepaid orders are completed securely on Razorpay's own payment screen - UPI, card and net banking options are chosen there.</p>
+      </div>
+    </div>
+
     <div class="cart-summary">
       <h4 style="margin-top:0;">Order Summary</h4>
       <div class="row"><span>Subtotal</span><span id="sum-subtotal">₹0</span></div>
@@ -42,61 +109,26 @@
       </div>
       <div id="coupon-msg" style="font-size:12px; margin-bottom:10px;"></div>
 
-      <div id="checkout-form">
-        <label style="font-size:12.5px; font-weight:700;">Full Name</label>
-        <input type="text" id="addr-name" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
-        <label style="font-size:12.5px; font-weight:700;">Phone</label>
-        <input type="text" id="addr-phone" placeholder="+91XXXXXXXXXX" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
-        <label style="font-size:12.5px; font-weight:700;">Address Line</label>
-        <input type="text" id="addr-line1" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
-        <div style="display:flex; gap:6px;">
-          <input type="text" id="addr-city" placeholder="City" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
-          <select id="addr-state-code" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
-            <option value="">State...</option>
-          </select>
-        </div>
-        <input type="text" id="addr-pincode" placeholder="Pincode" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
-
-        <label style="font-size:12.5px; font-weight:700;">GSTIN (optional, for a business order's tax invoice)</label>
-        <input type="text" id="addr-gstin" placeholder="Leave blank for a personal order" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px; text-transform:uppercase;">
-
-        <label style="font-size:12.5px; display:flex; align-items:center; gap:6px; margin-bottom:8px;">
-          <input type="checkbox" id="billing-different-check" style="width:auto;"> Billing address is different from shipping
-        </label>
-        <div id="billing-address-block" style="display:none; border:1px dashed var(--hairline); border-radius:6px; padding:10px; margin-bottom:8px;">
-          <label style="font-size:12.5px; font-weight:700;">Billing Full Name</label>
-          <input type="text" id="bill-name" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
-          <label style="font-size:12.5px; font-weight:700;">Billing Phone</label>
-          <input type="text" id="bill-phone" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
-          <label style="font-size:12.5px; font-weight:700;">Billing Address Line</label>
-          <input type="text" id="bill-line1" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
-          <div style="display:flex; gap:6px;">
-            <input type="text" id="bill-city" placeholder="City" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
-            <select id="bill-state-code" style="flex:1; padding:9px; border:1px solid var(--hairline); border-radius:6px; margin-bottom:8px;">
-              <option value="">State...</option>
-            </select>
-          </div>
-          <input type="text" id="bill-pincode" placeholder="Pincode" style="width:100%; padding:9px; border:1px solid var(--hairline); border-radius:6px;">
-        </div>
-
-        <div style="display:flex; gap:10px; margin:10px 0; font-size:13px;">
-          <label><input type="radio" name="pay" value="cod" checked> Cash on Delivery</label>
-          <label><input type="radio" name="pay" value="prepaid"> Prepaid (2% off) - Cards/UPI/Netbanking</label>
-        </div>
-
-        <div id="checkout-error" style="color:#B23A2E; font-size:12.5px; margin:6px 0;"></div>
-        <button id="checkout-btn" style="width:100%; padding:11px; background:var(--green); color:#fff; border:none; border-radius:22px; font-weight:700;">Place Order</button>
-        <button id="retry-payment-btn" style="display:none; width:100%; padding:11px; background:var(--gold); color:#fff; border:none; border-radius:22px; font-weight:700; margin-top:8px;">Retry Payment</button>
-      </div>
+      <div id="checkout-error" class="alert-banner danger" style="display:none; margin:6px 0 0;"></div>
+      <button id="checkout-btn" class="btn-solid" style="width:100%; margin-top:10px;">Place Order</button>
+      <button id="retry-payment-btn" style="display:none; width:100%; padding:11px; background:var(--gold); color:#fff; border:none; border-radius:6px; font-weight:700; margin-top:8px; cursor:pointer;">↻ Retry Payment</button>
 
       <p id="trust-badges" style="font-size:11.5px; color:#888; text-align:center; margin-top:12px;"></p>
+      <div class="secure-note">🔒 Secure Checkout — your information is safe with us</div>
     </div>
   </div>
 
-  <div id="order-success" style="display:none; text-align:center; padding:40px;">
-    <h3 style="color:var(--green-dark);">✅ Order Placed!</h3>
-    <p>Your order <b id="success-order-number"></b> has been placed successfully.</p>
-    <a href="/shop" class="pill">Continue Shopping</a>
+  <div id="payment-verifying" class="checkout-card state-block loading" style="display:none; margin-top:16px;">
+    <div class="icon">⏳</div>
+    <h4>Verifying Your Payment</h4>
+    <p>Please wait while we confirm your payment with Razorpay. This usually takes a few seconds, but may take up to 2 minutes. Please don't close this page.</p>
+  </div>
+
+  <div id="order-success" class="checkout-card state-block" style="display:none; margin-top:16px; background:var(--green-light);">
+    <div class="icon" style="background:#fff; color:var(--green);">✓</div>
+    <h4 style="color:var(--green-dark);">Order Placed Successfully!</h4>
+    <p>Your order <b id="success-order-number"></b> has been placed successfully. Thank you for shopping with AyurNova.</p>
+    <a href="/shop" class="btn-solid">Continue Shopping</a>
   </div>
 </div>
 
@@ -105,8 +137,7 @@
   <div><h5>Company</h5><a href="/about">About Us</a><a href="/contact">Contact Us</a></div>
   <div><h5>Policies</h5><a href="/terms-and-conditions">Terms of Service</a><a href="/return-refund-policy">Return &amp; Refund</a><a href="/privacy-policy">Privacy Policy</a><a href="/shipping-policy">Shipping Policy</a></div>
   <div><h5>Quick Links</h5><a href="/consult-vaidya">Consult a Vaidya</a><a href="/dosha-test">Dosha Test</a></div>
-  <div><h5>Newsletter</h5><input type="email" placeholder="Your email" style="width:100%;padding:8px;border-radius:6px;border:none;margin-bottom:8px;"><button style="width:100%;padding:8px;background:var(--gold);color:#fff;border:none;border-radius:6px;">Subscribe</button></div>
-</div><div class="footer-bottom">© 2026 AyurNova</div></footer>
+</div><div class="footer-bottom">© 2026 AyurNova. All rights reserved.</div></footer>
 
 <script>
   fetch("/api/public/settings").then(r => r.json()).then(({ settings }) => {
@@ -239,8 +270,11 @@
 
   function showPaymentNotCompleted(orderNumber, address, message) {
     lastUnpaidOrder = { orderNumber, address };
-    document.getElementById("checkout-error").textContent = `${message} Your order ${orderNumber} is saved - click Retry Payment to try again.`;
+    const errEl = document.getElementById("checkout-error");
+    errEl.style.display = "flex";
+    errEl.innerHTML = `<div><strong>Payment Failed</strong>${message} Your order ${orderNumber} is saved - click Retry Payment to try again.</div>`;
     document.getElementById("retry-payment-btn").style.display = "block";
+    document.getElementById("payment-verifying").style.display = "none";
   }
 
   function openRazorpayCheckout(orderNumber, razorpay, address) {
@@ -258,6 +292,8 @@
       prefill: { name: address.full_name, contact: address.phone },
       theme: { color: "#2F5233" },
       handler: async function (response) {
+        document.getElementById("cart-body").style.display = "none";
+        document.getElementById("payment-verifying").style.display = "block";
         try {
           await apiPost("/api/public/payments/verify", {
             razorpay_order_id: response.razorpay_order_id,
@@ -267,11 +303,12 @@
           });
           localStorage.removeItem("ayur_cart");
           document.getElementById("retry-payment-btn").style.display = "none";
-          document.getElementById("cart-body").style.display = "none";
+          document.getElementById("payment-verifying").style.display = "none";
           document.getElementById("order-success").style.display = "block";
           document.getElementById("success-order-number").textContent = orderNumber;
           updateCartBadge();
         } catch (e) {
+          document.getElementById("cart-body").style.display = "grid";
           showPaymentNotCompleted(orderNumber, address, `Payment could not be verified (${e.message}).`);
         }
       },
@@ -287,7 +324,8 @@
   document.getElementById("retry-payment-btn").addEventListener("click", async () => {
     if (!lastUnpaidOrder) return;
     const errEl = document.getElementById("checkout-error");
-    errEl.textContent = "";
+    errEl.style.display = "none";
+    errEl.innerHTML = "";
     try {
       const res = await apiPost("/api/public/payments/retry", {
         order_number: lastUnpaidOrder.orderNumber,
@@ -295,13 +333,15 @@
       });
       openRazorpayCheckout(lastUnpaidOrder.orderNumber, res.razorpay, lastUnpaidOrder.address);
     } catch (e) {
-      errEl.textContent = e.message;
+      errEl.style.display = "flex";
+      errEl.innerHTML = `<div>${e.message}</div>`;
     }
   });
 
   document.getElementById("checkout-btn").addEventListener("click", async () => {
     const errEl = document.getElementById("checkout-error");
-    errEl.textContent = "";
+    errEl.style.display = "none";
+    errEl.innerHTML = "";
     document.getElementById("retry-payment-btn").style.display = "none";
     const cart = getCart();
     if (!cart.length) return;
@@ -351,7 +391,8 @@
       document.getElementById("success-order-number").textContent = res.order_number;
       updateCartBadge();
     } catch (e) {
-      errEl.textContent = e.message;
+      errEl.style.display = "flex";
+      errEl.innerHTML = `<div>${e.message}</div>`;
     }
   });
 
