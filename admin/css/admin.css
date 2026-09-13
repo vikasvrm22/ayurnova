@@ -54,6 +54,7 @@ table.data-table th{ background:#f8f9fd; color:var(--muted); font-weight:600; }
 .badge-shipped{ background:#eef1f8; color:#555; }
 .badge-delivered{ background:#e6f4ea; color:var(--success); }
 .badge-cancelled{ background:#f2f2f2; color:#888; }
+.badge-rto{ background:#fdecec; color:var(--danger); }
 
 .form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 .form-field{ display:flex; flex-direction:column; gap:4px; }

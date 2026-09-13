@@ -56,11 +56,16 @@
 
         <div class="card">
           <h3 style="margin-top:0;">Order Status</h3>
+          <p style="font-size:12px; color:#888; margin-top:-8px;">Shipped / Delivered / RTO are set automatically by the Shipment section below, once a shipment exists.</p>
           <div class="form-field"><label>Update Status</label>
-            <select id="f-status"><option value="pending">Pending</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select>
+            <select id="f-status"><option value="pending">Pending</option><option value="processing">Processing</option><option value="cancelled">Cancelled</option></select>
           </div>
-          <div class="form-field" style="margin-top:10px;"><label>Tracking Number (if shipped)</label><input id="f-tracking" placeholder="e.g. DTDC123456789"></div>
           <button class="btn btn-primary" style="margin-top:12px;" id="update-btn">Update Order</button>
+        </div>
+
+        <div class="card" id="shipment-card">
+          <h3 style="margin-top:0;">Shipment</h3>
+          <div id="shipment-block">Loading...</div>
         </div>
       </div>
 
@@ -111,8 +116,21 @@
         <div>Shipping: ${order.shipping_fee === 0 ? "FREE" : fmt(order.shipping_fee)}</div>
         ${order.discount ? `<div>Discount: −${fmt(order.discount)}</div>` : ""}
         <div style="font-weight:800; font-size:16px;">Total: ${fmt(order.total)}</div>`;
-      document.getElementById("f-status").value = order.status;
-      document.getElementById("f-tracking").value = order.tracking_number || "";
+      const statusSelect = document.getElementById("f-status");
+      const updateBtn = document.getElementById("update-btn");
+      if (["pending", "processing", "cancelled"].includes(order.status)) {
+        statusSelect.value = order.status;
+        statusSelect.disabled = false;
+        updateBtn.disabled = false;
+      } else {
+        // 'shipped'/'delivered'/'rto' are shipment-driven only (Phase 8B) -
+        // this dropdown has no option for them; show the real state as a
+        // disabled extra option instead of silently defaulting to blank.
+        statusSelect.innerHTML = `<option value="${order.status}" selected>${order.status} (set by shipment)</option>` + statusSelect.innerHTML;
+        statusSelect.disabled = true;
+        updateBtn.disabled = true;
+      }
+      await loadShipment(order);
       const addr = order.shipping_address || {};
       document.getElementById("customer-block").innerHTML = `
         <p style="margin:4px 0;"><b>${addr.full_name || order.guest_email || "-"}</b></p>
@@ -178,16 +196,145 @@
 
   document.getElementById("update-btn").addEventListener("click", async () => {
     try {
-      await Api.put(`/orders/${orderId}/status`, {
-        status: document.getElementById("f-status").value,
-        tracking_number: document.getElementById("f-tracking").value.trim(),
-      });
+      await Api.put(`/orders/${orderId}/status`, { status: document.getElementById("f-status").value });
       Toast.show("Order updated", "success");
       load();
     } catch (e) {
       Toast.show(e.message, "error");
     }
   });
+
+  // ============================= SHIPMENT (Phase 8B) =============================
+  const PRE_DISPATCH_STATUSES = ["pending", "label_generated", "pickup_scheduled"];
+  const RTO_RECEIVABLE_STATUSES = ["failed_delivery", "rto_initiated", "rto_in_transit", "rto_delivered"];
+  const SHIPMENT_STATUS_LABELS = {
+    pending: "Pending", label_generated: "Label Generated", pickup_scheduled: "Pickup Scheduled",
+    picked_up: "Picked Up", in_transit: "In Transit", out_for_delivery: "Out for Delivery",
+    delivered: "Delivered", failed_delivery: "Delivery Failed", rto_initiated: "RTO Initiated",
+    rto_in_transit: "RTO In Transit", rto_delivered: "RTO Delivered", cancelled: "Cancelled",
+  };
+
+  async function loadShipment(order) {
+    const el = document.getElementById("shipment-block");
+    try {
+      const { items } = await Api.get(`/shipments?order_id=${order.id}`);
+      const active = items.find(s => s.status !== "cancelled");
+      if (!active) {
+        if (order.status === "processing") {
+          const { items: providers } = await Api.get("/shipments/providers");
+          el.innerHTML = `
+            <p style="font-size:12.5px; color:#666;">No shipment yet.</p>
+            <div class="form-field"><label>Provider</label><select id="sh-new-provider">${providers.map(p => `<option value="${p.key}">${p.label}</option>`).join("")}</select></div>
+            <div class="form-field" style="margin-top:8px;"><label>Environment</label><select id="sh-new-env"><option value="test">Test</option><option value="production">Production</option></select></div>
+            <div id="sh-new-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+            <button class="btn btn-primary" style="margin-top:10px;" id="sh-create-btn">Create Shipment</button>`;
+          document.getElementById("sh-create-btn").addEventListener("click", async () => {
+            try {
+              await Api.post("/shipments", {
+                order_id: order.id,
+                provider: document.getElementById("sh-new-provider").value,
+                environment: document.getElementById("sh-new-env").value,
+              });
+              Toast.show("Shipment created", "success");
+              load();
+            } catch (e) {
+              document.getElementById("sh-new-error").textContent = e.message;
+            }
+          });
+        } else {
+          el.innerHTML = `<p style="font-size:12.5px; color:#888;">No shipment yet - the order must be Processing before a shipment can be created.</p>`;
+        }
+        return;
+      }
+      await renderShipmentDetail(active.id);
+    } catch (e) {
+      el.innerHTML = `<span style="font-size:12.5px; color:#b91c1c;">Could not load shipment: ${e.message}</span>`;
+    }
+  }
+
+  async function renderShipmentDetail(shipmentId) {
+    const el = document.getElementById("shipment-block");
+    const { item: s, events, allowedTransitions, rtoReceipt } = await Api.get(`/shipments/${shipmentId}`);
+
+    const rtoBlock = rtoReceipt
+      ? `<p style="font-size:12.5px; color:#0e7a33; margin-top:10px;">RTO received ${new Date(rtoReceipt.received_at).toLocaleString("en-IN")} by ${rtoReceipt.received_by} - ${rtoReceipt.shipment_rto_receipt_items?.length || 0} line(s) intake into QC-pending batch(es). <a href="inventory.html?quality_status=pending">Review in Inventory →</a></p>`
+      : (RTO_RECEIVABLE_STATUSES.includes(s.status)
+          ? `<button class="btn btn-outline" style="margin-top:10px;" id="sh-rto-receive-btn">Mark RTO Received</button>`
+          : "");
+
+    el.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span class="badge badge-${s.status === "delivered" ? "delivered" : s.status.startsWith("rto") || s.status === "failed_delivery" ? "cancelled" : s.status === "cancelled" ? "cancelled" : "processing"}">${SHIPMENT_STATUS_LABELS[s.status] || s.status}</span>
+        <span style="font-size:11.5px; color:#888;">${s.provider} / ${s.environment}</span>
+      </div>
+      <div class="form-field" style="margin-top:10px;"><label>Courier Name</label><input id="sh-courier" value="${s.courier_name || ""}" placeholder="e.g. DTDC"></div>
+      <div class="form-field" style="margin-top:8px;"><label>AWB / Tracking Number</label><input id="sh-awb" value="${s.awb_number || ""}" placeholder="e.g. DTDC123456789"></div>
+      <div class="form-field" style="margin-top:8px;"><label>Tracking URL (shown to customer)</label><input id="sh-tracking-url" value="${s.tracking_url || ""}" placeholder="https://..."></div>
+      <div class="form-field" style="margin-top:8px;"><label>Label URL</label><input id="sh-label-url" value="${s.label_url || ""}" placeholder="https://..."></div>
+      <div class="form-field" style="margin-top:8px;"><label>ETA</label><input type="date" id="sh-eta" value="${s.eta || ""}"></div>
+      <button class="btn btn-outline" style="margin-top:10px;" id="sh-save-details-btn">Save Details</button>
+
+      ${allowedTransitions.length ? `
+        <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:12px;">
+          <div class="form-field"><label>Update Status</label>
+            <select id="sh-new-status">${allowedTransitions.map(t => `<option value="${t}">${SHIPMENT_STATUS_LABELS[t] || t}</option>`).join("")}</select>
+          </div>
+          <div class="form-field" style="margin-top:8px;"><label>Note (optional)</label><input id="sh-status-note" placeholder="e.g. Customer refused delivery"></div>
+          <button class="btn btn-primary" style="margin-top:8px;" id="sh-update-status-btn">Update Status</button>
+        </div>` : ""}
+
+      ${PRE_DISPATCH_STATUSES.includes(s.status) ? `<button class="btn btn-outline" style="margin-top:10px; color:#b91c1c;" id="sh-cancel-btn">Cancel Shipment</button>` : ""}
+      ${rtoBlock}
+      <div id="sh-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
+
+      <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:10px;">
+        <b style="font-size:12.5px;">History</b>
+        <table class="data-table" style="margin-top:6px;"><thead><tr><th>When</th><th>Change</th><th>Source</th><th>Actor</th></tr></thead>
+        <tbody>${events.map(e => `<tr><td style="font-size:12px;">${new Date(e.created_at).toLocaleString("en-IN")}</td><td style="font-size:12px;">${e.previous_status || "-"} → ${e.new_status}</td><td style="font-size:12px;">${e.source}</td><td style="font-size:12px;">${e.actor || "-"}</td></tr>`).join("") || `<tr><td colspan="4">No events yet.</td></tr>`}</tbody></table>
+      </div>
+    `;
+
+    const errEl = document.getElementById("sh-error");
+    document.getElementById("sh-save-details-btn").addEventListener("click", async () => {
+      try {
+        await Api.put(`/shipments/${s.id}`, {
+          courier_name: document.getElementById("sh-courier").value.trim(),
+          awb_number: document.getElementById("sh-awb").value.trim(),
+          tracking_url: document.getElementById("sh-tracking-url").value.trim(),
+          label_url: document.getElementById("sh-label-url").value.trim(),
+          eta: document.getElementById("sh-eta").value || null,
+        });
+        Toast.show("Shipment details saved", "success");
+        renderShipmentDetail(shipmentId);
+      } catch (e) { errEl.textContent = e.message; }
+    });
+    document.getElementById("sh-update-status-btn")?.addEventListener("click", async () => {
+      try {
+        await Api.put(`/shipments/${s.id}/status`, {
+          status: document.getElementById("sh-new-status").value,
+          note: document.getElementById("sh-status-note").value.trim() || undefined,
+        });
+        Toast.show("Shipment status updated", "success");
+        load();
+      } catch (e) { errEl.textContent = e.message; }
+    });
+    document.getElementById("sh-cancel-btn")?.addEventListener("click", async () => {
+      if (!confirm("Cancel this shipment? The order will revert to Processing.")) return;
+      try {
+        await Api.post(`/shipments/${s.id}/cancel`, {});
+        Toast.show("Shipment cancelled", "success");
+        load();
+      } catch (e) { errEl.textContent = e.message; }
+    });
+    document.getElementById("sh-rto-receive-btn")?.addEventListener("click", async () => {
+      if (!confirm("Mark this shipment's RTO as physically received? This creates QC-pending batch(es) for every order line.")) return;
+      try {
+        await Api.post(`/shipments/${s.id}/rto-receive`, {});
+        Toast.show("RTO received - QC-pending batch(es) created", "success");
+        renderShipmentDetail(shipmentId);
+      } catch (e) { errEl.textContent = e.message; }
+    });
+  }
 
   load();
 </script>

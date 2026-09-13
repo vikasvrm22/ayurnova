@@ -4,10 +4,18 @@ import { requireStaffAuth } from "../auth/adminAuth.js";
 import { requirePermission } from "../auth/rbac.js";
 import { parsePagination, sanitizeOrFilterValue } from "../validation/validators.js";
 import { notify } from "../notify/notificationService.js";
+import * as shipmentService from "../services/shipmentService.js";
 
 const router = Router();
 
-const ORDER_STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled"];
+// Every value this column can ever hold (for filtering GET / below) - 'rto'
+// (Phase 8B) is only ever set by shipmentService.js, never by this route.
+const ORDER_STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled", "rto"];
+// Phase 8B: 'shipped'/'delivered'/'rto' are now derived exclusively from a
+// shipment's lifecycle (server/src/services/shipmentService.js) - the
+// locked "shipment status is authoritative" rule. This admin endpoint can
+// still freely move an order between the three PRE-shipment states.
+const ADMIN_SETTABLE_STATUSES = ["pending", "processing", "cancelled"];
 
 router.get("/", requireStaffAuth, async (req, res, next) => {
   try {
@@ -77,10 +85,40 @@ router.get("/:id", requireStaffAuth, async (req, res, next) => {
 
 router.put("/:id/status", requireStaffAuth, requirePermission("manageOrders"), async (req, res, next) => {
   try {
-    const { status, tracking_number } = req.body || {};
+    const { status } = req.body || {};
     if (!ORDER_STATUSES.includes(status)) return res.status(400).json({ error: `Status must be one of: ${ORDER_STATUSES.join(", ")}` });
+    if (!ADMIN_SETTABLE_STATUSES.includes(status)) {
+      return res.status(400).json({
+        error: "'shipped', 'delivered' and 'rto' are now driven by the Shipment section - create or update a shipment instead of setting this directly.",
+      });
+    }
 
     const { data: existing } = await supabaseAdmin().from("orders").select("status").eq("id", req.params.id).single();
+    if (!existing) return res.status(404).json({ error: "Order not found" });
+
+    // Phase 8B lifecycle-safety fix: an order in 'shipped'/'delivered'/
+    // 'rto' always has a real shipment row behind it now (those three
+    // states are unreachable any other way - see ADMIN_SETTABLE_STATUSES
+    // above), so this is the one guard that actually needs to inspect it.
+    // A shipment still pre-dispatch (nothing physically left the
+    // warehouse) is cancelled right along with the order - anything past
+    // that point must be resolved via the Shipment section's own RTO flow
+    // first, never silently overridden by a raw status flip (the exact
+    // "delivered/shipped -> cancelled inconsistency" the Phase 8B audit
+    // flagged in this route).
+    if (status === "cancelled" && existing.status !== "cancelled") {
+      const { data: activeShipment } = await supabaseAdmin()
+        .from("shipments").select("*").eq("order_id", req.params.id).neq("status", "cancelled").maybeSingle();
+      if (activeShipment) {
+        if (shipmentService.PRE_DISPATCH_STATUSES.includes(activeShipment.status)) {
+          await shipmentService.cancelShipment({ shipmentId: activeShipment.id, actor: req.staff.email });
+        } else {
+          return res.status(409).json({
+            error: `This order has an active shipment (status: ${activeShipment.status}) that has already left processing. Resolve it from the Shipment section (RTO) before cancelling the order.`,
+          });
+        }
+      }
+    }
 
     // Phase 5B: cancelling an order restocks exactly the batch(es)
     // originally allocated to it (never re-derived via FEFO), each
@@ -109,26 +147,6 @@ router.put("/:id/status", requireStaffAuth, requirePermission("manageOrders"), a
     }
 
     const patch = { status, updated_at: new Date().toISOString() };
-    if (tracking_number !== undefined) patch.tracking_number = tracking_number;
-    // Phase 6B: delivered_at is set exactly once, on the genuine
-    // transition INTO delivered - never overwritten by a later edit (e.g.
-    // a tracking-number correction after delivery). This is the
-    // authoritative timestamp the customer return-eligibility window
-    // (server/src/routes/returnsPublic.js) is computed from; orders.
-    // updated_at cannot be used for that, since it changes on any edit.
-    //
-    // Merged into the SAME atomic update as the core status change (not a
-    // separate follow-up write): a delivered_at write that could silently
-    // fail independently of the status write would let status='delivered'
-    // persist with delivered_at left null, permanently blocking that
-    // order's real return eligibility with no visible error to anyone.
-    // One statement - it either sets both together or the whole request
-    // fails and the caller sees it, exactly as every other field in this
-    // patch already behaves.
-    if (status === "delivered" && existing?.status !== "delivered") {
-      patch.delivered_at = patch.updated_at;
-    }
-
     const { data, error } = await supabaseAdmin().from("orders").update(patch).eq("id", req.params.id).select().single();
     if (error) throw error;
 
@@ -136,16 +154,13 @@ router.put("/:id/status", requireStaffAuth, requirePermission("manageOrders"), a
       entity_type: "order", entity_id: req.params.id, action: `status -> ${status}`, actor: req.staff.email,
     });
 
-    // Phase 7: customer notification on a genuine status transition only
-    // (never on a no-op re-save of the same status, e.g. re-entering the
-    // same tracking number) - awaited but internally bulletproofed
-    // against ever throwing (see notificationService.js), same "must
-    // never block the real action" tolerance as restock_order()/
-    // delivered_at above.
-    if (existing?.status !== status) {
-      if (status === "shipped") await notify("order_shipped", { order: data, trackingNumber: data.tracking_number });
-      else if (status === "delivered") await notify("order_delivered", { order: data });
-      else if (status === "cancelled") await notify("order_cancelled", { order: data });
+    // Phase 7: customer notification on a genuine status transition only -
+    // awaited but internally bulletproofed against ever throwing (see
+    // notificationService.js), same "must never block the real action"
+    // tolerance as restock_order() above. order_shipped/order_delivered
+    // are now fired exclusively by shipmentService.js (Phase 8B).
+    if (existing?.status !== status && status === "cancelled") {
+      await notify("order_cancelled", { order: data });
     }
 
     res.json({ order: data });

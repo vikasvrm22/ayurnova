@@ -46,7 +46,7 @@
 <script src="js/pages/changePassword.js"></script>
 <script>
   const state = { page: 1, pageSize: 25 };
-  const EVENTS = ["order_placed", "order_shipped", "order_delivered", "order_cancelled", "return_approved", "return_rejected", "refund_completed"];
+  const EVENTS = ["order_placed", "order_shipped", "order_delivered", "order_cancelled", "return_approved", "return_rejected", "refund_completed", "order_out_for_delivery", "order_delivery_failed"];
   const EVENT_LABEL = Object.fromEntries(EVENTS.map(e => [e, e.replace(/_/g, " ")]));
   const STATUS_BADGE = { sent: "delivered", failed: "outofstock", skipped: "pending" };
   const SKIP_REASON_LABEL = { no_recipient: "No recipient on file", channel_not_configured: "Channel disabled/unconfigured" };

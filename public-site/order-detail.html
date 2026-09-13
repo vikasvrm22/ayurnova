@@ -48,7 +48,11 @@
         <p style="font-size:13px; color:#666; line-height:1.6; margin-top:4px;" id="order-address"></p>
       </div>
 
-      <div style="margin-top:10px; font-size:13.5px;" id="order-tracking"></div>
+      <div id="shipment-block" style="display:none; margin-top:18px; border-top:1px solid var(--hairline); padding-top:14px;">
+        <b style="font-size:13.5px;">Shipment</b>
+        <div id="shipment-body" style="margin-top:8px; font-size:13px;"></div>
+      </div>
+
       <div style="margin-top:10px; font-size:13.5px;">Payment: <b id="order-payment-method"></b> — <span id="order-payment-status"></span></div>
 
       <div style="margin-top:18px; border-top:1px solid var(--hairline); padding-top:14px;">
@@ -124,7 +128,7 @@
 
       const addr = o.shippingAddress || {};
       document.getElementById("order-address").textContent = `${addr.full_name || ""}, ${addr.line1 || ""}, ${addr.city || ""}, ${addr.state || ""} — ${addr.pincode || ""} (${addr.phone || ""})`;
-      document.getElementById("order-tracking").innerHTML = o.trackingNumber ? `Tracking Number: <b>${o.trackingNumber}</b>` : "";
+      renderShipment(o.shipment);
       document.getElementById("order-payment-method").textContent = o.paymentMethod === "cod" ? "Cash on Delivery" : "Prepaid";
       document.getElementById("order-payment-status").innerHTML = `<span class="badge-${o.paymentStatus === "paid" ? "delivered" : o.paymentStatus === "unpaid" ? "pending" : "shipped"}">${PAYMENT_STATUS_LABEL[o.paymentStatus] || o.paymentStatus}</span>`;
 
@@ -156,6 +160,38 @@
       document.getElementById("load-error").style.display = "block";
       document.getElementById("load-error-text").textContent = e.message;
     }
+  }
+
+  const SHIPMENT_STATUS_LABEL = {
+    pending: "Preparing shipment", label_generated: "Preparing shipment", pickup_scheduled: "Pickup scheduled",
+    picked_up: "Picked up", in_transit: "In transit", out_for_delivery: "Out for delivery",
+    delivered: "Delivered", failed_delivery: "Delivery attempt failed",
+    rto_initiated: "Being returned to sender", rto_in_transit: "Being returned to sender", rto_delivered: "Returned to sender",
+  };
+  const SHIPMENT_BADGE_CLASS = {
+    delivered: "delivered", failed_delivery: "rto", rto_initiated: "rto", rto_in_transit: "rto", rto_delivered: "rto",
+  };
+
+  function renderShipment(shipment) {
+    const block = document.getElementById("shipment-block");
+    if (!shipment) { block.style.display = "none"; return; }
+    block.style.display = "block";
+    const badgeClass = SHIPMENT_BADGE_CLASS[shipment.status] || "shipped";
+    const lines = [`<span class="badge-${badgeClass}">${SHIPMENT_STATUS_LABEL[shipment.status] || shipment.status}</span>`];
+    if (shipment.courierName) lines.push(`Courier: <b>${shipment.courierName}</b>`);
+    if (shipment.awbNumber) lines.push(`AWB / Tracking Number: <b>${shipment.awbNumber}</b>`);
+    if (shipment.eta) lines.push(`Estimated delivery: <b>${new Date(shipment.eta).toLocaleDateString("en-IN")}</b>`);
+    let html = lines.map(l => `<div style="margin-top:4px;">${l}</div>`).join("");
+    if (shipment.trackingUrl) {
+      html += `<a href="${shipment.trackingUrl}" target="_blank" rel="noopener" class="pill" style="display:inline-block; margin-top:10px;">Track Shipment →</a>`;
+    }
+    if (["failed_delivery", "rto_initiated", "rto_in_transit", "rto_delivered"].includes(shipment.status)) {
+      html += `<p style="font-size:12px; color:#B23A2E; margin-top:8px;">We were unable to complete delivery for this order. Our team will reach out about next steps.</p>`;
+    }
+    if (shipment.timeline?.length > 1) {
+      html += `<div style="margin-top:10px; font-size:12px; color:#888;">${shipment.timeline.map(t => `${SHIPMENT_STATUS_LABEL[t.status] || t.status} (${new Date(t.at).toLocaleDateString("en-IN")})`).join(" → ")}</div>`;
+    }
+    document.getElementById("shipment-body").innerHTML = html;
   }
 
   async function loadInvoiceBlock(id) {

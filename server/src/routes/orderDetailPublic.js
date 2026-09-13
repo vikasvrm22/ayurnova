@@ -29,6 +29,28 @@ import { getInvoiceByOrderId, renderInvoicePdfBuffer } from "../services/invoice
 const router = Router();
 router.use(requireCustomer);
 
+/** Phase 8B - customer-safe shipment view: status/courier/AWB/ETA/timeline
+ * only. Never the shipment's internal id, provider name/environment, or
+ * provider_meta (which may hold non-secret-but-still-internal provider
+ * response fields) - same "hand-picked fields only" boundary this file's
+ * own header comment already applies to the rest of the order response. */
+function toCustomerShipment(shipment, events) {
+  if (!shipment) return null;
+  return {
+    status: shipment.status,
+    courierName: shipment.courier_name,
+    awbNumber: shipment.awb_number,
+    trackingUrl: shipment.tracking_url,
+    eta: shipment.eta,
+    outForDeliveryAt: shipment.out_for_delivery_at,
+    deliveredAt: shipment.delivered_at,
+    failedDeliveryAt: shipment.failed_delivery_at,
+    rtoInitiatedAt: shipment.rto_initiated_at,
+    createdAt: shipment.created_at,
+    timeline: (events || []).map((e) => ({ status: e.new_status, at: e.created_at })),
+  };
+}
+
 function toCustomerOrder(order) {
   return {
     id: order.id,
@@ -98,9 +120,21 @@ router.get(
     const withinReturnWindow = !!order.delivered_at && Date.now() - new Date(order.delivered_at).getTime() <= 7 * 24 * 60 * 60 * 1000;
     const canRequestReturn = order.status === "delivered" && withinReturnWindow;
 
+    // Phase 8B: the order's active (non-cancelled) shipment, if any - a
+    // cancelled/pre-dispatch order legitimately has none yet, not an error.
+    const { data: shipment } = await supabaseAdmin()
+      .from("shipments").select("*").eq("order_id", order.id).neq("status", "cancelled").maybeSingle();
+    let shipmentEvents = [];
+    if (shipment) {
+      const { data: events } = await supabaseAdmin()
+        .from("shipment_events").select("new_status, created_at").eq("shipment_id", shipment.id).order("created_at", { ascending: true });
+      shipmentEvents = events || [];
+    }
+
     sendOk(res, {
       ...toCustomerOrder(order),
       canRequestReturn,
+      shipment: toCustomerShipment(shipment, shipmentEvents),
       items: (items || []).map((i) => ({
         id: i.id, title: i.title_snapshot, variantLabel: i.variant_label_snapshot, price: i.price_snapshot, qty: i.qty, subtotal: i.subtotal,
         returnableQty: canRequestReturn ? Math.max(0, i.qty - (alreadyRequestedByItem[i.id] || 0)) : 0,

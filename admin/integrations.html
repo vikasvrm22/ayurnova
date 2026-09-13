@@ -86,6 +86,21 @@
       <h3 style="margin-top:0;">WhatsApp (Cloud API) — Production</h3>
       <div id="whatsapp-production-form"></div>
     </div>
+
+    <div class="page-header" style="margin-top:8px;"><h2 style="font-size:17px;">Shipping / Courier (Phase 8B)</h2></div>
+    <p style="font-size:12.5px; color:#666; margin-top:-6px;">
+      Provider-agnostic: a real courier (e.g. Shiprocket) plugs into this exact same form once added - no redesign needed.
+      "Manual" needs no credentials and is enabled by default, so shipments work today via staff-entered AWB/status.
+    </p>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Manual — Test</h3>
+      <div id="manual-test-form"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Manual — Production</h3>
+      <div id="manual-production-form"></div>
+    </div>
   </main>
 </div>
 <script src="js/pages/changePassword.js"></script>
@@ -185,8 +200,9 @@
       </div>`).join("");
 
     document.getElementById(containerId).innerHTML = `
+      ${fields.noCredentials ? "" : `
       <div class="form-field"><label>${fields.keyIdLabel || "Key ID"}</label><input id="${containerId}-key-id" placeholder="${fields.keyIdPlaceholder || ""}"></div>
-      <div class="form-field" style="margin-top:8px;"><label>${fields.keySecretLabel || "Key Secret"}</label><input type="password" id="${containerId}-key-secret" placeholder="Leave blank to keep the existing secret"></div>
+      <div class="form-field" style="margin-top:8px;"><label>${fields.keySecretLabel || "Key Secret"}</label><input type="password" id="${containerId}-key-secret" placeholder="Leave blank to keep the existing secret"></div>`}
       ${extraFieldsHtml}
       <div style="margin-top:10px; font-size:12.5px;" id="${containerId}-status">Loading...</div>
       <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center;">
@@ -210,7 +226,7 @@
           document.getElementById(`${containerId}-enabled`).checked = false;
           return;
         }
-        document.getElementById(`${containerId}-key-id`).value = item.keyId || "";
+        if (!fields.noCredentials) document.getElementById(`${containerId}-key-id`).value = item.keyId || "";
         document.getElementById(`${containerId}-enabled`).checked = item.enabled;
         for (const f of fields) {
           const el = document.getElementById(`${containerId}-${f.key}`);
@@ -219,7 +235,7 @@
         statusEl.innerHTML = `
           Status: <b style="color:${item.enabled ? "#0e7a33" : "#b91c1c"};">${item.enabled ? "Enabled" : "Disabled"}</b>
           ${!item.enabled ? `<span style="color:#888;"> - saved below but won't be used until you toggle Enabled and Save</span>` : ""}<br>
-          Secret: ${item.keySecretConfigured ? `configured (${item.keySecretMasked})` : "not set"}<br>
+          ${fields.noCredentials ? "" : `Secret: ${item.keySecretConfigured ? `configured (${item.keySecretMasked})` : "not set"}<br>`}
           Last test: ${item.lastTestedAt ? `${item.lastTestStatus} - ${item.lastTestMessage} (${new Date(item.lastTestedAt).toLocaleString("en-IN")})` : "never tested"}
         `;
       } catch (e) {
@@ -233,13 +249,13 @@
       try {
         const extra = {};
         for (const f of fields) extra[f.key] = document.getElementById(`${containerId}-${f.key}`).value.trim();
-        await Api.put(`/integrations/${provider}/${environment}`, {
-          keyId: document.getElementById(`${containerId}-key-id`).value.trim(),
-          keySecret: document.getElementById(`${containerId}-key-secret`).value,
-          enabled: document.getElementById(`${containerId}-enabled`).checked,
-          extra,
-        });
-        document.getElementById(`${containerId}-key-secret`).value = "";
+        const payload = { enabled: document.getElementById(`${containerId}-enabled`).checked, extra };
+        if (!fields.noCredentials) {
+          payload.keyId = document.getElementById(`${containerId}-key-id`).value.trim();
+          payload.keySecret = document.getElementById(`${containerId}-key-secret`).value;
+        }
+        await Api.put(`/integrations/${provider}/${environment}`, payload);
+        if (!fields.noCredentials) document.getElementById(`${containerId}-key-secret`).value = "";
         Toast.show("Saved", "success");
         loadConfig();
       } catch (e) {
@@ -293,6 +309,14 @@
   renderChannelForm("sms-production-form", "sms", "production", SMS_FIELDS);
   renderChannelForm("whatsapp-test-form", "whatsapp", "test", WHATSAPP_FIELDS);
   renderChannelForm("whatsapp-production-form", "whatsapp", "production", WHATSAPP_FIELDS);
+
+  // Phase 8B: "manual" needs no credentials at all (staff enter AWB/
+  // courier/status by hand on the order's Shipment section) - same
+  // generic /integrations/:provider/:environment API, just with the
+  // Key ID/Secret inputs hidden since there is nothing to store there.
+  const MANUAL_SHIPPING_FIELDS = Object.assign([], { noCredentials: true });
+  renderChannelForm("manual-test-form", "manual", "test", MANUAL_SHIPPING_FIELDS);
+  renderChannelForm("manual-production-form", "manual", "production", MANUAL_SHIPPING_FIELDS);
 </script>
 </body>
 </html>

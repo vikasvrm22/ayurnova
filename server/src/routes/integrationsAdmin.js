@@ -14,6 +14,7 @@ import * as razorpayProvider from "../integrations/razorpay/provider.js";
 import * as emailProvider from "../integrations/email/provider.js";
 import * as smsProvider from "../integrations/sms/provider.js";
 import * as whatsappProvider from "../integrations/whatsapp/provider.js";
+import { SHIPPING_PROVIDERS } from "../integrations/shipping/registry.js";
 
 const router = Router();
 router.use(requireStaffAuth, requirePermission("manageIntegrations"));
@@ -23,11 +24,16 @@ router.use(requireStaffAuth, requirePermission("manageIntegrations"));
 // foundation unchanged - see integrationService.js's own original comment
 // ("Razorpay is its first consumer... a future SMS/email provider reuses
 // this same table"), now realized.
+// Phase 8B: shipping/courier providers (registry.js) reuse this exact same
+// generic foundation too - "manual" is the only one registered today, but
+// SHIPPING_PROVIDERS is spread in wholesale so a future courier module
+// needs no change here at all, only a new entry in that registry.
 const PROVIDERS = {
   razorpay: razorpayProvider,
   email: emailProvider,
   sms: smsProvider,
   whatsapp: whatsappProvider,
+  ...SHIPPING_PROVIDERS,
 };
 
 function assertValidProviderEnv(req, res) {

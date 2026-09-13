@@ -35,6 +35,11 @@ import * as whatsappProvider from "../integrations/whatsapp/provider.js";
 export const NOTIFICATION_EVENTS = [
   "order_placed", "order_shipped", "order_delivered", "order_cancelled",
   "return_approved", "return_rejected", "refund_completed",
+  // Phase 8B - fired by shipmentService.js on the matching shipment
+  // transition; dedupeKey defaults to order.id (below), so
+  // "order_delivery_failed" firing once for failed_delivery and again
+  // later for the same order's rto_initiated still only ever sends once.
+  "order_out_for_delivery", "order_delivery_failed",
 ];
 export const NOTIFICATION_CHANNELS = ["email", "sms", "whatsapp"];
 
@@ -70,6 +75,16 @@ function buildContent(event, ctx) {
       return {
         subject: `Order cancelled - ${orderNumber}`,
         message: `Your ${siteName} order ${orderNumber} has been cancelled.`,
+      };
+    case "order_out_for_delivery":
+      return {
+        subject: `Out for delivery - ${orderNumber}`,
+        message: `Your ${siteName} order ${orderNumber} is out for delivery today.${ctx.trackingNumber ? ` Tracking number: ${ctx.trackingNumber}.` : ""}`,
+      };
+    case "order_delivery_failed":
+      return {
+        subject: `Delivery update - ${orderNumber}`,
+        message: `We were unable to deliver your ${siteName} order ${orderNumber}.${ctx.reason ? ` Reason: ${ctx.reason}.` : ""} Our team will follow up with you shortly.`,
       };
     case "return_approved":
       return {

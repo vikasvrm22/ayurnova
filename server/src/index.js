@@ -49,6 +49,9 @@ import notificationsAdminRoutes from "./routes/notificationsAdmin.js";
 import legalAdminRoutes from "./routes/legalAdmin.js";
 // ---- Phase 8A: Tax & Invoicing ----
 import invoicesAdminRoutes from "./routes/invoicesAdmin.js";
+// ---- Phase 8B: Shipping & Logistics ----
+import shipmentsAdminRoutes from "./routes/shipmentsAdmin.js";
+import shipmentWebhooksPublicRoutes from "./routes/shipmentWebhooksPublic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -185,6 +188,14 @@ app.use("/api/admin/legal-pages", legalAdminRoutes);
 // checkout, own-invoice view/download) live on the existing checkout
 // route and orderDetailPublic.js's /:id/invoice sub-routes. ----
 app.use("/api/admin/invoices", invoicesAdminRoutes);
+
+// ---- Admin + public Shipping & Logistics (Phase 8B). The webhook route
+// is public/unauthenticated by design (a courier's own signature is the
+// auth, same trust model as paymentsPublicRoutes' Razorpay webhook above) -
+// it still passes through the generic apiLimiter applied earlier
+// (app.use("/api", apiLimiter)), same as every other /api/public route. ----
+app.use("/api/admin/shipments", shipmentsAdminRoutes);
+app.use("/api/public/shipping-webhooks", shipmentWebhooksPublicRoutes);
 
 app.get("/api/meta/schema", (req, res) => {
   res.json({ roles: ROLES, rolePermissions: ROLE_PERMISSIONS, productFields: PRODUCT_FIELDS });

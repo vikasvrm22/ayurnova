@@ -166,6 +166,7 @@ a{ color:var(--green-dark); }
 .badge-shipped{ display:inline-block; padding:2px 9px; border-radius:10px; background:#eef1f8; color:#555; }
 .badge-delivered{ display:inline-block; padding:2px 9px; border-radius:10px; background:var(--green-light); color:var(--green-dark); }
 .badge-cancelled{ display:inline-block; padding:2px 9px; border-radius:10px; background:#f2f2f2; color:#888; }
+.badge-rto{ display:inline-block; padding:2px 9px; border-radius:10px; background:#fdecec; color:#B23A2E; }
 
 /* ---- Footer ---- */
 .mega-footer{ background:var(--green-dark); color:#dbe7d6; margin-top:30px; padding:34px 0 10px; font-size:13px; }
