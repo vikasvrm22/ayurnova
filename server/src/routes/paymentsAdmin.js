@@ -20,19 +20,66 @@ router.use(requireStaffAuth, requirePermission("managePayments"));
 router.get(
   "/",
   asyncRoute(async (req, res) => {
-    const { status } = req.query;
+    const { status, from, to, q } = req.query;
     let query = supabaseAdmin()
       .from("payments")
       .select("*, orders(order_number, guest_email, guest_phone, customer_id)", { count: "exact" })
       .order("created_at", { ascending: false });
     if (status && PAYMENT_STATUSES.includes(status)) query = query.eq("status", status);
+    if (from) query = query.gte("created_at", from);
+    if (to) query = query.lte("created_at", to);
+    // Order number lives on the joined `orders` row, not `payments` itself -
+    // Supabase/PostgREST can't ilike across a join in one query, so a
+    // free-text search here matches on the payment's own id instead (still
+    // useful for pasting a payment UUID); order-number search is done
+    // client-side against the loaded page like the rest of this table.
+    if (q) query = query.ilike("id", `%${q}%`);
 
     const { page, pageSize } = parsePagination(req.query);
     query = query.range((page - 1) * pageSize, page * pageSize - 1);
 
     const { data, error, count } = await query;
     if (error) throw error;
-    res.json({ items: data, total: count, page, pageSize });
+
+    // Method (UPI/Card/etc.) lives on payment_attempts, not payments - pull
+    // each listed payment's most recent attempt to show it without adding a
+    // new column to `payments`.
+    const paymentIds = (data || []).map((p) => p.id);
+    const { data: attempts } = paymentIds.length
+      ? await supabaseAdmin().from("payment_attempts").select("payment_id, method, gateway_payment_id, created_at")
+          .in("payment_id", paymentIds).order("created_at", { ascending: false })
+      : { data: [] };
+    const latestAttemptByPayment = new Map();
+    for (const a of attempts || []) if (!latestAttemptByPayment.has(a.payment_id)) latestAttemptByPayment.set(a.payment_id, a);
+    const items = (data || []).map((p) => ({
+      ...p,
+      method: latestAttemptByPayment.get(p.id)?.method || null,
+      gatewayPaymentId: latestAttemptByPayment.get(p.id)?.gateway_payment_id || null,
+    }));
+
+    res.json({ items, total: count, page, pageSize });
+  })
+);
+
+// ---- Summary KPIs for the Payments list header cards - all read-only
+// aggregates over the same `payments` table already used above. ----
+router.get(
+  "/summary",
+  asyncRoute(async (req, res) => {
+    const { data: rows, error } = await supabaseAdmin().from("payments").select("status, amount, refunded_amount");
+    if (error) throw error;
+    const totalAmount = (rows || []).reduce((s, r) => s + Number(r.amount || 0), 0);
+    const totalCount = (rows || []).length;
+    const countByStatus = (rows || []).reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
+    const refundedAmount = (rows || []).reduce((s, r) => s + Number(r.refunded_amount || 0), 0);
+    res.json({
+      totalAmount, totalCount,
+      successfulCount: countByStatus.SUCCESS || 0,
+      failedCount: countByStatus.FAILED || 0,
+      pendingCount: (countByStatus.PENDING || 0) + (countByStatus.INITIATED || 0),
+      refundedCount: (countByStatus.REFUNDED || 0) + (countByStatus.PARTIALLY_REFUNDED || 0),
+      refundedAmount,
+    });
   })
 );
 

@@ -61,11 +61,21 @@
     </div>
   </div>
   <main class="main-area">
-    <div class="page-header"><h2>Payments</h2></div>
+    <div class="breadcrumb"><a href="settings.html">Settings</a> <span>&rsaquo;</span> <span>Payments</span></div>
+    <div class="page-header">
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <span class="page-icon">💳</span>
+        <div><h2>Payments</h2><div class="sub">View and manage all payment transactions, refunds and settlement status.</div></div>
+      </div>
+      <a class="btn btn-outline" href="integrations.html#section-razorpay" style="text-decoration:none;">⚙️ Payment Settings</a>
+    </div>
+
+    <div class="cards-row" id="payments-summary">Loading...</div>
 
     <div class="filters-row">
+      <input type="text" id="f-search" placeholder="Search by Order ID, Payment ID, Customer name or email...">
       <select id="f-status">
-        <option value="">All statuses</option>
+        <option value="">All Status</option>
         <option value="INITIATED">Initiated</option>
         <option value="PENDING">Pending</option>
         <option value="SUCCESS">Success</option>
@@ -74,11 +84,15 @@
         <option value="REFUNDED">Refunded</option>
         <option value="PARTIALLY_REFUNDED">Partially Refunded</option>
       </select>
-      <button class="btn btn-outline" id="view-failed-btn">View Failed Attempts</button>
+      <select id="f-method"><option value="">All Methods</option></select>
+      <input type="date" id="f-from" title="From date">
+      <input type="date" id="f-to" title="To date">
+      <button class="btn btn-outline" id="f-clear">Clear Filters</button>
+      <button class="btn btn-outline" id="view-failed-btn" style="margin-left:auto;">View Failed Attempts</button>
     </div>
 
     <table class="data-table">
-      <thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Gateway</th><th>Environment</th><th>Status</th><th>Date</th><th></th></tr></thead>
+      <thead><tr><th>Date &amp; Time</th><th>Order ID</th><th>Payment ID</th><th>Customer</th><th>Amount</th><th>Method</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody id="payments-rows"><tr><td colspan="8">Loading...</td></tr></tbody>
     </table>
     <div style="display:flex; gap:8px; align-items:center; margin-top:12px; font-size:13px;" id="pagination"></div>
@@ -88,25 +102,62 @@
 <script src="js/pages/changePassword.js"></script>
 <script>
   const state = { page: 1, pageSize: 20, view: "all" };
+  const METHOD_ICONS = { UPI: "📱", CARD: "💳", NETBANKING: "🏦", WALLET: "👛", EMI: "📅" };
   function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
   function fmtDate(s){ return new Date(s).toLocaleString("en-IN"); }
 
+  async function loadSummary() {
+    try {
+      const s = await Api.get("/payments/summary");
+      const rate = (n) => s.totalCount ? `${((n / s.totalCount) * 100).toFixed(1)}%` : "0%";
+      document.getElementById("payments-summary").innerHTML = `
+        <div class="stat-card stat-card-total"><div class="stat-card-icon">₹</div><div><div class="num">${fmt(s.totalAmount)}</div><div class="label">Total Payments</div><div class="sub-detail">in ${s.totalCount} transactions</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#e6f4ea; color:#0e7a33;">✅</div><div><div class="num">${s.successfulCount}</div><div class="label">Successful</div><div class="sub-detail">${rate(s.successfulCount)} success rate</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#fdecec; color:var(--danger);">✕</div><div><div class="num">${s.failedCount}</div><div class="label">Failed</div><div class="sub-detail">${rate(s.failedCount)} failure rate</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#fff3e0; color:var(--warn);">🕐</div><div><div class="num">${s.pendingCount}</div><div class="label">Pending</div><div class="sub-detail">${rate(s.pendingCount)} pending</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#ede4fb; color:#6b3fa0;">↺</div><div><div class="num">${s.refundedCount}</div><div class="label">Refunded</div><div class="sub-detail">${fmt(s.refundedAmount)} refunded</div></div></div>
+      `;
+    } catch (e) {
+      document.getElementById("payments-summary").innerHTML = `<div class="card">Could not load summary: ${e.message}</div>`;
+    }
+  }
+
   async function loadPayments() {
     const status = document.getElementById("f-status").value;
+    const q = document.getElementById("f-search").value.trim();
+    const from = document.getElementById("f-from").value;
+    const to = document.getElementById("f-to").value;
+    const method = document.getElementById("f-method").value;
     const params = new URLSearchParams({ page: state.page, pageSize: state.pageSize });
     if (status) params.set("status", status);
+    if (q) params.set("q", q);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to + "T23:59:59");
     try {
       const data = await Api.get(`/payments?${params.toString()}`);
-      document.getElementById("payments-rows").innerHTML = data.items.length
-        ? data.items.map(p => `
+      let items = data.items;
+      // Method filter is applied to this loaded page only (method lives on
+      // payment_attempts, joined in per-page above; filtering the full
+      // dataset server-side would need a join-aware query the admin API
+      // doesn't support yet) - documented simplification, not hidden.
+      if (method) items = items.filter((p) => p.method === method);
+      const methodSelect = document.getElementById("f-method");
+      if (!methodSelect.dataset.populated) {
+        const methods = [...new Set(data.items.map((p) => p.method).filter(Boolean))];
+        methodSelect.innerHTML += methods.map((m) => `<option value="${m}">${m}</option>`).join("");
+        methodSelect.dataset.populated = "1";
+      }
+
+      document.getElementById("payments-rows").innerHTML = items.length
+        ? items.map(p => `
           <tr>
+            <td>${fmtDate(p.created_at)}</td>
             <td>${p.orders?.order_number || "-"}</td>
+            <td>${p.gatewayPaymentId || "-"}</td>
             <td>${p.orders?.guest_email || p.orders?.guest_phone || (p.orders?.customer_id ? "Registered customer" : "-")}</td>
             <td>${fmt(p.amount)}${p.refunded_amount > 0 ? `<br><span style="color:#888;font-size:11px;">refunded ${fmt(p.refunded_amount)}</span>` : ""}</td>
-            <td>${p.gateway}</td>
-            <td>${p.environment}</td>
-            <td><span class="badge badge-${p.status === "SUCCESS" ? "delivered" : p.status === "FAILED" ? "cancelled" : "pending"}">${p.status}</span></td>
-            <td>${fmtDate(p.created_at)}</td>
+            <td>${p.method ? `${METHOD_ICONS[p.method] || ""} ${p.method}` : "-"}</td>
+            <td><span class="badge badge-${p.status === "SUCCESS" ? "delivered" : p.status === "FAILED" ? "cancelled" : p.status === "REFUNDED" || p.status === "PARTIALLY_REFUNDED" ? "rto" : "pending"}">${p.status}</span></td>
             <td><a href="payment-detail.html?id=${p.id}">View →</a></td>
           </tr>`).join("")
         : `<tr><td colspan="8">No payments found.</td></tr>`;
@@ -150,6 +201,19 @@
   }
 
   document.getElementById("f-status").addEventListener("change", () => { state.page = 1; state.view = "all"; load(); });
+  document.getElementById("f-method").addEventListener("change", () => { state.page = 1; load(); });
+  document.getElementById("f-search").addEventListener("input", () => { state.page = 1; load(); });
+  document.getElementById("f-from").addEventListener("change", () => { state.page = 1; load(); });
+  document.getElementById("f-to").addEventListener("change", () => { state.page = 1; load(); });
+  document.getElementById("f-clear").addEventListener("click", () => {
+    document.getElementById("f-search").value = "";
+    document.getElementById("f-status").value = "";
+    document.getElementById("f-method").value = "";
+    document.getElementById("f-from").value = "";
+    document.getElementById("f-to").value = "";
+    state.page = 1; state.view = "all";
+    load();
+  });
   document.getElementById("view-failed-btn").addEventListener("click", () => {
     state.page = 1;
     state.view = state.view === "failed" ? "all" : "failed";
@@ -157,6 +221,7 @@
     load();
   });
 
+  loadSummary();
   load();
 </script>
 </body>

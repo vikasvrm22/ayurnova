@@ -1,0 +1,16 @@
+{
+  "page": "admin-payments-list",
+  "overall": 84,
+  "categoryScores": {
+    "layout": 61,
+    "components": 100,
+    "typography": 100,
+    "spacing": null,
+    "assets": 100,
+    "colors": 99,
+    "responsive": 60,
+    "functional": 94
+  },
+  "savedAt": "2026-09-13T19:18:47.638Z",
+  "reportPath": "D:\\FinalAyurveda\\ayurveda-store-full-project\\ayur-app\\ui-judge\\reports\\admin-payments-list__2026-09-13T19-18-47-523Z.json"
+}
