@@ -1,0 +1,29 @@
+{
+  "_comment": "Route-file -> product-module mapping, derived from the actual server/src/routes files and their table access (not invented). Used by src/module-graph to build the wiring graph and by workflows.config.json to reference modules by name.",
+  "modules": {
+    "auth-admin": { "routeFiles": ["adminAuthRoutes.js"] },
+    "catalog": { "routeFiles": ["products.js", "categories.js", "catalogPublic.js", "ingredients.js"] },
+    "discovery-content": { "routeFiles": ["blog.js", "blogPublic.js", "faqs.js", "legalAdmin.js"] },
+    "personalization": { "routeFiles": ["wellnessAdmin.js", "wellnessPublic.js", "routinesAdmin.js", "routinesPublic.js"] },
+    "reviews": { "routeFiles": ["reviews.js"] },
+    "coupons": { "routeFiles": ["coupons.js"] },
+    "checkout-orders": { "routeFiles": ["public.js", "orders.js", "orderDetailPublic.js"] },
+    "payments": { "routeFiles": ["paymentsPublic.js", "paymentsAdmin.js"] },
+    "integrations": { "routeFiles": ["integrationsAdmin.js"] },
+    "inventory-batches": { "routeFiles": ["inventoryAdmin.js"] },
+    "returns-refunds": { "routeFiles": ["returnsPublic.js", "returnsAdmin.js"] },
+    "shipping-fulfillment": { "routeFiles": ["shipmentsAdmin.js", "shipmentWebhooksPublic.js"] },
+    "invoicing-tax": { "routeFiles": ["invoicesAdmin.js"] },
+    "wishlist": { "routeFiles": ["wishlistPublic.js"] },
+    "buy-again": { "routeFiles": ["buyAgainPublic.js"] },
+    "addresses": { "routeFiles": ["addressesPublic.js"] },
+    "customers-staff": { "routeFiles": ["customers.js"] },
+    "vaidya-bookings": { "routeFiles": ["vaidyaBookings.js"] },
+    "media": { "routeFiles": ["mediaAdmin.js"] },
+    "notifications": { "routeFiles": ["notificationsAdmin.js"] },
+    "settings": { "routeFiles": ["settings.js"] },
+    "dashboard-analytics": { "routeFiles": ["dashboard.js", "analyticsRoutes.js"] },
+    "error-log": { "routeFiles": ["errorLogAdmin.js"] },
+    "ssr-pages": { "routeFiles": ["pages.js"] }
+  }
+}

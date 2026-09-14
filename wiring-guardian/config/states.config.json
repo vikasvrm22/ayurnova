@@ -1,0 +1,91 @@
+{
+  "_comment": "Curated, evidence-derived lifecycle state machines. Each entity's `values` field is cross-checked at audit time against the live CHECK constraints discovered from supabase/schema.sql + migrations (see src/state-engine/validateStates.js) - if the schema drifts from this file, that is a DRIFT finding, not a silent pass. Transitions/notes are extracted from the actual service/route code comments (server/src/routes, server/src/services), not invented.",
+  "entities": {
+    "orders": {
+      "table": "orders",
+      "column": "status",
+      "values": ["pending", "processing", "shipped", "delivered", "cancelled", "rto"],
+      "adminSettableValues": ["pending", "processing", "cancelled"],
+      "authoritativeSource": {
+        "shipped": "server/src/services/shipmentService.js (shipment lifecycle, Phase 8B)",
+        "delivered": "server/src/services/shipmentService.js (shipment lifecycle, Phase 8B)",
+        "rto": "server/src/services/shipmentService.js (shipment lifecycle, Phase 8B)",
+        "pending": "server/src/routes/orders.js PUT /:id/status",
+        "processing": "server/src/routes/orders.js PUT /:id/status",
+        "cancelled": "server/src/routes/orders.js PUT /:id/status (admin) and server/src/routes/orderDetailPublic.js (customer, pre-shipment only)"
+      },
+      "historyTable": null,
+      "note": "No dedicated order_status_history table exists (confirmed via schema discovery) - transitions are only reconstructable from activity_log rows, which are free-text, not a structured audit trail."
+    },
+    "orders_payment_status": {
+      "table": "orders",
+      "column": "payment_status",
+      "values": ["unpaid", "paid", "refunded", "partially_refunded", "failed"],
+      "historyTable": null
+    },
+    "payments": {
+      "table": "payments",
+      "column": "status",
+      "values": ["INITIATED", "PENDING", "SUCCESS", "FAILED", "CANCELLED", "REFUNDED", "PARTIALLY_REFUNDED"],
+      "authoritativeSource": { "*": "server/src/services/paymentService.js (sole writer)" },
+      "historyTable": "payment_attempts"
+    },
+    "payment_attempts": {
+      "table": "payment_attempts",
+      "column": "status",
+      "values": ["INITIATED", "PENDING", "SUCCESS", "FAILED", "CANCELLED"],
+      "note": "Phase 9B (P2-3): capped at 10 attempts per order by paymentService.js."
+    },
+    "refunds": {
+      "table": "refunds",
+      "column": "status",
+      "values": ["INITIATED", "PROCESSED", "FAILED"],
+      "authoritativeSource": { "*": "server/src/services/paymentService.js" }
+    },
+    "webhook_events": {
+      "table": "webhook_events",
+      "column": "processing_status",
+      "values": ["RECEIVED", "PROCESSED", "IGNORED", "ERROR"],
+      "note": "Idempotency key is unique(gateway,event_id) - see src/workflow-engine for the duplicate-webhook replay check."
+    },
+    "return_requests": {
+      "table": "return_requests",
+      "column": "status",
+      "values": ["requested", "approved", "rejected", "refunded"],
+      "authoritativeSource": { "*": "server/src/routes/returnsAdmin.js, server/src/services/returnsService.js" }
+    },
+    "return_requests_refund_status": {
+      "table": "return_requests",
+      "column": "refund_status",
+      "values": ["none", "completed", "failed"]
+    },
+    "batches": {
+      "table": "batches",
+      "column": "quality_status",
+      "values": ["pending", "passed", "failed"],
+      "authoritativeSource": { "*": "server/src/routes/inventoryAdmin.js" }
+    },
+    "batches_batch_status": {
+      "table": "batches",
+      "column": "batch_status",
+      "values": ["active", "quarantined", "expired", "recalled"]
+    },
+    "shipments": {
+      "table": "shipments",
+      "column": "status",
+      "values": [
+        "pending", "label_generated", "pickup_scheduled", "picked_up", "in_transit",
+        "out_for_delivery", "delivered", "failed_delivery", "rto_initiated",
+        "rto_in_transit", "rto_delivered", "cancelled"
+      ],
+      "authoritativeSource": { "*": "server/src/services/shipmentService.js" },
+      "historyTable": "shipment_events",
+      "note": "The ONLY lifecycle entity in this schema with a dedicated previous_status/new_status audit table."
+    },
+    "invoices": {
+      "table": "invoices",
+      "column": "status",
+      "values": ["issued", "cancelled"]
+    }
+  }
+}

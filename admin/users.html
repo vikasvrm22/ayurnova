@@ -70,7 +70,7 @@
 
   async function load() {
     try {
-      const { items } = await Api.get("/staff");
+      const { items } = await Api.get("/auth/staff");
       document.getElementById("staff-rows").innerHTML = items.map(u => `
         <tr>
           <td>${u.name}</td><td>${u.email}</td>
@@ -83,12 +83,12 @@
     }
   }
   async function updateRole(id, role) {
-    try { await Api.put(`/staff/${id}`, { role }); Toast.show("Role updated", "success"); }
+    try { await Api.put(`/auth/staff/${id}`, { role }); Toast.show("Role updated", "success"); }
     catch (e) { Toast.show(e.message, "error"); load(); }
   }
   async function deactivate(id) {
     if (!confirm("Deactivate this account?")) return;
-    try { await Api.post(`/staff/${id}/deactivate`, {}); Toast.show("Deactivated", "success"); load(); }
+    try { await Api.post(`/auth/staff/${id}/deactivate`, {}); Toast.show("Deactivated", "success"); load(); }
     catch (e) { Toast.show(e.message, "error"); }
   }
 
@@ -112,7 +112,7 @@
     backdrop.querySelector("#inv-cancel").onclick = () => { backdrop.remove(); load(); };
     backdrop.querySelector("#inv-save").onclick = async () => {
       try {
-        const res = await Api.post("/staff/invite", {
+        const res = await Api.post("/auth/staff/invite", {
           name: backdrop.querySelector("#inv-name").value.trim(),
           email: backdrop.querySelector("#inv-email").value.trim(),
           role: backdrop.querySelector("#inv-role").value,

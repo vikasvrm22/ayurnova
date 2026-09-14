@@ -1,0 +1,196 @@
+{
+  "_comment": "Data-driven workflow registry (spec section 23). `level` is one of MICRO|FEATURE|BUSINESS|CROSS_MODULE|FULL_LIFECYCLE. Each step's `check` is interpreted by src/workflow-engine/runWorkflows.js against the real discovery evidence - route/table/state/event names here must exist in the actual repo, they are not invented. `phase` is informational metadata only (section 3): it never limits which workflows the engine can run.",
+  "workflows": [
+    {
+      "id": "customer.cart.reprice_lookup",
+      "name": "Cart line-item re-pricing lookup",
+      "level": "MICRO",
+      "phase": "Phase 1",
+      "actors": ["customer", "guest"],
+      "startingCondition": "Cart contents exist client-side in localStorage (no server-side cart table).",
+      "steps": [
+        { "seq": 1, "description": "Page requests authoritative price/stock/title for the variant ids in the cart", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/api/public/cart-items" } },
+        { "seq": 2, "description": "Server reads current variant price/stock and filters to published products only", "actor": "system", "check": { "type": "table", "table": "product_variants" } }
+      ],
+      "failureScenarios": ["A variant id no longer exists or its product was unpublished since being added to cart"],
+      "recoveryScenarios": ["Route filters unpublished products out of the response rather than erroring (server/src/routes/public.js cart-items handler)"],
+      "idempotencyExpectations": ["GET is naturally idempotent"],
+      "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "customer.wishlist.full_cycle",
+      "name": "Wishlist add / persist / view / remove",
+      "level": "FEATURE",
+      "phase": "Phase 8C",
+      "actors": ["customer"],
+      "startingCondition": "Customer is logged in (requireCustomer).",
+      "steps": [
+        { "seq": 1, "description": "Login required before any wishlist action", "actor": "customer", "check": { "type": "route", "method": "GET", "path": "/api/public/wishlist", "expectActor": "customer" } },
+        { "seq": 2, "description": "Add a product to the wishlist", "actor": "customer", "check": { "type": "route", "method": "POST", "path": "/api/public/wishlist" } },
+        { "seq": 3, "description": "Wishlist item persisted", "actor": "system", "check": { "type": "table", "table": "wishlist_items" } },
+        { "seq": 4, "description": "Remove a wishlist item", "actor": "customer", "check": { "type": "route", "method": "DELETE", "path": "/api/public/wishlist/:id" } }
+      ],
+      "failureScenarios": ["Product removed/archived while still wishlisted"],
+      "recoveryScenarios": ["Wishlist GET should join back to current product status - verified via contract engine, not simulated here"],
+      "idempotencyExpectations": ["Adding an already-wishlisted item should not create duplicate rows (unique constraint expected on (customer_id, product_id) - see state-engine schema evidence)"],
+      "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "customer.checkout.purchase",
+      "name": "Customer purchase: cart -> checkout -> payment -> order",
+      "level": "BUSINESS",
+      "phase": "Phase 1-2",
+      "actors": ["customer", "guest"],
+      "startingCondition": "Cart has at least one in-stock, published variant.",
+      "steps": [
+        { "seq": 1, "description": "Coupon validated (optional)", "actor": "guest", "check": { "type": "route", "method": "POST", "path": "/api/public/coupons/validate" } },
+        { "seq": 2, "description": "Checkout submitted; COD gated by trust_badges.cod, prepaid requires an active Razorpay environment", "actor": "guest", "check": { "type": "route", "method": "POST", "path": "/api/public/checkout" } },
+        { "seq": 3, "description": "Order + order_items rows created, server-repriced (never client-trusted)", "actor": "system", "check": { "type": "table", "table": "orders" } },
+        { "seq": 4, "description": "COD: stock allocated immediately via FEFO RPC; Prepaid: stock NOT decremented yet", "actor": "system", "check": { "type": "table", "table": "order_item_batch_allocations" } },
+        { "seq": 5, "description": "Prepaid only: a payment attempt is started", "actor": "system", "check": { "type": "table", "table": "payments" } },
+        { "seq": 6, "description": "order_placed notification fires for COD orders immediately (prepaid waits for payment success)", "actor": "system", "check": { "type": "event", "event": "order_placed" } }
+      ],
+      "failureScenarios": [
+        "Prepaid checkout requested while no Razorpay environment is configured -> 503 before any order row is created",
+        "Concurrent checkouts racing for the last unit of stock -> FEFO allocation RPC rolls back and the order+order_items are deleted, not left dangling"
+      ],
+      "recoveryScenarios": ["Order/order_items cleanup on allocation failure (server/src/routes/public.js checkout handler)"],
+      "idempotencyExpectations": ["Not applicable to order creation itself - each POST creates one order; idempotency matters downstream at payment verification (see payment.webhook_idempotency)"],
+      "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "customer.payment.prepaid_verify",
+      "name": "Prepaid payment verification -> order acceptance",
+      "level": "BUSINESS",
+      "phase": "Phase 2",
+      "actors": ["customer", "razorpay"],
+      "startingCondition": "A payment attempt exists for a prepaid order (status INITIATED/PENDING).",
+      "steps": [
+        { "seq": 1, "description": "Checkout.js callback posts the signed payment result", "actor": "customer", "check": { "type": "route", "method": "POST", "path": "/api/public/payments/verify" } },
+        { "seq": 2, "description": "Razorpay webhook independently confirms the same payment (HMAC verified, may arrive before or after step 1)", "actor": "razorpay", "check": { "type": "route", "method": "POST", "path": "/api/public/payments/webhook" } },
+        { "seq": 3, "description": "webhook_events row records the event for idempotency (unique on gateway+event_id)", "actor": "system", "check": { "type": "table", "table": "webhook_events" } },
+        { "seq": 4, "description": "On confirmed SUCCESS, stock is allocated (first time only) and order marked paid", "actor": "system", "check": { "type": "state", "entity": "orders_payment_status", "value": "paid" } },
+        { "seq": 5, "description": "Retry a failed prepaid payment, capped", "actor": "customer", "check": { "type": "route", "method": "POST", "path": "/api/public/payments/retry" } }
+      ],
+      "failureScenarios": ["Checkout.js callback and the Razorpay webhook both arrive for the same payment", "Customer retries a failed payment beyond the Phase 9B cap of 10 attempts/order"],
+      "recoveryScenarios": ["webhook_events unique(gateway,event_id) constraint prevents double-processing a replayed webhook"],
+      "idempotencyExpectations": ["Stock must be allocated exactly once per order regardless of how many times SUCCESS is reported (verify-callback vs webhook race)"],
+      "testStrategy": "NOT_EXECUTED_ENV_LIMITATION",
+      "existingCoverage": "server/dev-harness/test-phase9b-payment-retry-cap.js already exercises the retry cap against a real dev environment; Guardian references it rather than re-simulating live Razorpay traffic."
+    },
+    {
+      "id": "admin.order.fulfillment",
+      "name": "Admin order processing -> shipment -> customer visibility",
+      "level": "CROSS_MODULE",
+      "phase": "Phase 8B",
+      "actors": ["admin", "customer"],
+      "startingCondition": "Order exists in 'processing' status.",
+      "steps": [
+        { "seq": 1, "description": "Admin views the order (with payment + batch allocation trail)", "actor": "admin", "check": { "type": "route", "method": "GET", "path": "/api/admin/orders/:id", "expectActor": "admin" } },
+        { "seq": 2, "description": "Admin creates a shipment for the order", "actor": "admin", "check": { "type": "route", "method": "POST", "path": "/api/admin/shipments" } },
+        { "seq": 3, "description": "Shipment status transitions are recorded with previous/new status pairs", "actor": "system", "check": { "type": "table", "table": "shipment_events" } },
+        { "seq": 4, "description": "orders.status is now driven exclusively by the shipment lifecycle, not a direct admin edit", "actor": "system", "check": { "type": "state", "entity": "orders", "value": "shipped" } },
+        { "seq": 5, "description": "Customer notified on shipped/delivered/out-for-delivery/delivery-failed", "actor": "system", "check": { "type": "event", "event": "order_shipped" } }
+      ],
+      "failureScenarios": ["Admin attempts to cancel an order that already has an active shipment past pre-dispatch"],
+      "recoveryScenarios": ["Order cancel route redirects to the Shipment section's RTO flow instead of silently overriding status (server/src/routes/orders.js)"],
+      "idempotencyExpectations": ["A second, near-simultaneous admin cancel request gets a 409 (conditional update on the read status), never a double-restock"],
+      "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "customer.return.refund_cycle",
+      "name": "Return request -> admin review -> refund -> inventory consequence",
+      "level": "CROSS_MODULE",
+      "phase": "Phase 6B",
+      "actors": ["customer", "admin"],
+      "startingCondition": "Order is 'delivered' and within the return-eligibility window.",
+      "steps": [
+        { "seq": 1, "description": "Customer requests a return on a delivered order", "actor": "customer", "check": { "type": "route", "method": "POST", "path": "/api/public/returns" } },
+        { "seq": 2, "description": "return_requests row created, status 'requested'", "actor": "system", "check": { "type": "state", "entity": "return_requests", "value": "requested" } },
+        { "seq": 3, "description": "Admin reviews (approve/reject)", "actor": "admin", "check": { "type": "route", "method": "POST", "path": "/api/admin/returns/:id/review" } },
+        { "seq": 4, "description": "Approved item intake creates a new pending-QC batch", "actor": "system", "check": { "type": "table", "table": "batches" } },
+        { "seq": 5, "description": "Admin processes the refund", "actor": "admin", "check": { "type": "route", "method": "POST", "path": "/api/admin/returns/:id/refund" } },
+        { "seq": 6, "description": "refund recorded against the original payment", "actor": "system", "check": { "type": "table", "table": "refunds" } },
+        { "seq": 7, "description": "Customer notified of the outcome", "actor": "system", "check": { "type": "event", "event": "refund_completed" } }
+      ],
+      "failureScenarios": ["Refund amount exceeds the payment's remaining refundable balance", "Return submitted after the 7-day eligibility window"],
+      "recoveryScenarios": ["Refund amount is server-recomputed/re-validated, never client-trusted (Phase 9 audit §B)"],
+      "idempotencyExpectations": ["Refund idempotency additionally keyed per gateway_refund_id so admin-initiated and webhook-confirmed paths never double-count"],
+      "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "business_rule.cod_gate",
+      "name": "COD eligibility flag gates checkout end-to-end",
+      "level": "BUSINESS",
+      "phase": "Phase 9B",
+      "actors": ["admin", "customer"],
+      "startingCondition": "Admin sets settings.trust_badges.cod = false.",
+      "steps": [
+        { "seq": 1, "description": "Admin updates the trust_badges setting", "actor": "admin", "check": { "type": "route", "method": "PUT", "path": "/api/admin/settings/:key" } },
+        { "seq": 2, "description": "Storefront reads the same setting", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/api/public/settings" } },
+        { "seq": 3, "description": "Checkout must reject a COD order when the flag is off, independent of the client", "actor": "system", "check": { "type": "featureFlag", "flag": "trust_badges.cod", "enforcedAt": "server/src/routes/public.js POST /checkout" } }
+      ],
+      "failureScenarios": ["A direct API call bypassing the storefront UI attempts COD while the flag is off"],
+      "recoveryScenarios": ["Server-side rejection independent of any client-side control (Phase 9B P1-3 fix)"],
+      "idempotencyExpectations": [],
+      "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "security.admin_endpoint_protection",
+      "name": "Every /api/admin/* route requires staff auth + role permission",
+      "level": "MICRO",
+      "phase": "Phase 1",
+      "actors": ["admin", "attacker"],
+      "startingCondition": "Caller has no staff session.",
+      "steps": [
+        { "seq": 1, "description": "Every admin route rejects an unauthenticated caller", "actor": "system", "check": { "type": "rbacSweep", "scope": "admin-auth" } },
+        { "seq": 2, "description": "Every mutating admin route is scoped by role permission, not just staff-ness", "actor": "system", "check": { "type": "rbacSweep", "scope": "admin-permission" } }
+      ],
+      "failureScenarios": ["A route file forgets router.use(requireStaffAuth) or a requirePermission() call"],
+      "recoveryScenarios": [],
+      "idempotencyExpectations": [],
+      "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "security.customer_data_protection",
+      "name": "Every customer-owned-data route requires customer identity",
+      "level": "MICRO",
+      "phase": "Phase 1",
+      "actors": ["customer", "attacker"],
+      "startingCondition": "Caller has no customer session.",
+      "steps": [
+        { "seq": 1, "description": "Every route that reads/writes req.customer-scoped data rejects an unauthenticated caller (hard middleware or inline guard)", "actor": "system", "check": { "type": "rbacSweep", "scope": "customer-auth" } }
+      ],
+      "failureScenarios": ["A route reads req.customer.id without checking req.customer is non-null first"],
+      "recoveryScenarios": [],
+      "idempotencyExpectations": [],
+      "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "full_lifecycle.new_customer_purchase_to_resolution",
+      "name": "New customer: discover -> purchase -> fulfillment -> delivery -> return -> refund -> final state",
+      "level": "FULL_LIFECYCLE",
+      "phase": "Phase 1-9 (composite)",
+      "actors": ["customer", "admin", "razorpay", "system"],
+      "startingCondition": "New guest visitor, no account.",
+      "composesWorkflows": [
+        "customer.checkout.purchase",
+        "customer.payment.prepaid_verify",
+        "admin.order.fulfillment",
+        "customer.return.refund_cycle"
+      ],
+      "steps": [
+        { "seq": 1, "description": "Discover product via catalog", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/api/public/products/:slug" } },
+        { "seq": 2, "description": "Purchase (see customer.checkout.purchase)", "actor": "guest", "check": { "type": "route", "method": "POST", "path": "/api/public/checkout" } },
+        { "seq": 3, "description": "Admin sees and processes the order (see admin.order.fulfillment)", "actor": "admin", "check": { "type": "route", "method": "GET", "path": "/api/admin/orders/:id" } },
+        { "seq": 4, "description": "Shipment reaches 'delivered'", "actor": "system", "check": { "type": "state", "entity": "shipments", "value": "delivered" } },
+        { "seq": 5, "description": "Customer requests a return (see customer.return.refund_cycle)", "actor": "customer", "check": { "type": "route", "method": "POST", "path": "/api/public/returns" } },
+        { "seq": 6, "description": "Refund reaches final state", "actor": "system", "check": { "type": "state", "entity": "refunds", "value": "PROCESSED" } }
+      ],
+      "failureScenarios": ["Any single composed workflow above breaking breaks this full lifecycle"],
+      "recoveryScenarios": ["See each composed workflow"],
+      "idempotencyExpectations": ["See each composed workflow"],
+      "testStrategy": "STATIC_EVIDENCE"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "wiring-guardian",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Independent product wiring auditor for AyurNova: verifies the product is actually connected end-to-end (UI->API->DB->business-rule->state->event->next module), across the full workflow lifecycle. Audit-first; only applies deterministic, evidence-backed, low-risk fixes.",
+  "type": "module",
+  "scripts": {
+    "guardian": "node bin/wiring-guardian.js",
+    "test": "node tests/runAll.js"
+  },
+  "dependencies": {}
+}
