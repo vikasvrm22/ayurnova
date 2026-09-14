@@ -95,16 +95,16 @@ function renderMegaMenu(categories, pathPrefix) {
 /** Footer "Top Categories" - same landing-page links as the mega-menu,
  * mixing concern+benefit so the footer isn't empty when only one type has
  * real content yet. */
-/** Real prev/next/numbered pagination for /shop and search results -
+/** Real prev/next/numbered pagination for /shop, /blog and search results -
  * preserves every current query param except `page`. Previously the shop
  * page just had two decorative, unwired buttons (Category B gap). */
-function renderPagination(currentQuery, page, totalPages) {
+function renderPagination(currentQuery, page, totalPages, basePath = "/shop") {
   if (totalPages <= 1) return "";
   const urlFor = (p) => {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(currentQuery || {})) if (typeof v === "string" && v) params.set(k, v);
     params.set("page", String(p));
-    return `/shop?${params.toString()}`;
+    return `${basePath}?${params.toString()}`;
   };
   const windowStart = Math.max(1, page - 2);
   const windowEnd = Math.min(totalPages, page + 2);
@@ -505,8 +505,13 @@ async function renderDiscoverPage(res, { entity, products, total, page, pageSize
     : `<p style="grid-column:1/-1; text-align:center; color:#888;">No products tagged with this yet.</p>`;
   template = template.replace("<!--DISCOVER_LABEL-->", escapeHtml(breadcrumbLabel));
   template = template.replace("<!--DISCOVER_TITLE-->", escapeHtml(entity.name));
-  template = template.replace("<!--DISCOVER_DESCRIPTION-->", escapeHtml(entity.description || ""));
+  template = template.replace("<!--DISCOVER_DESCRIPTION-->", escapeHtml(entity.description || `Discover Ayurvedic products for ${entity.name}.`));
   template = template.replace("<!--DISCOVER_PRODUCTS-->", grid);
+  // Same single brand hero photo the Phase 3 reference itself reuses across
+  // every discovery-hub/concern/comparison mockup - falls back to it when
+  // this entity has no hero_image of its own rather than leaving a gap.
+  const heroImage = entity.hero_image || "/img/hero-home-bottles.webp";
+  template = template.replace("<!--DISCOVER_HERO_IMAGE-->", `<div class="hero-media"><img src="${escapeHtml(heroImage)}" alt="${escapeHtml(entity.name)}" width="500" height="300"></div>`);
 
   const [concerns, benefits] = await Promise.all([listCategories({ type: "concern" }), listCategories({ type: "benefit" })]);
   template = template.replace("<!--FOOTER_CATEGORIES-->", renderFooterCategories(concerns, benefits));
@@ -576,13 +581,18 @@ router.get("/blog", trackPageView, async (req, res, next) => {
     let template = getTemplate("blog.html");
     const cardsHtml = (posts || []).length
       ? posts.map((p) => `
-        <div class="testimonial-card">
-          <div class="name"><a href="/blog/${escapeHtml(p.slug)}">${escapeHtml(p.title)}</a></div>
-          <p>${escapeHtml(truncate(p.excerpt || "", 160))}</p>
-          <p style="color:#888; font-size:11.5px;">${p.published_at ? new Date(p.published_at).toLocaleDateString("en-IN") : ""}</p>
+        <div class="article-card">
+          <div class="img" style="${p.cover_image ? `background-image:url('${escapeHtml(p.cover_image)}');` : ""}"></div>
+          <div class="body">
+            <h3 class="title"><a href="/blog/${escapeHtml(p.slug)}">${escapeHtml(p.title)}</a></h3>
+            <p class="excerpt">${escapeHtml(truncate(p.excerpt || "", 140))}</p>
+            <p class="meta">${p.published_at ? new Date(p.published_at).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" }) : ""}</p>
+          </div>
         </div>`).join("")
-      : `<p style="color:#888;">No articles published yet - check back soon.</p>`;
+      : `<p style="grid-column:1/-1; text-align:center; color:#888;">No articles published yet - check back soon.</p>`;
     template = template.replace("<!--BLOG_POSTS-->", cardsHtml);
+    const totalPages = Math.ceil((count || 0) / pageSize);
+    template = template.replace("<!--BLOG_PAGINATION-->", renderPagination(req.query, page, totalPages, "/blog"));
 
     const headMeta = renderHeadMeta({
       title: "Ayurveda Knowledge Hub — AyurNova",

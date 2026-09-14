@@ -108,7 +108,7 @@ a{ color:var(--green-dark); }
 .header-icons{ display:flex; gap:22px; align-items:center; font-size:13px; }
 .header-icons a{ text-decoration:none; color:var(--ink); display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11px; position:relative; }
 .header-icons a svg{ display:block; }
-.cart-count, .wishlist-count{ position:absolute; top:-6px; right:-9px; color:#fff; border-radius:50%; width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:700; }
+.cart-count, .wishlist-count{ position:absolute; top:-6px; right:-3px; color:#fff; border-radius:50%; width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:700; }
 .cart-count{ background:var(--gold); }
 .wishlist-count{ background:#B23A2E; }
 
@@ -251,6 +251,20 @@ a{ color:var(--green-dark); }
 .product-card .add-btn:disabled{ background:#e4ded0; color:#9a927a; cursor:not-allowed; }
 .carousel-strip{ display:flex; gap:16px; overflow-x:auto; padding-bottom:6px; }
 .carousel-strip .product-card{ min-width:220px; flex-shrink:0; }
+
+/* ---- Knowledge Hub article cards (Phase 3) ---- */
+.article-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+@media (max-width:900px){ .article-grid{ grid-template-columns:repeat(2,1fr); } }
+@media (max-width:600px){ .article-grid{ grid-template-columns:1fr; } }
+.article-card{ background:#fff; border:1px solid var(--hairline); border-radius:var(--radius-md); overflow:hidden; display:flex; flex-direction:column; height:100%; transition:box-shadow .15s,border-color .15s; }
+.article-card:hover{ box-shadow:var(--shadow-md); border-color:#d7cfae; }
+.article-card .img{ height:160px; background:linear-gradient(135deg,#eef3ea,#f7f1e0) center/cover no-repeat; flex-shrink:0; }
+.article-card .body{ padding:14px 16px; display:flex; flex-direction:column; flex:1; }
+.article-card .title{ font-size:15px; font-weight:700; margin:0 0 6px; line-height:1.35; }
+.article-card .title a{ color:var(--ink); text-decoration:none; }
+.article-card .title a:hover{ color:var(--green-dark); }
+.article-card .excerpt{ font-size:12.5px; color:var(--ink-soft); line-height:1.55; margin:0 0 10px; flex:1; }
+.article-card .meta{ font-size:11px; color:#999; margin-top:auto; }
 
 /* ---- USPs ---- */
 .usp-row{ display:grid; grid-template-columns:repeat(6,1fr); gap:14px; padding:30px 0; text-align:center; }

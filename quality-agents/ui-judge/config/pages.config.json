@@ -212,13 +212,13 @@
     },
     {
       "name": "product-comparison",
-      "route": "/compare",
+      "route": "/compare?ids=3a47f015-9c2c-402b-9c80-eafb6c54b8d0,36191f68-5385-4f4b-8db3-470e8f413f0e,90b29eaf-7512-4a4d-86c2-4928bc0cb8b4,9343d557-dd44-45dd-9235-185c92e99341",
       "reference": "../../../public-site/design-ref/Phase3 Product Comparison.png",
       "viewport": { "width": 1440, "height": 900 },
       "additionalViewports": [
         { "name": "mobile", "width": 390, "height": 844 }
       ],
-      "waitForSelector": "#compare-body"
+      "waitForSelector": "#compare-body table"
     }
   ]
 }
