@@ -16,7 +16,8 @@
     "dev:test-phase9b-payment-retry-cap": "node dev-harness/test-phase9b-payment-retry-cap.js",
     "dev:test-phase9b-error-log": "node dev-harness/test-phase9b-error-log.js",
     "dev:test-phase9f-cache-invalidation": "node dev-harness/test-phase9f-cache-invalidation.js",
-    "dev:test-phase9g-seed-admin-password": "node dev-harness/test-phase9g-seed-admin-password.js"
+    "dev:test-phase9g-seed-admin-password": "node dev-harness/test-phase9g-seed-admin-password.js",
+    "dev:test-admin-login-error-message": "node dev-harness/test-admin-login-error-message.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

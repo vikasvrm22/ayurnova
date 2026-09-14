@@ -11,7 +11,12 @@ window.Api = (function () {
       body: body !== undefined ? (isFormData ? body : JSON.stringify(body)) : undefined,
     });
 
-    if (resp.status === 401) {
+    // The login endpoint itself returns 401 for "invalid credentials" - a
+    // distinct meaning from "your existing bearer token is invalid/expired".
+    // It never carries a token (the user isn't logged in yet), so it must
+    // never be treated as a session-expiry event or have its real error
+    // message (e.g. "Invalid credentials") replaced below.
+    if (resp.status === 401 && path !== "/auth/login") {
       localStorage.removeItem("ayur_admin_token");
       localStorage.removeItem("ayur_admin_user");
       if (!location.pathname.endsWith("login.html")) location.href = "login.html";
