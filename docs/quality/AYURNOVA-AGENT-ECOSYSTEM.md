@@ -31,7 +31,8 @@ quality-agents/
 │   ├── reporting/
 │   └── utils/
 ├── ui-judge/                  IMPLEMENTED - visual/behavioral fidelity auditor
-└── wiring-guardian/           IMPLEMENTED - end-to-end product wiring auditor
+├── wiring-guardian/           IMPLEMENTED - end-to-end product wiring auditor
+└── requirements-guardian/     IMPLEMENTED - approved-requirements/business-rule compliance auditor
 ```
 
 ## Current agents
@@ -53,6 +54,17 @@ asked to (`--apply-fixes`), and always re-audits after fixing to confirm the
 fix actually resolved the finding. Full docs:
 [docs/WIRING-GUARDIAN.md](../WIRING-GUARDIAN.md).
 
+### Requirements Guardian (`quality-agents/requirements-guardian/`)
+
+Audits whether the implemented product matches what has already been
+**approved** - product requirements, business rules, domain rules, API/data
+contracts, state machines, and feature-flag rules recorded in this
+repository's own approved documentation and code. Never invents a
+requirement; an authoritative conflict or insufficient evidence is always
+reported `NEEDS_REVIEW`, never silently resolved. Audit-only - no
+`--apply-fixes` mode exists at all for this agent. Full docs:
+[docs/REQUIREMENTS-GUARDIAN.md](../REQUIREMENTS-GUARDIAN.md).
+
 ## Planned agents (reserved, not implemented)
 
 The following are reserved names in this architecture. They do **not** exist
@@ -62,7 +74,6 @@ sibling under `quality-agents/`, never retrofitting an existing agent.
 
 | Agent | Question it will answer |
 |---|---|
-| `requirements-guardian` | Does the implementation match the written product requirements? |
 | `security-guardian` | Are there exploitable security gaps beyond Wiring Guardian's RBAC checks? |
 | `regression-guardian` | Did this change break something that used to work? |
 | `data-guardian` | Is stored data internally consistent and free of integrity drift? |
@@ -79,16 +90,21 @@ BAD:  quality-agents/security-guardian  -->  quality-agents/ui-judge/src/...
 BAD:  quality-agents/wiring-guardian    -->  quality-agents/security-guardian/src/...
 ```
 
-Today, UI Judge and Wiring Guardian already satisfy this: neither imports
-the other, neither calls the other, and each is independently installable
-and runnable (own `package.json`, own `npm test`, own CLI). This was
-verified as part of this migration (see "Migration status" below) and must
-remain true as new agents are added.
+Today, UI Judge, Wiring Guardian, and Requirements Guardian already satisfy
+this: none imports another's source, none calls another to run, and each is
+independently installable and runnable (own `package.json`, own `npm test`,
+own CLI). This was verified for UI Judge/Wiring Guardian as part of their
+relocation migration (see "Migration status" below), and Requirements
+Guardian was built natively inside `quality-agents/` from the start with the
+same independence property. This must remain true as new agents are added.
 
 Any future interoperability between agents (e.g. a security finding that
 references a wiring-graph edge) must go through `quality-agents/shared/`, or
 through a standardized evidence/report file both agents can read/write
-independently - never through direct source imports.
+independently - never through direct source imports. Requirements Guardian's
+one RBAC requirement follows exactly this pattern: it optionally reads
+Wiring Guardian's own generated JSON report file if present, and never
+imports its source or requires it to run first.
 
 ## The shared layer
 

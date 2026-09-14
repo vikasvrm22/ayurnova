@@ -1,0 +1,12 @@
+{
+  "name": "requirements-guardian",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Independent requirements/business-rule compliance auditor for AyurNova: verifies the implemented product matches approved product requirements, business rules, domain rules, API/data contracts, state rules, and feature-flag rules already recorded in the repository's own approved documentation. Audit-only - never invents requirements, never modifies application behavior.",
+  "type": "module",
+  "scripts": {
+    "requirements": "node bin/requirements-guardian.js",
+    "test": "node tests/runAll.js"
+  },
+  "dependencies": {}
+}
