@@ -82,8 +82,8 @@
       <div class="checkout-card">
         <h4>Payment Method</h4>
         <div class="payment-method-grid">
-          <label class="payment-method-card">
-            <input type="radio" name="pay" value="cod" checked>
+          <label class="payment-method-card" id="cod-payment-option">
+            <input type="radio" name="pay" value="cod" id="pay-cod" checked>
             <span class="pm-icon">💵</span><span class="pm-label">Cash on Delivery</span><span class="pm-sub">Pay when your order arrives</span>
           </label>
           <label class="payment-method-card recommended">
@@ -148,6 +148,13 @@
       b.return ? "🔄 Easy 7-day return" : null,
     ].filter(Boolean);
     document.getElementById("trust-badges").innerHTML = badges.join(" &nbsp;|&nbsp; ");
+    if (!b.cod) {
+      const codOption = document.getElementById("cod-payment-option");
+      const codRadio = document.getElementById("pay-cod");
+      const prepaidRadio = document.querySelector('input[name="pay"][value="prepaid"]');
+      if (codOption) codOption.style.display = "none";
+      if (codRadio && codRadio.checked && prepaidRadio) { codRadio.checked = false; prepaidRadio.checked = true; }
+    }
   }).catch(() => {});
 
   // Phase 8A: structured state code (not free-text) - powers both

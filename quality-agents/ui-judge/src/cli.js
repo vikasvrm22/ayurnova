@@ -79,7 +79,7 @@ export async function main(argv = process.argv.slice(2)) {
     sourceRoots: projectConfig.sourceRoots,
     specsDir: paths.specsDir, screenshotsDir: paths.screenshotsDir,
     reportsDir: outputDir, baselinesDir: paths.baselinesDir,
-    projectRoot: path.resolve(paths.root, ".."), projectName: path.basename(path.resolve(paths.root, "..")),
+    projectRoot: path.resolve(paths.root, "..", ".."), projectName: path.basename(path.resolve(paths.root, "..", "..")),
     saveBaseline: !!args["save-baseline"],
   });
 

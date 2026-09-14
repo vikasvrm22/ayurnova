@@ -3,7 +3,7 @@
 A reusable, **project-agnostic** UI auditor that compares an approved design
 reference (a screenshot/mockup) against a real, implemented web page and
 produces an evidence-based implementation-fidelity score, a ranked list of
-deviations, and a fix plan. It lives at [`ui-judge/`](../ui-judge/), fully
+deviations, and a fix plan. It lives at [`quality-agents/ui-judge/`](../quality-agents/ui-judge/), fully
 self-contained (its own `package.json`, dependencies, config, and tests) and
 does not depend on anything specific to this app beyond a `pages.config.json`
 entry per page you want audited.
@@ -69,7 +69,7 @@ always prefers the more trustworthy one:
   looked at the mockup) JSON file. This is the *only* way component
   identity, typography and spacing expectations reach high confidence,
   because reliably reading those off a flat PNG needs a human/vision model
-  in the loop, not pixel math. See `ui-judge/tests/fixtures/*/fixture-*.json`
+  in the loop, not pixel math. See `quality-agents/ui-judge/tests/fixtures/*/fixture-*.json`
   for worked examples of the schema (`sections`, `colors`, `typography`,
   `spacing`, `components`, `assets`).
 - **Heuristic** (generated automatically, cached to
@@ -211,7 +211,7 @@ get scored as a deviation.
 ## CLI usage
 
 ```bash
-cd ui-judge
+cd quality-agents/ui-judge
 npm install                          # one-time
 npm run judge -- --page admin-login  # audit a configured page
 npm run judge -- --list              # list configured pages
@@ -272,7 +272,7 @@ consumption (CI gating, dashboards, etc.).
 
 ## Validation results
 
-Run via `cd ui-judge && npm test` (7 tests, all passing as of this writing):
+Run via `cd quality-agents/ui-judge && npm test` (7 tests, all passing as of this writing):
 
 1. **`tests/integration/fixture-close-match.test.js`** - a faithful
    implementation of a small reference design (headed browser renders both
