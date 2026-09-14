@@ -8,7 +8,7 @@ database -> business rule -> state -> event -> next module -> user/admin
 outcome, at every scale from a single click up to a full customer lifecycle.
 
 Full architecture, workflow-level model, and design rationale:
-[docs/WIRING-GUARDIAN.md](../docs/WIRING-GUARDIAN.md).
+[docs/WIRING-GUARDIAN.md](../../docs/WIRING-GUARDIAN.md).
 
 ## Quick start
 
@@ -16,7 +16,7 @@ From the repo root: `npm run wiring:guardian -- <args>` (pass-through, same
 convention as `npm run ui:judge`). Or directly:
 
 ```bash
-cd wiring-guardian
+cd quality-agents/wiring-guardian
 npm run guardian                                   # full audit, JSON+MD reports
 npm run guardian -- --workflow customer.checkout.purchase
 npm run guardian -- --module payments
@@ -29,12 +29,12 @@ npm test                                            # Guardian's own unit tests
 Reports land in `reports/` as timestamped JSON+Markdown pairs, plus
 `wiring-guardian.latest.{json,md}`. The regression baseline lives at
 `reports/baseline/baseline.json`. Both are generated artifacts (gitignored,
-like `ui-judge/reports/` and `ui-judge/baselines/`) - re-run `--baseline`
+like `../ui-judge/reports/` and `../ui-judge/baselines/`) - re-run `--baseline`
 after intentionally accepting a new state.
 
 ## What it does NOT do
 
-- No visual/screenshot comparison - that's UI Judge's job (`ui-judge/`).
+- No visual/screenshot comparison - that's UI Judge's job (`../ui-judge/`).
 - No schema, RBAC-policy, payment, refund, or tax logic changes, ever -
   those are always `REVIEW_REQUIRED` or `NEVER_AUTO_FIX` (see
   `src/fix-planner/planFixes.js`).

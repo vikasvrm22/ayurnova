@@ -1,9 +1,9 @@
 {
   "name": "ayur-app",
   "private": true,
-  "description": "Repo-root pass-through scripts. The server (server/), UI Judge (ui-judge/), and Wiring Guardian (wiring-guardian/) are independent Node projects, each with their own package.json/dependencies.",
+  "description": "Repo-root pass-through scripts. The server (server/), UI Judge (quality-agents/ui-judge/), and Wiring Guardian (quality-agents/wiring-guardian/) are independent Node projects, each with their own package.json/dependencies.",
   "scripts": {
-    "ui:judge": "npm --prefix ui-judge run judge --",
-    "wiring:guardian": "npm --prefix wiring-guardian run guardian --"
+    "ui:judge": "npm --prefix quality-agents/ui-judge run judge --",
+    "wiring:guardian": "npm --prefix quality-agents/wiring-guardian run guardian --"
   }
 }

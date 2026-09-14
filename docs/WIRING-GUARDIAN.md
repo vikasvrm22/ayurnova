@@ -4,7 +4,7 @@ An independent, self-contained product-quality agent that audits whether the
 AyurNova product is actually **wired together** - from a single button
 through complete end-to-end business workflows - not just whether individual
 APIs, modules, or database tables exist in isolation. It lives at
-[`wiring-guardian/`](../wiring-guardian/) with its own `package.json` and
+[`quality-agents/wiring-guardian/`](../quality-agents/wiring-guardian/) with its own `package.json` and
 tests, and runs standalone via `npm run guardian` inside that directory.
 
 ## Purpose, and how it differs from UI Judge
@@ -13,8 +13,8 @@ AyurNova now has two independent quality agents:
 
 ```
 AyurNova Product Quality System
-    +-- UI Judge         "Does it LOOK/BEHAVE right?"   (ui-judge/)
-    +-- Wiring Guardian   "Does the PRODUCT actually WORK end-to-end?"  (wiring-guardian/)
+    +-- UI Judge         "Does it LOOK/BEHAVE right?"   (quality-agents/ui-judge/)
+    +-- Wiring Guardian   "Does the PRODUCT actually WORK end-to-end?"  (quality-agents/wiring-guardian/)
 ```
 
 UI Judge compares a rendered page against an approved design reference and
@@ -32,7 +32,7 @@ see "Workflow levels" below).
 
 The two agents may reference the same underlying evidence (routes, schema,
 business rules) but Wiring Guardian is independently runnable - it does not
-import from or depend on `ui-judge/` executing first, and it was built
+import from or depend on `quality-agents/ui-judge/` executing first, and it was built
 without modifying UI Judge's own code or reports.
 
 ## Architecture
@@ -233,12 +233,12 @@ npm test                                              # Guardian's own unit test
 
 ## Reports and baseline
 
-Every run writes a timestamped JSON+Markdown pair to `wiring-guardian/reports/`
+Every run writes a timestamped JSON+Markdown pair to `quality-agents/wiring-guardian/reports/`
 plus `wiring-guardian.latest.{json,md}`. `reports/baseline/baseline.json` is
 the regression baseline (compared by finding *shape* - layer+category+file+
 route+observed - not by auto-incrementing id, since ids aren't stable
 across runs). Both are generated artifacts, gitignored the same way
-`ui-judge/reports/` and `ui-judge/baselines/` already are in this repo.
+`quality-agents/ui-judge/reports/` and `quality-agents/ui-judge/baselines/` already are in this repo.
 
 ## Initial audit: Phase 1-2 baseline
 

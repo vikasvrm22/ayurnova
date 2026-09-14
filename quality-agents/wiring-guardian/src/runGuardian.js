@@ -18,7 +18,7 @@ import { resetFindingCounter } from "./evidence/Finding.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GUARDIAN_ROOT = path.join(__dirname, "..");
-const REPO_ROOT = path.join(GUARDIAN_ROOT, "..");
+const REPO_ROOT = path.join(GUARDIAN_ROOT, "..", "..");
 
 function loadJsonConfig(name) {
   return JSON.parse(fs.readFileSync(path.join(GUARDIAN_ROOT, "config", name), "utf8"));
