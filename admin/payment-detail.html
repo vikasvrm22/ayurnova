@@ -61,24 +61,43 @@
     </div>
   </div>
   <main class="main-area">
+    <div class="breadcrumb"><a href="payments-list.html">Payments</a> <span>&rsaquo;</span> <span>Payment Details</span></div>
     <div class="page-header">
-      <h2 id="page-title">Payment</h2>
-      <a class="btn btn-outline" href="payments-list.html">← Back to payments</a>
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <span class="page-icon">💳</span>
+        <div><h2 id="page-title">Payment Details</h2><div class="sub">View complete information about this payment, including attempts, status, and related order.</div></div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-danger" id="refund-scroll-btn" style="background:#fdecec;">↺ Refund Payment</button>
+        <a class="btn btn-outline" id="view-order-link" href="orders-list.html" style="text-decoration:none;">📄 View Order</a>
+      </div>
     </div>
+
+    <div class="card" id="payment-summary-strip">Loading...</div>
 
     <div class="two-col">
       <div>
         <div class="card">
-          <h3 style="margin-top:0;">Summary</h3>
-          <div id="summary-block" style="font-size:13.5px; line-height:1.8;">Loading...</div>
+          <h3 style="margin-top:0;">Payment Attempts <span id="attempts-count" class="badge badge-shipped"></span></h3>
+          <p id="attempts-subtitle" style="font-size:12px; color:var(--muted); margin:-6px 0 10px;"></p>
+          <table class="data-table">
+            <thead><tr><th>#</th><th>Attempt Time</th><th>Status</th><th>Method</th><th>Razorpay Payment ID</th><th>Response</th></tr></thead>
+            <tbody id="attempts-rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+          </table>
+        </div>
+
+        <div class="card" id="order-details-card">
+          <h3 style="margin-top:0;">Order Details</h3>
+          <div id="order-details-block" style="font-size:13px;">Loading...</div>
         </div>
 
         <div class="card">
-          <h3 style="margin-top:0;">Payment Attempts</h3>
+          <h3 style="margin-top:0;">Items in Order <span id="items-count"></span></h3>
           <table class="data-table">
-            <thead><tr><th>#</th><th>Gateway Order</th><th>Gateway Payment</th><th>Method</th><th>Status</th><th>Date</th></tr></thead>
-            <tbody id="attempts-rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+            <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Subtotal</th></tr></thead>
+            <tbody id="order-items-rows"><tr><td colspan="4">Loading...</td></tr></tbody>
           </table>
+          <div id="order-totals-block" style="margin-top:8px; font-size:13px;"></div>
         </div>
 
         <div class="card">
@@ -92,6 +111,17 @@
 
       <div>
         <div class="card">
+          <h3 style="margin-top:0;">Payment Timeline</h3>
+          <div id="payment-timeline" class="timeline">Loading...</div>
+        </div>
+
+        <div class="card" id="razorpay-details-card">
+          <h3 style="margin-top:0;">Razorpay Details</h3>
+          <div id="razorpay-details-block" style="font-size:12.5px;">Loading...</div>
+          <p style="font-size:11px; color:var(--muted); margin-top:8px;">Fee, net settlement amount and signature verification are not stored locally - run Reconciliation below for a live, on-demand comparison against Razorpay's own record.</p>
+        </div>
+
+        <div class="card" id="section-refund">
           <h3 style="margin-top:0;">Issue Refund</h3>
           <div class="form-field"><label>Amount (₹) — leave blank for full remaining refund</label><input type="number" id="f-refund-amount" min="0" step="0.01"></div>
           <div class="form-field" style="margin-top:8px;"><label>Reason</label><textarea id="f-refund-reason" rows="2"></textarea></div>
@@ -116,40 +146,116 @@
   const paymentId = new URLSearchParams(location.search).get("id");
   function fmt(n){ return "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function fmtDate(s){ return s ? new Date(s).toLocaleString("en-IN") : "-"; }
+  function relativeTime(iso) {
+    const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+    return `${Math.round(hrs / 24)} day(s) ago`;
+  }
+  function copyBtn(text) {
+    return `<button type="button" class="copy-btn" onclick="navigator.clipboard.writeText('${text}')" title="Copy">📋</button>`;
+  }
+  function statusBadgeClass(status) {
+    return status === "SUCCESS" ? "delivered" : status === "FAILED" || status === "CANCELLED" ? "cancelled" : status === "REFUNDED" || status === "PARTIALLY_REFUNDED" ? "rto" : "pending";
+  }
+  function responseText(a) {
+    if (a.failure_reason) return a.failure_reason;
+    if (a.status === "SUCCESS") return "Payment successful";
+    if (a.status === "PENDING" || a.status === "INITIATED") return "Awaiting confirmation";
+    return "-";
+  }
 
   async function load() {
     if (!paymentId) { document.getElementById("page-title").textContent = "No payment selected"; return; }
     try {
-      const { payment, attempts, refunds } = await Api.get(`/payments/${paymentId}`);
-      document.getElementById("page-title").textContent = `Payment — ${payment.orders?.order_number || payment.id}`;
+      const { payment, attempts, refunds, orderItems } = await Api.get(`/payments/${paymentId}`);
+      document.title = `Payment ${payment.orders?.order_number || payment.id} — AyurNova Admin`;
+      document.getElementById("view-order-link").href = payment.order_id ? `order-detail.html?id=${payment.order_id}` : "orders-list.html";
 
-      document.getElementById("summary-block").innerHTML = `
-        <div><b>Order:</b> ${payment.orders?.order_number || "-"}</div>
-        <div><b>Customer:</b> ${payment.orders?.guest_email || payment.orders?.guest_phone || "Registered customer"}</div>
-        <div><b>Amount:</b> ${fmt(payment.amount)} ${payment.currency}</div>
-        <div><b>Refunded so far:</b> ${fmt(payment.refunded_amount)}</div>
-        <div><b>Gateway:</b> ${payment.gateway} (${payment.environment})</div>
-        <div><b>Status:</b> <span class="badge badge-${payment.status === "SUCCESS" ? "delivered" : payment.status === "FAILED" ? "cancelled" : "pending"}">${payment.status}</span></div>
-        <div><b>Created:</b> ${fmtDate(payment.created_at)}</div>
+      const successAttempt = [...attempts].reverse().find((a) => a.status === "SUCCESS");
+      const method = successAttempt?.method || attempts[attempts.length - 1]?.method;
+      const statusLabel = { SUCCESS: "Success", FAILED: "Failed", PENDING: "Pending", INITIATED: "Initiated", CANCELLED: "Cancelled", REFUNDED: "Refunded", PARTIALLY_REFUNDED: "Partially Refunded" }[payment.status] || payment.status;
+      document.getElementById("payment-summary-strip").innerHTML = `
+        <div class="payment-summary-strip">
+          <div class="payment-status-cell">
+            <span class="payment-status-icon ${payment.status === "SUCCESS" ? "ok" : payment.status === "FAILED" ? "bad" : "wait"}">${payment.status === "SUCCESS" ? "✓" : payment.status === "FAILED" ? "✕" : "…"}</span>
+            <div><span class="badge badge-${statusBadgeClass(payment.status)}">${statusLabel}</span><div class="micro">Payment ${payment.status === "SUCCESS" ? "completed successfully" : payment.status === "FAILED" ? "did not complete" : "in progress"}</div></div>
+          </div>
+          <div><div class="micro">Amount Paid</div><b>${fmt(payment.amount)}</b></div>
+          <div><div class="micro">Payment Method</div><b>${method || "-"}</b></div>
+          <div><div class="micro">Payment ID</div><b>${payment.id.slice(0, 18)}${copyBtn(payment.id)}</b></div>
+          <div><div class="micro">Order ID</div><b>${payment.orders?.order_number || "-"}${payment.orders?.order_number ? copyBtn(payment.orders.order_number) : ""}</b></div>
+          <div><div class="micro">Payment Date &amp; Time</div><b>${fmtDate(payment.created_at)}</b><div class="micro">(${relativeTime(payment.created_at)})</div></div>
+        </div>
       `;
 
+      document.getElementById("attempts-count").textContent = `(${attempts.length})`;
+      document.getElementById("attempts-subtitle").textContent = attempts.length > 1
+        ? `This payment was attempted ${attempts.length} times${payment.status === "SUCCESS" ? " before succeeding" : ""}.`
+        : "";
       document.getElementById("attempts-rows").innerHTML = attempts.length
         ? attempts.map(a => `
           <tr>
             <td>${a.attempt_number}</td>
-            <td style="font-size:11px;">${a.gateway_order_id || "-"}</td>
-            <td style="font-size:11px;">${a.gateway_payment_id || "-"}</td>
-            <td>${a.method || "-"}</td>
-            <td><span class="badge badge-${a.status === "SUCCESS" ? "delivered" : a.status === "FAILED" ? "cancelled" : "pending"}">${a.status}</span>${a.failure_reason ? `<br><span style="color:#888;font-size:11px;">${a.failure_reason}</span>` : ""}</td>
             <td>${fmtDate(a.created_at)}</td>
+            <td><span class="badge badge-${statusBadgeClass(a.status)}">${a.status}</span></td>
+            <td>${a.method || "-"}</td>
+            <td style="font-size:11px;">${a.gateway_payment_id || "-"}</td>
+            <td>${responseText(a)}</td>
           </tr>`).join("")
         : `<tr><td colspan="6">No attempts yet.</td></tr>`;
+
+      const order = payment.orders;
+      document.getElementById("order-details-block").innerHTML = order ? `
+        <div class="order-details-grid">
+          <div><div class="micro">Order ID</div><b>${order.order_number}${copyBtn(order.order_number)}</b></div>
+          <div><div class="micro">Order Date</div><b>${fmtDate(order.created_at)}</b></div>
+          <div><div class="micro">Order Status</div><span class="badge badge-instock" style="text-transform:capitalize;">${order.status}</span></div>
+          <div><div class="micro">Customer</div><b>${order.guest_email || order.guest_phone || (order.customer_id ? "Registered customer" : "-")}</b></div>
+        </div>` : `<p style="color:var(--muted);">No related order found.</p>`;
+
+      document.getElementById("items-count").textContent = `(${orderItems.length})`;
+      document.getElementById("order-items-rows").innerHTML = orderItems.length
+        ? orderItems.map(i => `<tr><td><span class="thumb"></span>${i.title_snapshot}${i.variant_label_snapshot ? `<br><span style="color:#888;font-size:11px;">${i.variant_label_snapshot}</span>` : ""}</td><td>${fmt(i.price_snapshot)}</td><td>${i.qty}</td><td>${fmt(i.subtotal)}</td></tr>`).join("")
+        : `<tr><td colspan="4">No items found.</td></tr>`;
+      document.getElementById("order-totals-block").innerHTML = order ? `
+        <div style="display:flex; justify-content:space-between;"><span>Subtotal</span><b>${fmt(order.subtotal)}</b></div>
+        <div style="display:flex; justify-content:space-between;"><span>Shipping</span><b>${order.shipping_fee === 0 ? "FREE" : fmt(order.shipping_fee)}</b></div>
+        <div style="display:flex; justify-content:space-between;"><span>Tax</span><b>${fmt(order.tax_amount || 0)}</b></div>
+        <div style="display:flex; justify-content:space-between; border-top:1px solid var(--border); margin-top:6px; padding-top:6px;"><span><b>Total Amount</b></span><b>${fmt(order.total)}</b></div>
+      ` : "";
 
       document.getElementById("refunds-rows").innerHTML = refunds.length
         ? refunds.map(r => `
           <tr><td>${fmt(r.amount)}</td><td>${r.reason || "-"}</td><td><span class="badge badge-${r.status === "PROCESSED" ? "delivered" : "cancelled"}">${r.status}</span></td><td>${r.created_by || "-"}</td><td>${fmtDate(r.created_at)}</td></tr>`
         ).join("")
         : `<tr><td colspan="5">No refunds yet.</td></tr>`;
+
+      // Timeline is derived entirely from real rows already fetched above -
+      // one step per attempt (in order) plus a final step once the order
+      // itself reaches a terminal status, not a separate stored log.
+      const steps = attempts.map((a) => ({
+        label: a.status === "SUCCESS" ? "Payment Successful" : a.status === "FAILED" ? "Payment Failed" : `Payment ${a.status.charAt(0) + a.status.slice(1).toLowerCase()}`,
+        detail: responseText(a), at: a.created_at, done: true, ok: a.status === "SUCCESS", bad: a.status === "FAILED",
+      }));
+      if (payment.status === "SUCCESS" && order) {
+        steps.push({ label: "Order Confirmed", detail: `Order ${order.order_number} created`, at: order.created_at, done: true, ok: true });
+      }
+      document.getElementById("payment-timeline").innerHTML = steps.length ? `<div class="timeline-list">${steps.map((s) => `
+        <div class="timeline-step ${s.ok ? "ok" : s.bad ? "bad" : ""}">
+          <span class="timeline-dot">${s.ok ? "✓" : s.bad ? "✕" : ""}</span>
+          <div><b>${s.label}</b><div class="micro">${fmtDate(s.at)}</div><div class="micro">${s.detail}</div></div>
+        </div>`).join("")}</div>` : `<p style="color:var(--muted);">No timeline events yet.</p>`;
+
+      document.getElementById("razorpay-details-block").innerHTML = successAttempt || attempts.length ? `
+        <div class="order-details-grid" style="grid-template-columns:1fr;">
+          <div style="display:flex; justify-content:space-between;"><span class="micro">Razorpay Payment ID</span><b>${(successAttempt || attempts[attempts.length - 1]).gateway_payment_id || "-"}</b></div>
+          <div style="display:flex; justify-content:space-between;"><span class="micro">Razorpay Order ID</span><b>${(successAttempt || attempts[attempts.length - 1]).gateway_order_id || "-"}</b></div>
+          <div style="display:flex; justify-content:space-between;"><span class="micro">Payment Method</span><b>${method || "-"}</b></div>
+          <div style="display:flex; justify-content:space-between;"><span class="micro">Captured At</span><b>${successAttempt ? fmtDate(successAttempt.created_at) : "-"}</b></div>
+        </div>` : `<p style="color:var(--muted);">No gateway attempt recorded yet.</p>`;
 
       const refundable = Number(payment.amount) - Number(payment.refunded_amount);
       const canRefund = ["SUCCESS", "PARTIALLY_REFUNDED"].includes(payment.status) && refundable > 0;
@@ -158,9 +264,13 @@
         ? `Refundable balance: ${fmt(refundable)}`
         : "This payment is not in a refundable state.";
     } catch (e) {
-      document.getElementById("summary-block").innerHTML = `Could not load: ${e.message}`;
+      document.getElementById("payment-summary-strip").innerHTML = `Could not load: ${e.message}`;
     }
   }
+
+  document.getElementById("refund-scroll-btn").addEventListener("click", () => {
+    document.getElementById("section-refund").scrollIntoView({ behavior: "smooth" });
+  });
 
   document.getElementById("refund-btn").addEventListener("click", async () => {
     const errEl = document.getElementById("refund-error");

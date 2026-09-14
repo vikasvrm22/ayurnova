@@ -4,6 +4,7 @@
 import path from "node:path";
 import { loadProjectConfig, resolvePage, loadWeightsFile, loadSeverityThresholds, defaultPaths } from "./lib/configLoader.js";
 import { runAudit } from "./runAudit.js";
+import { buildInventory, summarizeInventory, writeInventoryFile } from "./lib/referenceInventory.js";
 
 function parseArgs(argv) {
   const out = { _: [] };
@@ -40,8 +41,26 @@ Options:
   --headed              Accepted for compatibility - browser verification always runs headed
   --save-baseline       Promote this run's score to the baseline for future regression checks
   --list                List configured pages and exit
+  --list-references     Scan the configured designRefDir, print a discovery
+                         summary, and write generated/reference-inventory.json
   --help                Show this help
 `);
+}
+
+function printReferenceSummary(summary) {
+  console.log(`Total references:      ${summary.total}`);
+  console.log(`  Configured:           ${summary.configured}`);
+  console.log(`  Auto-discovered:      ${summary.autoDiscovered}`);
+  console.log(`    Ready:              ${summary.ready}`);
+  console.log(`    Needs mapping:      ${summary.needsMapping}`);
+  console.log(`    Ambiguous:          ${summary.ambiguous}`);
+  console.log(`    Unmapped:           ${summary.unmapped}`);
+  console.log(`  Duplicates:           ${summary.duplicates}`);
+  console.log(`  Unknown type:         ${summary.unknown}`);
+  console.log("\nBy phase:");
+  for (const [phase, count] of Object.entries(summary.byPhase).sort()) {
+    console.log(`  ${phase}: ${count}`);
+  }
 }
 
 export async function main(argv = process.argv.slice(2)) {
@@ -58,7 +77,25 @@ export async function main(argv = process.argv.slice(2)) {
     return 0;
   }
 
-  if (!args.page) { printHelp(); console.error("\nError: --page is required (or use --list)."); return 1; }
+  if (args["list-references"]) {
+    if (!projectConfig.designRefDir) {
+      console.error(`No "designRefDir" set in ${configPath} - nothing to discover.`);
+      return 1;
+    }
+    const items = buildInventory({
+      designRefDir: projectConfig.designRefDir,
+      pagesConfig: projectConfig,
+      sourceRoots: projectConfig.sourceRoots,
+    });
+    const summary = summarizeInventory(items);
+    const outPath = path.join(paths.generatedDir, "reference-inventory.json");
+    writeInventoryFile(items, outPath);
+    printReferenceSummary(summary);
+    console.log(`\nInventory written to ${outPath}`);
+    return 0;
+  }
+
+  if (!args.page) { printHelp(); console.error("\nError: --page is required (or use --list / --list-references)."); return 1; }
 
   const pageConfig = resolvePage(projectConfig, args.page, {
     url: typeof args.url === "string" ? args.url : undefined,
@@ -77,6 +114,7 @@ export async function main(argv = process.argv.slice(2)) {
   const result = await runAudit(pageConfig, {
     weightsRaw, severityThresholds,
     sourceRoots: projectConfig.sourceRoots,
+    authStorageStatePath: projectConfig.authStorageStatePath,
     specsDir: paths.specsDir, screenshotsDir: paths.screenshotsDir,
     reportsDir: outputDir, baselinesDir: paths.baselinesDir,
     projectRoot: path.resolve(paths.root, "..", ".."), projectName: path.basename(path.resolve(paths.root, "..", "..")),

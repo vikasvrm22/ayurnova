@@ -8,7 +8,7 @@
 const GENERIC_SELECTORS = "h1,h2,h3,h4,h5,h6,button,a,input,select,textarea,nav,header,footer,form,img,[role=button]";
 
 /** Navigates `page` to `url` and returns raw evidence + a PNG screenshot buffer. */
-export async function collectEvidence(page, { url, viewport, waitForSelector, extraSelectors = [], settleMs = 400 }) {
+export async function collectEvidence(page, { url, viewport, waitForSelector, scrollToSelector, extraSelectors = [], settleMs = 400 }) {
   // "Failed to load resource: ..." is Chromium's own network-failure log (e.g. a missing
   // favicon.ico every page gets asked for, regardless of the app) - a browser-noise
   // artifact, not an application error. Broken assets are already caught explicitly via
@@ -24,6 +24,14 @@ export async function collectEvidence(page, { url, viewport, waitForSelector, ex
 
   if (!navError && waitForSelector) {
     await page.waitForSelector(waitForSelector, { timeout: 8000 }).catch(() => {});
+  }
+  // Lets a page.config.json entry target a sub-section of a shared/long page (e.g. one
+  // provider's card on a settings page that has many) instead of always capturing the
+  // viewport from y=0 - a URL #fragment alone scrolls inconsistently depending on layout
+  // that hasn't finished settling yet, so this explicitly scrolls after everything above.
+  if (!navError && scrollToSelector) {
+    await page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: "start" }), scrollToSelector).catch(() => {});
+    await page.waitForTimeout(150);
   }
   await page.waitForTimeout(settleMs); // let webfonts/late layout shifts settle before measuring
 

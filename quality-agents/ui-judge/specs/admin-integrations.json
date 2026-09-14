@@ -1,0 +1,27 @@
+{
+  "page": "admin-integrations",
+  "source": "authored",
+  "generatedAt": "2026-09-13T18:01:00.000Z",
+  "reference": { "path": "../../public-site/design-ref/Phase2 7. Admin Integration Management.png", "width": 1672, "height": 941 },
+  "sections": {
+    "expectedOrder": [".breadcrumb", ".page-icon", "#integration-summary", "#integration-tabs", "#integration-cards", "#section-razorpay"],
+    "confidence": "high",
+    "note": "Integrations landing per Phase2 7: breadcrumb, icon+title header, a 4-card summary row, category tabs, and a provider card grid, with the existing detailed per-provider config forms preserved below as anchor-linked sections."
+  },
+  "colors": { "dominant": [{ "hex": "#132615", "pct": 0.14 }, { "hex": "#ffffff", "pct": 0.45 }, { "hex": "#f4f6fb", "pct": 0.3 }], "confidence": "medium" },
+  "typography": { "hierarchy": [{ "selector": ".page-header h2", "expectedFontSizePx": 20, "expectedFontWeight": "700" }], "confidence": "medium" },
+  "spacing": { "expectations": [], "confidence": "low" },
+  "components": {
+    "expected": [
+      { "name": "Breadcrumb", "selector": ".breadcrumb", "critical": false },
+      { "name": "Summary stat cards", "selector": "#integration-summary", "critical": true },
+      { "name": "Category tabs", "selector": "#integration-tabs", "critical": true },
+      { "name": "Integration card grid", "selector": "#integration-cards", "critical": true },
+      { "name": "Razorpay card", "selector": ".integration-card", "critical": true }
+    ],
+    "confidence": "medium"
+  },
+  "assets": { "images": [], "confidence": "low" },
+  "borders": { "confidence": "low" },
+  "responsive": { "expectations": [], "confidence": "low", "note": "Same intentional horizontal-scroll mobile sidebar pattern as other authenticated Admin pages - not a real page-level overflow (verified separately: 0px at 390px)." }
+}

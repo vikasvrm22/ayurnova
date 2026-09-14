@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Products — AyurNova Admin [WIREFRAME]</title>
+<title>Products — AyurNova Admin</title>
 <link rel="stylesheet" href="css/admin.css">
 <script src="js/api.js"></script>
 <script>requireAdminAuth();</script>
@@ -62,20 +62,28 @@
   </div>
   <main class="main-area">
     <div class="page-header">
-      <h2>Products</h2>
+      <div><h2>Products</h2><div class="sub">Manage your product catalog</div></div>
       <a class="btn btn-primary" href="product-form.html">+ Add Product</a>
     </div>
 
+    <div class="tabs-row" id="status-tabs">
+      <button data-status="" class="active">All Products <span id="tab-count-all"></span></button>
+      <button data-status="published">Published <span id="tab-count-published"></span></button>
+      <button data-status="draft">Draft <span id="tab-count-draft"></span></button>
+      <button data-status="archived">Archived <span id="tab-count-archived"></span></button>
+    </div>
+
     <div class="filters-row">
-      <input type="text" id="f-search" placeholder="Search products...">
-      <select id="f-status"><option value="">All statuses</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select>
+      <input type="text" id="f-search" placeholder="Search products by name, SKU...">
+      <select id="f-category"><option value="">All Categories</option></select>
       <select id="bulk-action"><option value="">Bulk action...</option><option value="publish">Publish</option><option value="archive">Archive</option></select>
       <button class="btn btn-outline" id="bulk-apply">Apply</button>
+      <button type="button" id="f-clear" style="background:none; border:none; color:var(--primary); text-decoration:underline; cursor:pointer; font-size:12.5px; margin-left:auto; align-self:center; padding:0; width:auto;">Clear Filters</button>
     </div>
 
     <table class="data-table">
-      <thead><tr><th></th><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th></th></tr></thead>
-      <tbody id="products-rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+      <thead><tr><th></th><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Updated At</th><th>Actions</th></tr></thead>
+      <tbody id="products-rows"><tr><td colspan="8">Loading...</td></tr></tbody>
     </table>
     <div style="display:flex; gap:8px; align-items:center; margin-top:12px; font-size:13px;" id="pagination"></div>
   </main>
@@ -83,7 +91,8 @@
 </div>
 <script src="js/pages/changePassword.js"></script>
 <script>
-  const state = { page: 1, pageSize: 20, selected: new Set() };
+  const state = { page: 1, pageSize: 20, selected: new Set(), status: "" };
+  let categoryById = {};
 
   function stockBadge(variants) {
     const totalStock = (variants || []).reduce((s, v) => s + v.stock, 0);
@@ -95,44 +104,100 @@
     if (!variants || !variants.length) return "-";
     return "₹" + Math.min(...variants.map(v => v.price));
   }
+  function fmtDate(iso) {
+    if (!iso) return "-";
+    return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  }
+
+  async function loadCategories() {
+    try {
+      const { items } = await Api.get("/categories");
+      const productTypeCats = items.filter(c => c.type === "product_type");
+      categoryById = Object.fromEntries(items.map(c => [c.id, c.name]));
+      const sel = document.getElementById("f-category");
+      sel.innerHTML = `<option value="">All Categories</option>` + productTypeCats.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
+    } catch (e) { /* filter degrades to "All Categories" only */ }
+  }
+
+  async function loadTabCounts() {
+    const statuses = [["all", ""], ["published", "published"], ["draft", "draft"], ["archived", "archived"]];
+    await Promise.all(statuses.map(async ([key, status]) => {
+      try {
+        const params = new URLSearchParams({ page: 1, pageSize: 1 });
+        if (status) params.set("status", status);
+        const data = await Api.get(`/products?${params.toString()}`);
+        document.getElementById(`tab-count-${key}`).textContent = `(${data.total})`;
+      } catch (e) { /* non-fatal */ }
+    }));
+  }
 
   async function load() {
     const q = document.getElementById("f-search").value;
-    const status = document.getElementById("f-status").value;
+    const categoryId = document.getElementById("f-category").value;
     const params = new URLSearchParams({ page: state.page, pageSize: state.pageSize });
     if (q) params.set("q", q);
-    if (status) params.set("status", status);
+    if (state.status) params.set("status", state.status);
+    if (categoryId) params.set("category_id", categoryId);
     try {
       const data = await Api.get(`/products?${params.toString()}`);
       const rowsEl = document.getElementById("products-rows");
-      if (!data.items.length) { rowsEl.innerHTML = `<tr><td colspan="6">No products found.</td></tr>`; return; }
+      if (!data.items.length) { rowsEl.innerHTML = `<tr><td colspan="8">No products found.</td></tr>`; return; }
       rowsEl.innerHTML = data.items.map(p => `
         <tr>
           <td><input type="checkbox" class="row-check" data-id="${p.id}" ${state.selected.has(p.id) ? "checked" : ""}></td>
-          <td><span class="thumb" style="${p.product_images?.[0] ? `background-image:url('${p.product_images[0].url}');background-size:cover;` : ""}"></span>${p.title} <span class="badge badge-${p.status}">${p.status}</span></td>
-          <td>-</td>
+          <td><span class="thumb" style="${p.product_images?.[0] ? `background-image:url('${p.product_images[0].url}');background-size:cover;` : ""}"></span>${p.title}</td>
+          <td>${categoryById[p.category_id] || "-"}</td>
           <td>${minPrice(p.product_variants)}</td>
           <td>${stockBadge(p.product_variants)}</td>
-          <td><a href="product-form.html?id=${p.id}">Edit →</a></td>
+          <td><span class="badge badge-${p.status}">${p.status}</span></td>
+          <td>${fmtDate(p.updated_at)}</td>
+          <td><a href="product-form.html?id=${p.id}">Edit</a> &nbsp;<button class="btn btn-danger" style="padding:2px 8px;" onclick="removeProduct('${p.id}')">Delete</button></td>
         </tr>`).join("");
       rowsEl.querySelectorAll(".row-check").forEach(cb => cb.addEventListener("change", e => {
         if (e.target.checked) state.selected.add(e.target.dataset.id); else state.selected.delete(e.target.dataset.id);
       }));
 
       const totalPages = Math.max(1, Math.ceil(data.total / state.pageSize));
+      const pageBtn = (n) => `<button class="btn ${n === state.page ? "btn-primary" : "btn-outline"}" data-pg="${n}" style="padding:6px 11px;">${n}</button>`;
+      const pages = [];
+      for (let n = 1; n <= totalPages; n++) { if (n === 1 || n === totalPages || Math.abs(n - state.page) <= 1) pages.push(n); else if (pages[pages.length - 1] !== "…") pages.push("…"); }
       document.getElementById("pagination").innerHTML = `
         <button class="btn btn-outline" id="pg-prev" ${state.page <= 1 ? "disabled" : ""}>Prev</button>
-        <span>Page ${state.page} of ${totalPages} (${data.total} total)</span>
-        <button class="btn btn-outline" id="pg-next" ${state.page >= totalPages ? "disabled" : ""}>Next</button>`;
+        ${pages.map(n => n === "…" ? `<span style="padding:0 4px;">…</span>` : pageBtn(n)).join("")}
+        <button class="btn btn-outline" id="pg-next" ${state.page >= totalPages ? "disabled" : ""}>Next</button>
+        <span style="color:var(--muted);">Showing ${data.items.length ? (state.page - 1) * state.pageSize + 1 : 0}-${(state.page - 1) * state.pageSize + data.items.length} of ${data.total}</span>`;
       document.getElementById("pg-prev")?.addEventListener("click", () => { state.page--; load(); });
       document.getElementById("pg-next")?.addEventListener("click", () => { state.page++; load(); });
+      document.querySelectorAll("#pagination [data-pg]").forEach(b => b.addEventListener("click", () => { state.page = Number(b.dataset.pg); load(); }));
     } catch (e) {
-      document.getElementById("products-rows").innerHTML = `<tr><td colspan="6">Could not load: ${e.message}</td></tr>`;
+      document.getElementById("products-rows").innerHTML = `<tr><td colspan="8">Could not load: ${e.message}</td></tr>`;
     }
   }
 
+  async function removeProduct(id) {
+    if (!confirm("Delete this product? This cannot be undone.")) return;
+    try { await Api.del(`/products/${id}`); Toast.show("Product deleted", "success"); load(); loadTabCounts(); }
+    catch (e) { Toast.show(e.message, "error"); }
+  }
+
+  document.getElementById("status-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-status]");
+    if (!btn) return;
+    state.status = btn.dataset.status;
+    state.page = 1;
+    document.querySelectorAll("#status-tabs button").forEach(b => b.classList.toggle("active", b === btn));
+    load();
+  });
   document.getElementById("f-search").addEventListener("input", () => { state.page = 1; load(); });
-  document.getElementById("f-status").addEventListener("change", () => { state.page = 1; load(); });
+  document.getElementById("f-category").addEventListener("change", () => { state.page = 1; load(); });
+  document.getElementById("f-clear").addEventListener("click", (e) => {
+    e.preventDefault();
+    document.getElementById("f-search").value = "";
+    document.getElementById("f-category").value = "";
+    state.status = ""; state.page = 1;
+    document.querySelectorAll("#status-tabs button").forEach(b => b.classList.toggle("active", b.dataset.status === ""));
+    load();
+  });
   document.getElementById("bulk-apply").addEventListener("click", async () => {
     const action = document.getElementById("bulk-action").value;
     if (!action || state.selected.size === 0) return;
@@ -142,9 +207,11 @@
     Toast.show(`Bulk ${action} applied to ${state.selected.size} product(s)`, "success");
     state.selected.clear();
     load();
+    loadTabCounts();
   });
 
-  load();
+  loadCategories().then(load);
+  loadTabCounts();
 </script>
 </body>
 </html>

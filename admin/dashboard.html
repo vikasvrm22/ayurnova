@@ -45,6 +45,10 @@
       <a href="users.html">Users & Roles</a>
       <a href="settings.html">Settings</a>
     </nav>
+    <div class="sidebar-footer-promo">
+      <strong>Pure Products. Better Lives.</strong>
+      <span>Manage wellness. Create a healthier tomorrow.</span>
+    </div>
     <div class="sidebar-user">
       <div class="name"></div>
       <div class="role-badge"></div>
@@ -62,20 +66,42 @@
     </div>
   </div>
   <main class="main-area">
-    <div class="page-header"><h2>Dashboard</h2>
-      <select id="range-select">
-        <option value="today">Today</option>
-        <option value="week" selected>This Week</option>
-        <option value="month">This Month</option>
-        <option value="year">This Year</option>
-      </select>
+    <div class="page-header">
+      <div>
+        <h2 id="welcome-heading">Welcome back!</h2>
+        <div class="sub">Here's what's happening with your store today.</div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <select id="range-select">
+          <option value="today">Today</option>
+          <option value="week" selected>This Week</option>
+          <option value="month">This Month</option>
+          <option value="year">This Year</option>
+        </select>
+        <a class="btn btn-primary" style="display:inline-block; text-decoration:none;" href="product-form.html">+ Add Product</a>
+      </div>
     </div>
 
+    <div class="cards-row cards-row-totals" id="total-cards">Loading...</div>
+
+    <div class="page-header" style="margin:22px 0 12px;"><h3 style="margin:0; font-size:14px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px;">This Period</h3></div>
     <div class="cards-row" id="stat-cards">Loading...</div>
 
-    <div class="card">
-      <h3 style="margin-top:0;">Visits (all-time)</h3>
-      <div style="height:220px;"><canvas id="visits-chart"></canvas></div>
+    <div class="dashboard-insights-row">
+      <div class="card">
+        <h3 style="margin-top:0;">Visits (all-time)</h3>
+        <div style="height:220px;"><canvas id="visits-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">Orders by Status</h3>
+        <div style="height:220px;"><canvas id="status-chart"></canvas></div>
+      </div>
+      <div class="card promo-card">
+        <svg class="promo-leaf" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 22V10M12 10C12 6 9 3 5 3c0 4 3 7 7 7zM12 10c0-4 3-7 7-7 0 4-3 7-7 7z"/></svg>
+        <h3>Keep Growing Wellness Together</h3>
+        <p>Add new products, update content and create offers to reach more customers.</p>
+        <a class="btn btn-primary" style="display:inline-block; text-decoration:none;" href="product-form.html">+ Add New Product</a>
+      </div>
     </div>
 
     <div class="two-col">
@@ -95,6 +121,13 @@
         <a href="orders-list.html" style="font-size:12.5px;">View all orders →</a>
       </div>
     </div>
+
+    <div class="cards-row shortcuts-row">
+      <a class="shortcut-card" href="products-list.html"><span class="shortcut-icon">📦</span><span><strong>Manage Products</strong><br>Add, edit or update products</span></a>
+      <a class="shortcut-card" href="categories.html"><span class="shortcut-icon">🗂️</span><span><strong>Manage Categories</strong><br>Organize your product categories</span></a>
+      <a class="shortcut-card" href="orders-list.html"><span class="shortcut-icon">🛒</span><span><strong>View Orders</strong><br>Track and manage orders</span></a>
+      <a class="shortcut-card" href="users.html"><span class="shortcut-icon">👥</span><span><strong>Manage Users</strong><br>Add or manage admin users</span></a>
+    </div>
   </main>
   </div>
 </div>
@@ -102,13 +135,33 @@
 <script>
   function fmt(n){ return "₹" + Math.round(n).toLocaleString("en-IN"); }
 
+  const TOTAL_CARD_ICONS = {
+    products: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg>`,
+    categories: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>`,
+    orders: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.6 12.4a2 2 0 002 1.6h8.8a2 2 0 002-1.6L21 7H6"/></svg>`,
+    customers: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17.5" cy="8.5" r="2.6"/><path d="M15 14.2c2.9.5 5 2.6 5 5.8"/></svg>`,
+    revenue: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-5 4 4 8-9"/><path d="M14 7h6v6"/></svg>`,
+  };
+  function totalCard(icon, num, label) {
+    return `<div class="stat-card stat-card-total"><div class="stat-card-icon">${TOTAL_CARD_ICONS[icon]}</div><div><div class="num">${num}</div><div class="label">${label}</div></div></div>`;
+  }
+
+  let statusChart = null;
+  const STATUS_COLORS = { delivered: "#0e7a33", processing: "#b45309", shipped: "#1a56b0", cancelled: "#8a2be2", returned: "#b91c1c" };
+
   async function loadSummary() {
     const range = document.getElementById("range-select").value;
     try {
       const s = await Api.get(`/dashboard/summary?range=${range}`);
+
+      document.getElementById("total-cards").innerHTML =
+        totalCard("products", s.totalProductsCount, "Total Products") +
+        totalCard("categories", s.totalCategoriesCount, "Categories") +
+        totalCard("orders", s.totalOrdersCount, "Total Orders") +
+        totalCard("customers", s.totalCustomersCount, "Total Customers") +
+        totalCard("revenue", fmt(s.revenue), "Revenue");
+
       document.getElementById("stat-cards").innerHTML = `
-        <div class="stat-card"><div class="num">${fmt(s.revenue)}</div><div class="label">Revenue</div></div>
-        <div class="stat-card"><div class="num">${s.orderCount}</div><div class="label">Orders</div></div>
         <div class="stat-card"><div class="num">${fmt(s.avgOrderValue)}</div><div class="label">Avg. Order Value</div></div>
         <div class="stat-card"><div class="num">${s.pendingShipments}</div><div class="label">Pending Shipments</div></div>
         <div class="stat-card"><div class="num">${s.lowStockCount}</div><div class="label">Low Stock Variants</div></div>
@@ -120,8 +173,19 @@
       document.getElementById("recent-orders-rows").innerHTML = s.recentOrders.length
         ? s.recentOrders.map(o => `<tr><td>${o.order_number}</td><td>${o.guest_email || "-"}</td><td><span class="badge badge-${o.status}">${o.status}</span></td></tr>`).join("")
         : `<tr><td colspan="3" style="color:#888;">No orders yet.</td></tr>`;
+
+      const statusEntries = Object.entries(s.ordersByStatus || {});
+      if (statusChart) statusChart.destroy();
+      statusChart = new Chart(document.getElementById("status-chart"), {
+        type: "doughnut",
+        data: {
+          labels: statusEntries.map(([k]) => k.charAt(0).toUpperCase() + k.slice(1)),
+          datasets: [{ data: statusEntries.map(([, v]) => v), backgroundColor: statusEntries.map(([k]) => STATUS_COLORS[k] || "#999"), borderWidth: 0 }],
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "right", labels: { boxWidth: 10, font: { size: 11 } } } } },
+      });
     } catch (e) {
-      document.getElementById("stat-cards").innerHTML = `<div class="card">Could not load dashboard: ${e.message}</div>`;
+      document.getElementById("total-cards").innerHTML = `<div class="card">Could not load dashboard: ${e.message}</div>`;
     }
   }
 

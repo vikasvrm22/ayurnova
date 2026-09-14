@@ -1,0 +1,16 @@
+{
+  "page": "admin-dashboard",
+  "overall": 87,
+  "categoryScores": {
+    "layout": 66,
+    "components": 100,
+    "typography": 100,
+    "spacing": 100,
+    "assets": 100,
+    "colors": 97,
+    "responsive": 60,
+    "functional": 97
+  },
+  "savedAt": "2026-09-13T17:48:09.912Z",
+  "reportPath": "D:\\FinalAyurveda\\ayurveda-store-full-project\\ayur-app\\ui-judge\\reports\\admin-dashboard__2026-09-13T17-48-09-902Z.json"
+}

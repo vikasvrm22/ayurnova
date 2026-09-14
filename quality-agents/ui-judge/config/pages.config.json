@@ -2,16 +2,151 @@
   "_comment": "Live page registry for THIS project. Paths are resolved relative to this file. Add pages by editing this array - no engine code changes needed. See docs/UI-JUDGE.md for the full schema.",
   "baseUrl": "http://localhost:5100",
   "sourceRoots": ["../../../admin", "../../../public-site"],
+  "designRefDir": "../../../public-site/design-ref",
+  "auth": { "storageState": "../.auth/admin-storageState.json", "_note": "Generated locally by authenticating with the project's existing SEED_SUPERADMIN_EMAIL/PASSWORD (server/.env) via Playwright; gitignored, never committed. Only pages with requiresAuth:true use it." },
   "pages": [
     {
       "name": "admin-login",
       "route": "/admin/login.html",
-      "reference": "../../../public-site/design-ref/Phase1 08 AdminLogin.png",
+      "reference": "../references/admin-login-panel1.png",
       "viewport": { "width": 1440, "height": 900 },
       "additionalViewports": [
         { "name": "mobile", "width": 390, "height": 844 }
       ],
       "waitForSelector": ".login-box"
+    },
+    {
+      "name": "admin-dashboard",
+      "route": "/admin/dashboard.html",
+      "reference": "../../../public-site/design-ref/Phase1 09 Admin Dashboard .png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#total-cards .stat-card"
+    },
+    {
+      "name": "admin-products",
+      "route": "/admin/products-list.html",
+      "reference": "../references/admin-products-panel1.png",
+      "viewport": { "width": 1440, "height": 900 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#status-tabs"
+    },
+    {
+      "name": "admin-categories",
+      "route": "/admin/categories.html",
+      "reference": "../references/admin-categories-panel3.png",
+      "viewport": { "width": 1440, "height": 900 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#type-tabs"
+    },
+    {
+      "name": "admin-integrations",
+      "route": "/admin/integrations.html",
+      "reference": "../../../public-site/design-ref/Phase2 7. Admin Integration Management.png",
+      "viewport": { "width": 1672, "height": 941 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#integration-cards .integration-card"
+    },
+    {
+      "name": "admin-razorpay-config",
+      "route": "/admin/integrations.html",
+      "reference": "../../../public-site/design-ref/Phase2 8. Razorpay Integration Configuration.png",
+      "viewport": { "width": 1672, "height": 941 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#razorpay-connection-status-card",
+      "scrollToSelector": "#section-razorpay"
+    },
+    {
+      "name": "admin-payments-list",
+      "route": "/admin/payments-list.html",
+      "reference": "../../../public-site/design-ref/Phase2 9. Admin Payments List.png",
+      "viewport": { "width": 1672, "height": 941 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#payments-summary .stat-card"
+    },
+    {
+      "name": "admin-payment-detail",
+      "route": "/admin/payment-detail.html?id=d153eece-a70f-4e46-9dfd-60c16b524a19",
+      "reference": "../../../public-site/design-ref/Phase2 10. Payment Detail  Attempts.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#payment-summary-strip .payment-status-icon"
+    },
+    {
+      "name": "admin-refunds",
+      "route": "/admin/refunds.html",
+      "reference": "../../../public-site/design-ref/Phase2 11. Refund Management.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#stat-cards .stat-card"
+    },
+    {
+      "name": "admin-refund-detail",
+      "route": "/admin/refund-detail.html?id=204406aa-8922-4eab-b187-e10f37b67021",
+      "reference": "../../../public-site/design-ref/Phase2 12. Refund Detail  Partial Refund.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#refund-timeline .timeline-step"
+    },
+    {
+      "name": "admin-reconciliation",
+      "route": "/admin/reconciliation.html",
+      "reference": "../../../public-site/design-ref/Phase2 13. Payment Reconciliation.png",
+      "viewport": { "width": 1672, "height": 941 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#stat-cards .stat-card"
+    },
+    {
+      "name": "admin-webhooks",
+      "route": "/admin/webhooks.html",
+      "reference": "../../../public-site/design-ref/Phase2 14. Webhook  Payment Processing Status.png",
+      "viewport": { "width": 1672, "height": 941 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#stat-cards .stat-card"
+    },
+    {
+      "name": "admin-connection-test",
+      "route": "/admin/connection-test.html",
+      "reference": "../../../public-site/design-ref/Pahse2 15 Integration Connection Test  Error States.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#integration-status-card"
     }
   ]
 }

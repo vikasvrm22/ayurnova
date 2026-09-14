@@ -1,0 +1,32 @@
+{
+  "page": "admin-payment-detail",
+  "source": "authored",
+  "generatedAt": "2026-09-13T19:24:00.000Z",
+  "reference": { "path": "../../public-site/design-ref/Phase2 10. Payment Detail  Attempts.png", "width": 1536, "height": 1024 },
+  "sections": {
+    "expectedOrder": [".breadcrumb", "#payment-summary-strip", "#attempts-rows", "#order-details-block", "#order-items-rows", "#payment-timeline", "#razorpay-details-block", "#section-refund"],
+    "confidence": "high",
+    "note": "Payment Details per Phase2 10: breadcrumb, header with Refund Payment/View Order actions, a summary strip, a Payment Attempts table, Order Details + Items in Order with a totals breakdown, a Payment Timeline stepper, Razorpay Details, and Issue Refund/Reconciliation. Data-dependent (tied to one dev-seeded payment id in pages.config.json) since this is a detail page, not a static route."
+  },
+  "colors": { "dominant": [{ "hex": "#132615", "pct": 0.14 }, { "hex": "#ffffff", "pct": 0.45 }, { "hex": "#f4f6fb", "pct": 0.3 }], "confidence": "medium" },
+  "typography": { "hierarchy": [{ "selector": ".page-header h2", "expectedFontSizePx": 20, "expectedFontWeight": "700" }], "confidence": "medium" },
+  "spacing": { "expectations": [], "confidence": "low" },
+  "components": {
+    "expected": [
+      { "name": "Breadcrumb", "selector": ".breadcrumb", "critical": false },
+      { "name": "Summary strip", "selector": "#payment-summary-strip", "critical": true },
+      { "name": "Refund Payment action", "selector": "#refund-scroll-btn", "critical": true },
+      { "name": "View Order action", "selector": "#view-order-link", "critical": true },
+      { "name": "Payment Attempts table", "selector": "#attempts-rows", "critical": true },
+      { "name": "Order Details", "selector": "#order-details-card", "critical": true },
+      { "name": "Items in Order", "selector": "#order-items-rows", "critical": true },
+      { "name": "Payment Timeline", "selector": "#payment-timeline", "critical": true },
+      { "name": "Razorpay Details", "selector": "#razorpay-details-card", "critical": false },
+      { "name": "Issue Refund form", "selector": "#section-refund", "critical": true }
+    ],
+    "confidence": "medium"
+  },
+  "assets": { "images": [], "confidence": "low" },
+  "borders": { "confidence": "low" },
+  "responsive": { "expectations": [], "confidence": "low", "note": "Two tables on this page (Payment Attempts, Items in Order) both use the shared responsive overflow-x:auto pattern - not real page-level overflow (verified: 0px at 390px)." }
+}

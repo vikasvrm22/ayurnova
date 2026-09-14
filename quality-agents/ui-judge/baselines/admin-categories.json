@@ -1,0 +1,16 @@
+{
+  "page": "admin-categories",
+  "overall": 86,
+  "categoryScores": {
+    "layout": 73,
+    "components": 100,
+    "typography": 100,
+    "spacing": null,
+    "assets": 100,
+    "colors": 100,
+    "responsive": 60,
+    "functional": 82
+  },
+  "savedAt": "2026-09-13T17:55:59.395Z",
+  "reportPath": "D:\\FinalAyurveda\\ayurveda-store-full-project\\ayur-app\\ui-judge\\reports\\admin-categories__2026-09-13T17-55-59-390Z.json"
+}

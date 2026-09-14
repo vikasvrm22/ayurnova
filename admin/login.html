@@ -11,29 +11,52 @@
       <div class="login-side-brand"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4C13 4 6 13 6 24c0 4 1.3 8.4 4.3 12.4C13.6 40.8 18.3 44 24 44c5.7 0 10.4-3.2 13.7-7.6C40.7 32.4 42 28 42 24 42 13 35 4 24 4z" fill="currentColor" opacity=".12"/><path d="M24 6C16 12 12 19 12 26c0 6 4 11 12 15 8-4 12-9 12-15 0-7-4-14-12-20z" fill="currentColor"/><path d="M24 10v26" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".55"/></svg><span>AyurNova<em>Admin Portal</em></span></div>
       <h2>Manage Wellness for a Healthier Tomorrow</h2>
       <ul class="login-side-list">
-        <li>Manage Products</li>
-        <li>Process Orders</li>
-        <li>Support Customers</li>
-        <li>Grow with Purpose</li>
+        <li><span class="side-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg></span>Manage Products</li>
+        <li><span class="side-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="17" rx="2"/><path d="M8 2v4M16 2v4M4 10h16"/></svg></span>Process Orders</li>
+        <li><span class="side-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>Support Customers</li>
+        <li><span class="side-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V10M12 10C12 6 9 3 5 3c0 4 3 7 7 7zM12 10c0-4 3-7 7-7 0 4-3 7-7 7z"/></svg></span>Grow with Purpose</li>
       </ul>
-      <p class="login-side-quote">Pure Products. Better Lives.</p>
+      <div class="login-side-art" aria-hidden="true">
+        <svg viewBox="0 0 300 150" preserveAspectRatio="xMidYMid slice"><path d="M0 150V90c30-20 60 10 90-10s40-30 70-20 60 30 90 10 30-20 50-10v90H0z" fill="#274d2b"/><path d="M0 150v-40c40-10 70 20 110 5s50-25 80-10 70 25 110 5v40H0z" fill="#1b3a1f"/></svg>
+        <p class="login-side-quote">Pure Products. Better Lives.</p>
+      </div>
     </div>
     <form class="login-box" id="login-form">
+      <svg class="login-box-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6C16 12 12 19 12 26c0 6 4 11 12 15 8-4 12-9 12-15 0-7-4-14-12-20z" fill="var(--primary)"/><path d="M24 10v26" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".55"/></svg>
       <h1>Welcome Back</h1>
       <p class="login-sub">Login to access the AyurNova Admin Portal</p>
-      <label>Email Address</label><input type="email" id="login-email" required autocomplete="username">
-      <label>Password</label><input type="password" id="login-password" required autocomplete="current-password">
-      <div id="login-error" style="color:#b91c1c; font-size:12.5px; margin-top:8px; min-height:14px;"></div>
+      <label>Email Address</label>
+      <div class="login-field">
+        <span class="field-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></span>
+        <input type="email" id="login-email" required autocomplete="username">
+      </div>
+      <label>Password</label>
+      <div class="login-field">
+        <span class="field-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg></span>
+        <input type="password" id="login-password" required autocomplete="current-password">
+        <button type="button" class="field-toggle" id="login-password-toggle" aria-label="Show password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+      <div id="login-error" class="login-error-box" hidden>
+        <span class="login-error-icon">!</span>
+        <span>
+          <strong>Login Failed</strong>
+          <span id="login-error-detail"></span>
+        </span>
+      </div>
       <button type="submit">Login</button>
       <p class="login-footnote">Only authorized admin accounts can access this portal.</p>
     </form>
   </div>
 </div>
 <script>
+  document.getElementById("login-password-toggle").addEventListener("click", () => {
+    const input = document.getElementById("login-password");
+    input.type = input.type === "password" ? "text" : "password";
+  });
   document.getElementById("login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const errEl = document.getElementById("login-error");
-    errEl.textContent = "";
+    errEl.hidden = true;
     const email = document.getElementById("login-email").value.trim();
     const password = document.getElementById("login-password").value;
     try {
@@ -41,7 +64,8 @@
       Api.setSession(data.token, data.user);
       location.href = "dashboard.html";
     } catch (err) {
-      errEl.textContent = err.message || "Login failed";
+      document.getElementById("login-error-detail").textContent = err.message || "Login failed";
+      errEl.hidden = false;
     }
   });
 </script>

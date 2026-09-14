@@ -1,0 +1,25 @@
+{
+  "page": "admin-categories",
+  "source": "authored",
+  "generatedAt": "2026-09-13T17:54:00.000Z",
+  "reference": { "path": "../references/admin-categories-panel3.png", "width": 640, "height": 479 },
+  "sections": {
+    "expectedOrder": [".sidebar", ".topbar", "#type-tabs", "table.data-table"],
+    "confidence": "high",
+    "note": "Categories management per Phase1 10 panel 3: type tabs, a categories table, Add Category action."
+  },
+  "colors": { "dominant": [{ "hex": "#132615", "pct": 0.22 }, { "hex": "#ffffff", "pct": 0.5 }, { "hex": "#f4f6fb", "pct": 0.15 }], "confidence": "medium" },
+  "typography": { "hierarchy": [{ "selector": ".page-header h2", "expectedFontSizePx": 20, "expectedFontWeight": "700" }], "confidence": "medium" },
+  "spacing": { "expectations": [], "confidence": "low" },
+  "components": {
+    "expected": [
+      { "name": "Type tabs", "selector": "#type-tabs", "critical": true },
+      { "name": "Categories table", "selector": "table.data-table", "critical": true },
+      { "name": "Add Category button", "selector": "#new-cat-btn", "critical": true, "expectedText": "+ Add Category" }
+    ],
+    "confidence": "medium"
+  },
+  "assets": { "images": [], "confidence": "low" },
+  "borders": { "confidence": "low" },
+  "responsive": { "expectations": [], "confidence": "low", "note": "Same intentional horizontal-scroll mobile sidebar/table pattern as admin-dashboard - not a real page-level overflow (verified separately)." }
+}

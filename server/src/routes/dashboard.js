@@ -43,11 +43,27 @@ router.get("/summary", async (req, res, next) => {
     const { data: latestOrders } = await supabaseAdmin()
       .from("orders").select("id, order_number, status, total, guest_email").order("created_at", { ascending: false }).limit(5);
 
+    // All-time catalog/order totals for the summary stat cards (independent of
+    // the `range` window, which only scopes revenue/orders/top-products above).
+    const { count: totalProductsCount } = await supabaseAdmin().from("products").select("id", { count: "exact", head: true });
+    const { count: totalCategoriesCount } = await supabaseAdmin().from("categories").select("id", { count: "exact", head: true });
+    const { count: totalOrdersCount } = await supabaseAdmin().from("orders").select("id", { count: "exact", head: true });
+    const { data: allCustomerIds } = await supabaseAdmin().from("orders").select("customer_id").not("customer_id", "is", null);
+    const totalCustomersCount = new Set((allCustomerIds || []).map((o) => o.customer_id)).size;
+
+    const ordersByStatus = {};
+    for (const o of recentOrders || []) ordersByStatus[o.status] = (ordersByStatus[o.status] || 0) + 1;
+
     res.json({
       revenue, orderCount, avgOrderValue, pendingShipments,
       lowStockCount: (lowStockVariants || []).length,
       outOfStockCount: (outOfStockVariants || []).length,
       topProducts, recentOrders: latestOrders || [],
+      totalProductsCount: totalProductsCount || 0,
+      totalCategoriesCount: totalCategoriesCount || 0,
+      totalOrdersCount: totalOrdersCount || 0,
+      totalCustomersCount,
+      ordersByStatus,
     });
   } catch (e) {
     next(e);

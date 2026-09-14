@@ -61,74 +61,238 @@
     </div>
   </div>
   <main class="main-area">
-    <div class="page-header"><h2>Integrations</h2></div>
-    <p style="font-size:12.5px; color:#666; margin-top:-6px;">
+    <div class="breadcrumb"><a href="settings.html">Settings</a> <span>&rsaquo;</span> <span>Integrations</span></div>
+    <div class="page-header">
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <span class="page-icon">⚙️</span>
+        <div><h2>Integrations Management</h2><div class="sub">Manage third-party integrations for payments, shipping, communication and more.</div></div>
+      </div>
+    </div>
+
+    <div class="cards-row" id="integration-summary">Loading...</div>
+
+    <div class="tabs-row" id="integration-tabs">
+      <button data-cat="" class="active">All Integrations</button>
+      <button data-cat="Payment Gateway">Payment Gateways</button>
+      <button data-cat="Shipping & Logistics">Shipping & Logistics</button>
+      <button data-cat="Communication">Communication</button>
+    </div>
+
+    <div class="integration-cards-grid" id="integration-cards">Loading...</div>
+
+    <p style="font-size:12.5px; color:#666;">
       Credentials here are encrypted at rest and never shown in full once saved - only a masked preview.
       Test and Production are configured and enabled independently; Production is used automatically once enabled, otherwise Test is used.
     </p>
 
-    <div class="card">
-      <div class="page-header" style="margin:0 0 12px;"><h3 style="margin:0; font-size:16px;">Razorpay — Test / Sandbox</h3><a class="btn btn-outline" href="connection-test.html">🔧 Connection Test</a></div>
-      <div id="razorpay-test-form"></div>
-    </div>
+    <section id="section-razorpay">
+      <div class="page-header" style="margin:0 0 12px;"><h2 style="margin:0; font-size:18px;">Razorpay Integration Configuration</h2><a class="btn btn-outline" href="connection-test.html">🔧 Connection Test</a></div>
+      <p style="font-size:12.5px; color:var(--muted); margin:-8px 0 14px;">Configure Razorpay to accept payments via UPI, Cards, Net Banking and more. Test and Live are configured and enabled independently.</p>
 
-    <div class="card">
-      <h3 style="margin-top:0;">Razorpay — Production</h3>
-      <div id="razorpay-production-form"></div>
-    </div>
+      <div class="razorpay-layout">
+        <div>
+          <div class="card">
+            <div class="page-header" style="margin:0 0 4px;"><h3 style="margin:0;">API Credentials <span class="badge badge-lowstock" style="text-transform:uppercase; font-size:10px;">Test Mode (Sandbox)</span></h3></div>
+            <p style="font-size:12px; color:var(--muted); margin:0 0 12px;">Use your Razorpay API keys from the Razorpay Dashboard. Keep your keys secure.</p>
+            <div id="razorpay-test-form"></div>
+          </div>
+          <div class="card">
+            <div class="page-header" style="margin:0 0 4px;"><h3 style="margin:0;">API Credentials <span class="badge badge-instock" style="text-transform:uppercase; font-size:10px;">Live Mode (Production)</span></h3></div>
+            <div id="razorpay-production-form"></div>
+          </div>
 
-    <div class="page-header" style="margin-top:8px;"><h2 style="font-size:17px;">Customer Notifications (Phase 7)</h2></div>
-    <p style="font-size:12.5px; color:#666; margin-top:-6px;">
-      Email/SMS/WhatsApp are independent channels - each can be enabled on its own. If a channel is disabled or left
-      unconfigured, notifications on that channel are silently skipped and every other part of the site keeps working normally.
-    </p>
+          <div class="card">
+            <h3 style="margin-top:0;">Test Integration</h3>
+            <p style="font-size:12px; color:var(--muted); margin:0 0 12px;">Verify your Razorpay configuration by creating a test payment in Test Mode.</p>
+            <div class="test-card-numbers">
+              <div><span class="badge badge-instock">Success</span> 4111 1111 1111 1111</div>
+              <div><span class="badge badge-outofstock">Failure</span> 4000 0000 0000 0002</div>
+              <div><span class="badge badge-lowstock">Auth Required</span> 4000 0025 0000 3155</div>
+              <div style="margin-top:8px; color:var(--muted);">Test UPI ID: <b>success@razorpay</b></div>
+            </div>
+            <p style="font-size:11px; color:var(--muted); margin-top:10px;">Standard Razorpay sandbox test values (publicly documented by Razorpay) - safe to use in Test Mode only.</p>
+          </div>
 
-    <div class="card">
-      <h3 style="margin-top:0;">Email (SMTP) — Test</h3>
-      <div id="email-test-form"></div>
-    </div>
-    <div class="card">
-      <h3 style="margin-top:0;">Email (SMTP) — Production</h3>
-      <div id="email-production-form"></div>
-    </div>
+          <div class="card">
+            <h3 style="margin-top:0;">Integration Features</h3>
+            <div class="feature-checklist">
+              <span>✅ Secure - credentials encrypted at rest</span>
+              <span>✅ Automatic Payment Verification</span>
+              <span>✅ Webhook Support</span>
+              <span>✅ Refund Management</span>
+              <span>✅ Detailed Transaction &amp; Payment Logs</span>
+            </div>
+          </div>
+        </div>
 
-    <div class="card">
-      <h3 style="margin-top:0;">SMS (HTTP gateway) — Test</h3>
-      <div id="sms-test-form"></div>
-    </div>
-    <div class="card">
-      <h3 style="margin-top:0;">SMS (HTTP gateway) — Production</h3>
-      <div id="sms-production-form"></div>
-    </div>
+        <div>
+          <div class="card" id="razorpay-connection-status-card">Loading connection status...</div>
+          <div class="card" style="background:var(--primary-light); border-color:var(--primary-light);">
+            <strong style="font-size:13px;">Supported Payment Methods</strong>
+            <div class="payment-methods-grid">
+              <div>💳 Cards</div><div>🏦 Net Banking</div>
+              <div>📱 UPI</div><div>👛 Wallets</div>
+              <div>📅 EMI</div><div>⏳ Pay Later</div>
+            </div>
+            <p style="font-size:11px; color:var(--muted); margin:8px 0 0;">Methods supported by the Razorpay gateway generally - actual availability also depends on your Razorpay account settings.</p>
+          </div>
+          <div class="card">
+            <a href="https://razorpay.com/docs/" target="_blank" rel="noopener" class="btn btn-outline" style="display:block; text-align:center; text-decoration:none; margin-bottom:8px;">Razorpay Documentation ↗</a>
+            <a href="https://dashboard.razorpay.com/" target="_blank" rel="noopener" class="btn btn-outline" style="display:block; text-align:center; text-decoration:none;">View Razorpay Dashboard ↗</a>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <div class="card">
-      <h3 style="margin-top:0;">WhatsApp (Cloud API) — Test</h3>
-      <div id="whatsapp-test-form"></div>
-    </div>
-    <div class="card">
-      <h3 style="margin-top:0;">WhatsApp (Cloud API) — Production</h3>
-      <div id="whatsapp-production-form"></div>
-    </div>
+    <section id="section-email">
+      <div class="page-header" style="margin-top:8px;"><h2 style="font-size:17px;">Customer Notifications (Phase 7)</h2></div>
+      <p style="font-size:12.5px; color:#666; margin-top:-6px;">
+        Email/SMS/WhatsApp are independent channels - each can be enabled on its own. If a channel is disabled or left
+        unconfigured, notifications on that channel are silently skipped and every other part of the site keeps working normally.
+      </p>
 
-    <div class="page-header" style="margin-top:8px;"><h2 style="font-size:17px;">Shipping / Courier (Phase 8B)</h2></div>
-    <p style="font-size:12.5px; color:#666; margin-top:-6px;">
-      Provider-agnostic: a real courier (e.g. Shiprocket) plugs into this exact same form once added - no redesign needed.
-      "Manual" needs no credentials and is enabled by default, so shipments work today via staff-entered AWB/status.
-    </p>
+      <div class="card">
+        <h3 style="margin-top:0;">Email (SMTP) — Test</h3>
+        <div id="email-test-form"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">Email (SMTP) — Production</h3>
+        <div id="email-production-form"></div>
+      </div>
+    </section>
 
-    <div class="card">
-      <h3 style="margin-top:0;">Manual — Test</h3>
-      <div id="manual-test-form"></div>
-    </div>
-    <div class="card">
-      <h3 style="margin-top:0;">Manual — Production</h3>
-      <div id="manual-production-form"></div>
-    </div>
+    <section id="section-sms">
+      <div class="card">
+        <h3 style="margin-top:0;">SMS (HTTP gateway) — Test</h3>
+        <div id="sms-test-form"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">SMS (HTTP gateway) — Production</h3>
+        <div id="sms-production-form"></div>
+      </div>
+    </section>
+
+    <section id="section-whatsapp">
+      <div class="card">
+        <h3 style="margin-top:0;">WhatsApp (Cloud API) — Test</h3>
+        <div id="whatsapp-test-form"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">WhatsApp (Cloud API) — Production</h3>
+        <div id="whatsapp-production-form"></div>
+      </div>
+    </section>
+
+    <section id="section-manual">
+      <div class="page-header" style="margin-top:8px;"><h2 style="font-size:17px;">Shipping / Courier (Phase 8B)</h2></div>
+      <p style="font-size:12.5px; color:#666; margin-top:-6px;">
+        Provider-agnostic: a real courier (e.g. Shiprocket) plugs into this exact same form once added - no redesign needed.
+        "Manual" needs no credentials and is enabled by default, so shipments work today via staff-entered AWB/status.
+      </p>
+
+      <div class="card">
+        <h3 style="margin-top:0;">Manual — Test</h3>
+        <div id="manual-test-form"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">Manual — Production</h3>
+        <div id="manual-production-form"></div>
+      </div>
+    </section>
   </main>
   </div>
 </div>
 <script src="js/pages/changePassword.js"></script>
 <script>
+  const INTEGRATION_META = {
+    razorpay: { name: "Razorpay", category: "Payment Gateway", icon: "💳", description: "Accept payments via UPI, Cards, Net Banking and more.", section: "section-razorpay" },
+    email: { name: "Email (SMTP)", category: "Communication", icon: "✉️", description: "Transactional emails and marketing campaigns.", section: "section-email" },
+    sms: { name: "SMS Gateway", category: "Communication", icon: "💬", description: "Send order updates and OTPs via SMS.", section: "section-sms" },
+    whatsapp: { name: "WhatsApp Business", category: "Communication", icon: "🟢", description: "Send order updates via WhatsApp.", section: "section-whatsapp" },
+    manual: { name: "Manual Shipping", category: "Shipping & Logistics", icon: "🚚", description: "Staff-entered AWB/courier/status - no credentials needed.", section: "section-manual" },
+  };
+
+  function relativeTime(iso) {
+    if (!iso) return null;
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.round(diffMs / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+    const days = Math.round(hrs / 24);
+    return `${days} day${days === 1 ? "" : "s"} ago`;
+  }
+
+  async function loadIntegrationOverview() {
+    let rows = [];
+    try {
+      const { items } = await Api.get("/integrations");
+      rows = items;
+    } catch (e) {
+      document.getElementById("integration-summary").innerHTML = `<div class="card">Could not load integrations overview: ${e.message}</div>`;
+      return;
+    }
+    const byProvider = {};
+    for (const r of rows) { (byProvider[r.provider] = byProvider[r.provider] || {})[r.environment] = r; }
+
+    const providers = Object.keys(INTEGRATION_META).map((key) => {
+      const envs = byProvider[key] || {};
+      const anyConfigured = !!(envs.test || envs.production);
+      const anyEnabled = !!((envs.test && envs.test.enabled) || (envs.production && envs.production.enabled));
+      const anyFailed = [envs.test, envs.production].some((e) => e && e.lastTestStatus === "failed");
+      const lastTestedAt = [envs.test, envs.production].filter(Boolean).map((e) => e.lastTestedAt).filter(Boolean).sort().pop();
+      return {
+        key, ...INTEGRATION_META[key],
+        status: !anyConfigured ? "Not Configured" : anyEnabled ? "Active" : "Inactive",
+        issue: anyFailed, lastTestedAt,
+      };
+    });
+
+    const totalIntegrations = providers.length;
+    const activeCount = providers.filter((p) => p.status === "Active").length;
+    const inactiveCount = providers.filter((p) => p.status === "Inactive").length;
+    const notConfiguredCount = providers.filter((p) => p.status === "Not Configured").length;
+    const issuesCount = providers.filter((p) => p.issue).length;
+    const lastSyncAt = providers.map((p) => p.lastTestedAt).filter(Boolean).sort().pop();
+
+    document.getElementById("integration-summary").innerHTML = `
+      <div class="stat-card stat-card-total"><div class="stat-card-icon">🔌</div><div><div class="num">${totalIntegrations}</div><div class="label">Total Integrations</div><div class="sub-detail">${activeCount} Active &bull; ${inactiveCount} Inactive &bull; ${notConfiguredCount} Not Configured</div></div></div>
+      <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#e6f4ea; color:#0e7a33;">✅</div><div><div class="num">${activeCount}</div><div class="label">Active Integrations</div><div class="sub-detail">${activeCount ? "Working properly" : "None active yet"}</div></div></div>
+      <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:${issuesCount ? "#fff3e0" : "#e6f4ea"}; color:${issuesCount ? "#b45309" : "#0e7a33"};">${issuesCount ? "⚠️" : "✅"}</div><div><div class="num">${issuesCount}</div><div class="label">Issues</div><div class="sub-detail">${issuesCount ? "Needs attention" : "None detected"}</div></div></div>
+      <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#e0ecfb; color:#1a56b0;">🕐</div><div><div class="num" style="font-size:15px;">${lastSyncAt ? relativeTime(lastSyncAt) : "Never"}</div><div class="label">Last Sync</div></div></div>
+    `;
+
+    function renderCards(filterCat) {
+      const list = filterCat ? providers.filter((p) => p.category === filterCat) : providers;
+      document.getElementById("integration-cards").innerHTML = list.map((p) => `
+        <div class="integration-card">
+          <div class="integration-card-head">
+            <span class="integration-card-icon">${p.icon}</span>
+            <div style="flex:1;">
+              <div style="font-weight:700;">${p.name}</div>
+              <span class="badge badge-shipped">${p.category}</span>
+            </div>
+            <span class="badge ${p.status === "Active" ? "badge-instock" : p.status === "Inactive" ? "badge-cancelled" : "badge-lowstock"}">${p.status}</span>
+          </div>
+          <p class="integration-card-desc">${p.description}</p>
+          <div class="integration-card-actions">
+            <button class="btn btn-outline" onclick="document.getElementById('${p.section}').scrollIntoView({behavior:'smooth'})">⚙️ Configure</button>
+          </div>
+          ${p.lastTestedAt ? `<div class="integration-card-sync">Last synced: ${relativeTime(p.lastTestedAt)}</div>` : ""}
+        </div>`).join("") || `<div class="card">No integrations in this category.</div>`;
+    }
+    renderCards("");
+
+    document.getElementById("integration-tabs").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-cat]");
+      if (!btn) return;
+      document.querySelectorAll("#integration-tabs button").forEach((b) => b.classList.toggle("active", b === btn));
+      renderCards(btn.dataset.cat);
+    });
+  }
+  loadIntegrationOverview();
+
   function renderForm(containerId, provider, environment) {
     document.getElementById(containerId).innerHTML = `
       <div class="form-field"><label>Key ID</label><input id="${containerId}-key-id" placeholder="rzp_test_... / rzp_live_..."></div>
@@ -209,6 +373,31 @@
 
   renderForm("razorpay-test-form", "razorpay", "test");
   renderForm("razorpay-production-form", "razorpay", "production");
+
+  async function loadRazorpayConnectionStatus() {
+    const card = document.getElementById("razorpay-connection-status-card");
+    try {
+      const [testRes, prodRes] = await Promise.all([
+        Api.get("/integrations/razorpay/test").catch(() => ({ item: null })),
+        Api.get("/integrations/razorpay/production").catch(() => ({ item: null })),
+      ]);
+      const active = (prodRes.item && prodRes.item.enabled) ? prodRes.item : testRes.item;
+      if (!active) { card.innerHTML = `<strong>Connection Status</strong><p style="font-size:12.5px; color:var(--muted);">Not configured yet.</p>`; return; }
+      const connected = active.enabled && active.lastTestStatus === "success";
+      card.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="width:22px; height:22px; border-radius:50%; background:${connected ? "#e6f4ea" : "#fdecec"}; color:${connected ? "var(--success)" : "var(--danger)"}; display:flex; align-items:center; justify-content:center; font-size:13px;">${connected ? "✓" : "!"}</span>
+          <strong style="font-size:13px;">Connection Status</strong>
+          <span class="badge ${connected ? "badge-instock" : "badge-outofstock"}" style="margin-left:auto;">${connected ? "Connected" : "Not Connected"}</span>
+        </div>
+        <p style="font-size:12px; margin:8px 0 0;">${active.lastTestMessage || "No connection test run yet."} ${active === testRes.item ? "(Test Mode)" : "(Live Mode)"}</p>
+        <p style="font-size:11px; color:var(--muted); margin:4px 0 0;">Last checked: ${active.lastTestedAt ? new Date(active.lastTestedAt).toLocaleString("en-IN") : "never"}</p>
+      `;
+    } catch (e) {
+      card.innerHTML = `<strong>Connection Status</strong><p style="font-size:12px; color:var(--danger);">${e.message}</p>`;
+    }
+  }
+  loadRazorpayConnectionStatus();
 
   // ---- Phase 7 notification channels - same underlying /integrations/
   // :provider/:environment API as Razorpay above (generic foundation),

@@ -56,66 +56,136 @@
     </div>
   </div>
   <main class="main-area">
+    <div class="breadcrumb"><a href="payments-list.html">Payments</a> <span>&rsaquo;</span> <span>Refunds</span></div>
     <div class="page-header">
-      <div><h2>Refund Management</h2><div class="sub">View and track every refund processed across all payments</div></div>
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <a href="payments-list.html" class="page-icon" style="text-decoration:none;">←</a>
+        <div><h2>Refund Management</h2><div class="sub">View, process, and manage customer refunds. Handle full or partial refunds, track status, and monitor refund activities.</div></div>
+      </div>
+      <a class="btn btn-outline" href="payments-list.html" style="text-decoration:none;">+ Process Refund</a>
     </div>
 
     <div class="cards-row" id="stat-cards">Loading...</div>
 
-    <div class="filters-row">
-      <select id="f-status">
-        <option value="">All Refund Status</option>
-        <option value="PROCESSED">Processed</option>
-        <option value="PENDING">Pending</option>
-        <option value="FAILED">Failed</option>
-      </select>
-    </div>
+    <div class="two-col refunds-layout">
+      <div>
+        <div class="filters-row">
+          <input type="text" id="f-search" placeholder="Search by order ID, customer...">
+          <select id="f-status">
+            <option value="">All Refund Status</option>
+            <option value="PROCESSED">Completed</option>
+            <option value="INITIATED">Pending</option>
+            <option value="FAILED">Rejected</option>
+          </select>
+          <input type="date" id="f-from" title="From date">
+          <input type="date" id="f-to" title="To date">
+          <button class="btn btn-outline" id="f-clear">Clear Filters</button>
+        </div>
 
-    <table class="data-table">
-      <thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Reason</th><th>Status</th><th>Processed By</th><th>Date</th><th></th></tr></thead>
-      <tbody id="refunds-rows"><tr><td colspan="8">Loading...</td></tr></tbody>
-    </table>
-    <div class="pagination-row" id="pagination"></div>
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Order ID</th><th>Customer</th><th>Amount</th><th>Type</th><th>Status</th><th>Requested On</th><th></th></tr></thead>
+          <tbody id="refunds-rows"><tr><td colspan="8">Loading...</td></tr></tbody>
+        </table>
+        <div class="pagination-row" id="pagination"></div>
+
+        <div class="cards-row shortcuts-row" style="grid-template-columns:repeat(2,1fr); margin-top:18px;">
+          <a class="shortcut-card" href="payments-list.html"><span class="shortcut-icon">↺</span><span><strong>Process Refund</strong><br>Find a payment to refund</span></a>
+          <a class="shortcut-card" href="integrations.html#section-razorpay"><span class="shortcut-icon">⚙️</span><span><strong>Refund Settings</strong><br>Configure Razorpay integration</span></a>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" id="refund-details-panel">
+          <h3 style="margin-top:0;">Refund Details</h3>
+          <p style="color:var(--muted); font-size:12.5px;">Select a refund from the table to view its details.</p>
+        </div>
+        <div class="card" style="background:var(--primary-light); border-color:var(--primary-light);">
+          <strong style="font-size:13px;">ℹ️ Refund Policy</strong>
+          <p style="font-size:12px; color:var(--muted); margin:8px 0 0;">Refunds are issued to the original payment method via Razorpay. Processing times depend on the customer's bank/payment provider.</p>
+        </div>
+      </div>
+    </div>
   </main>
   </div>
 </div>
 <script src="js/pages/changePassword.js"></script>
 <script>
   const state = { page: 1, pageSize: 20 };
+  let loadedItems = [];
   function fmt(n){ return "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function fmtDate(s){ return s ? new Date(s).toLocaleString("en-IN") : "-"; }
+  function statusLabel(s) { return { PROCESSED: "Completed", INITIATED: "Pending", FAILED: "Rejected" }[s] || s; }
+  function statusBadge(s) { return { PROCESSED: "delivered", INITIATED: "pending", FAILED: "cancelled" }[s] || "pending"; }
+
+  async function loadSummary() {
+    try {
+      const s = await Api.get("/payments/refunds/summary");
+      document.getElementById("stat-cards").innerHTML = `
+        <div class="stat-card stat-card-total"><div class="stat-card-icon">↺</div><div><div class="num">${s.total}</div><div class="label">Total Refunds</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#e6f4ea; color:#0e7a33;">✓</div><div><div class="num">${s.completed}</div><div class="label">Completed</div><div class="sub-detail">${s.total ? ((s.completed / s.total) * 100).toFixed(1) : 0}% of total</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#fff3e0; color:var(--warn);">🕐</div><div><div class="num">${s.pending}</div><div class="label">Pending</div><div class="sub-detail">${s.total ? ((s.pending / s.total) * 100).toFixed(1) : 0}% of total</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#fdecec; color:var(--danger);">✕</div><div><div class="num">${s.rejected}</div><div class="label">Rejected</div><div class="sub-detail">${s.total ? ((s.rejected / s.total) * 100).toFixed(1) : 0}% of total</div></div></div>
+        <div class="stat-card stat-card-total"><div class="stat-card-icon" style="background:#ede4fb; color:#6b3fa0;">₹</div><div><div class="num">${fmt(s.totalRefunded)}</div><div class="label">Total Refunded</div></div></div>`;
+    } catch (e) {
+      document.getElementById("stat-cards").innerHTML = `<div class="card">Could not load summary: ${e.message}</div>`;
+    }
+  }
+
+  function showRefundDetails(r) {
+    const panel = document.getElementById("refund-details-panel");
+    panel.innerHTML = `
+      <div class="page-header" style="margin:0 0 10px;"><h3 style="margin:0;">Refund Details</h3><span class="badge badge-${statusBadge(r.status)}">${statusLabel(r.status)}</span></div>
+      <div style="font-size:12.5px; display:flex; flex-direction:column; gap:8px;">
+        <div><span class="micro">Refund ID</span><br><b>${r.id.slice(0, 13)}</b></div>
+        <div><span class="micro">Order ID</span><br><b>${r.payments?.orders?.order_number || "-"}</b></div>
+        <div><span class="micro">Customer</span><br><b>${r.payments?.orders?.guest_email || r.payments?.orders?.guest_phone || "-"}</b></div>
+        <div><span class="micro">Refund Amount</span><br><b>${fmt(r.amount)}</b></div>
+        <div><span class="micro">Refund Type</span><br><b>${r.type} Refund</b></div>
+        <div><span class="micro">Requested On</span><br><b>${fmtDate(r.created_at)}</b></div>
+        <div><span class="micro">Refund Reason</span><br><b>${r.reason || "-"}</b></div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+        <a class="btn btn-primary" href="refund-detail.html?id=${r.id}" style="text-decoration:none;">View Full Refund Details</a>
+        <a class="btn btn-outline" href="order-detail.html?id=${r.payments?.orders?.id || ""}" style="text-decoration:none;">View Order</a>
+        <a class="btn btn-outline" href="payment-detail.html?id=${r.payments?.id || ""}" style="text-decoration:none;">View Payment Details</a>
+      </div>
+    `;
+  }
 
   async function load() {
     const status = document.getElementById("f-status").value;
+    const from = document.getElementById("f-from").value;
+    const to = document.getElementById("f-to").value;
+    const q = document.getElementById("f-search").value.trim().toLowerCase();
     const params = new URLSearchParams({ page: state.page, pageSize: state.pageSize });
     if (status) params.set("status", status);
+    if (from) params.set("from", from);
+    if (to) params.set("to", to + "T23:59:59");
     try {
       const data = await Api.get(`/payments/refunds?${params.toString()}`);
-      const items = data.items || [];
+      let items = data.items || [];
+      // Search is applied client-side to the loaded page (order number/
+      // customer email/phone) - a full-text search across the joined
+      // orders table isn't supported by the admin API in one query yet.
+      if (q) items = items.filter((r) => [r.payments?.orders?.order_number, r.payments?.orders?.guest_email, r.payments?.orders?.guest_phone].filter(Boolean).some((v) => v.toLowerCase().includes(q)));
+      loadedItems = items;
 
-      const totalRefunded = items.filter(r => r.status === "PROCESSED").reduce((s, r) => s + Number(r.amount), 0);
-      document.getElementById("stat-cards").innerHTML = `
-        <div class="stat-card"><div class="num">${data.total}</div><div class="label">Total Refunds (this page's filter)</div></div>
-        <div class="stat-card"><div class="num">${items.filter(r => r.status === "PROCESSED").length}</div><div class="label">Completed (this page)</div></div>
-        <div class="stat-card"><div class="num">${items.filter(r => r.status === "PENDING").length}</div><div class="label">Pending (this page)</div></div>
-        <div class="stat-card"><div class="num">${fmt(totalRefunded)}</div><div class="label">Refunded (this page)</div></div>`;
-
-      document.getElementById("refunds-rows").innerHTML = items.length ? items.map(r => `
+      document.getElementById("refunds-rows").innerHTML = items.length ? items.map((r, i) => `
         <tr>
+          <td>${(state.page - 1) * state.pageSize + i + 1}</td>
           <td>${r.payments?.orders?.order_number || "-"}</td>
           <td>${r.payments?.orders?.guest_email || r.payments?.orders?.guest_phone || "-"}</td>
           <td>${fmt(r.amount)}</td>
-          <td>${r.reason || "-"}</td>
-          <td><span class="badge badge-${r.status === "PROCESSED" ? "delivered" : r.status === "FAILED" ? "cancelled" : "pending"}">${r.status}</span></td>
-          <td>${r.created_by || "-"}</td>
+          <td>${r.type}</td>
+          <td><span class="badge badge-${statusBadge(r.status)}">${statusLabel(r.status)}</span></td>
           <td>${fmtDate(r.created_at)}</td>
-          <td><a href="payment-detail.html?id=${r.payments?.id || ""}">View Payment →</a></td>
+          <td><button type="button" class="btn btn-outline" style="padding:3px 9px;" onclick='showRefundDetails(${JSON.stringify(r).replace(/'/g, "&#39;")})'>View</button></td>
         </tr>`).join("") : `<tr><td colspan="8">No refunds found.</td></tr>`;
 
       const totalPages = Math.max(1, Math.ceil(data.total / state.pageSize));
       document.getElementById("pagination").innerHTML = `
         <button ${state.page <= 1 ? "disabled" : ""} id="pg-prev">‹</button>
-        <span style="padding:0 10px; font-size:12.5px;">Page ${state.page} of ${totalPages}</span>
+        <span style="padding:0 10px; font-size:12.5px;">Page ${state.page} of ${totalPages} (${data.total} total)</span>
         <button ${state.page >= totalPages ? "disabled" : ""} id="pg-next">›</button>`;
       document.getElementById("pg-prev")?.addEventListener("click", () => { state.page--; load(); });
       document.getElementById("pg-next")?.addEventListener("click", () => { state.page++; load(); });
@@ -125,6 +195,18 @@
   }
 
   document.getElementById("f-status").addEventListener("change", () => { state.page = 1; load(); });
+  document.getElementById("f-from").addEventListener("change", () => { state.page = 1; load(); });
+  document.getElementById("f-to").addEventListener("change", () => { state.page = 1; load(); });
+  document.getElementById("f-search").addEventListener("input", () => { state.page = 1; load(); });
+  document.getElementById("f-clear").addEventListener("click", () => {
+    document.getElementById("f-search").value = "";
+    document.getElementById("f-status").value = "";
+    document.getElementById("f-from").value = "";
+    document.getElementById("f-to").value = "";
+    state.page = 1;
+    load();
+  });
+  loadSummary();
   load();
 </script>
 </body>

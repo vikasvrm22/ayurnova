@@ -20,19 +20,66 @@ router.use(requireStaffAuth, requirePermission("managePayments"));
 router.get(
   "/",
   asyncRoute(async (req, res) => {
-    const { status } = req.query;
+    const { status, from, to, q } = req.query;
     let query = supabaseAdmin()
       .from("payments")
       .select("*, orders(order_number, guest_email, guest_phone, customer_id)", { count: "exact" })
       .order("created_at", { ascending: false });
     if (status && PAYMENT_STATUSES.includes(status)) query = query.eq("status", status);
+    if (from) query = query.gte("created_at", from);
+    if (to) query = query.lte("created_at", to);
+    // Order number lives on the joined `orders` row, not `payments` itself -
+    // Supabase/PostgREST can't ilike across a join in one query, so a
+    // free-text search here matches on the payment's own id instead (still
+    // useful for pasting a payment UUID); order-number search is done
+    // client-side against the loaded page like the rest of this table.
+    if (q) query = query.ilike("id", `%${q}%`);
 
     const { page, pageSize } = parsePagination(req.query);
     query = query.range((page - 1) * pageSize, page * pageSize - 1);
 
     const { data, error, count } = await query;
     if (error) throw error;
-    res.json({ items: data, total: count, page, pageSize });
+
+    // Method (UPI/Card/etc.) lives on payment_attempts, not payments - pull
+    // each listed payment's most recent attempt to show it without adding a
+    // new column to `payments`.
+    const paymentIds = (data || []).map((p) => p.id);
+    const { data: attempts } = paymentIds.length
+      ? await supabaseAdmin().from("payment_attempts").select("payment_id, method, gateway_payment_id, created_at")
+          .in("payment_id", paymentIds).order("created_at", { ascending: false })
+      : { data: [] };
+    const latestAttemptByPayment = new Map();
+    for (const a of attempts || []) if (!latestAttemptByPayment.has(a.payment_id)) latestAttemptByPayment.set(a.payment_id, a);
+    const items = (data || []).map((p) => ({
+      ...p,
+      method: latestAttemptByPayment.get(p.id)?.method || null,
+      gatewayPaymentId: latestAttemptByPayment.get(p.id)?.gateway_payment_id || null,
+    }));
+
+    res.json({ items, total: count, page, pageSize });
+  })
+);
+
+// ---- Summary KPIs for the Payments list header cards - all read-only
+// aggregates over the same `payments` table already used above. ----
+router.get(
+  "/summary",
+  asyncRoute(async (req, res) => {
+    const { data: rows, error } = await supabaseAdmin().from("payments").select("status, amount, refunded_amount");
+    if (error) throw error;
+    const totalAmount = (rows || []).reduce((s, r) => s + Number(r.amount || 0), 0);
+    const totalCount = (rows || []).length;
+    const countByStatus = (rows || []).reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
+    const refundedAmount = (rows || []).reduce((s, r) => s + Number(r.refunded_amount || 0), 0);
+    res.json({
+      totalAmount, totalCount,
+      successfulCount: countByStatus.SUCCESS || 0,
+      failedCount: countByStatus.FAILED || 0,
+      pendingCount: (countByStatus.PENDING || 0) + (countByStatus.INITIATED || 0),
+      refundedCount: (countByStatus.REFUNDED || 0) + (countByStatus.PARTIALLY_REFUNDED || 0),
+      refundedAmount,
+    });
   })
 );
 
@@ -59,19 +106,75 @@ router.get(
 router.get(
   "/refunds",
   asyncRoute(async (req, res) => {
-    const { status } = req.query;
+    const { status, from, to } = req.query;
     let query = supabaseAdmin()
       .from("refunds")
-      .select("*, payments(id, amount, method:gateway, orders(order_number, guest_email, guest_phone))", { count: "exact" })
+      .select("*, payments(id, amount, gateway, orders(id, order_number, guest_email, guest_phone))", { count: "exact" })
       .order("created_at", { ascending: false });
     if (status) query = query.eq("status", status);
+    if (from) query = query.gte("created_at", from);
+    if (to) query = query.lte("created_at", to);
 
     const { page, pageSize } = parsePagination(req.query);
     query = query.range((page - 1) * pageSize, page * pageSize - 1);
 
     const { data, error, count } = await query;
     if (error) throw error;
-    res.json({ items: data, total: count, page, pageSize });
+    // "Type" (Full/Partial) isn't a stored column - derived from comparing
+    // this refund's amount to its payment's total amount, same real data
+    // the row already carries via the join above.
+    const items = (data || []).map((r) => ({ ...r, type: r.payments && Number(r.amount) >= Number(r.payments.amount) ? "Full" : "Partial" }));
+    res.json({ items, total: count, page, pageSize });
+  })
+);
+
+// ---- Single refund detail (Refund Detail / Partial Refund page): the
+// refund row plus its payment, order and order line items - same tables
+// already read elsewhere in this file (payment detail, order items),
+// just joined together for this one refund. ----
+router.get(
+  "/refunds/:id",
+  asyncRoute(async (req, res) => {
+    const { data: refund, error } = await supabaseAdmin()
+      .from("refunds")
+      .select("*, payments(*, orders(*))")
+      .eq("id", req.params.id).maybeSingle();
+    if (error) throw error;
+    if (!refund) throw new AppError("Refund not found", 404, "REFUND_NOT_FOUND");
+
+    const orderId = refund.payments?.order_id;
+    const { data: orderItems } = orderId
+      ? await supabaseAdmin().from("order_items").select("title_snapshot, variant_label_snapshot, qty, price_snapshot, subtotal").eq("order_id", orderId)
+      : { data: [] };
+    const { data: allRefundsForPayment } = await supabaseAdmin()
+      .from("refunds").select("*").eq("payment_id", refund.payment_id).order("created_at", { ascending: true });
+    const { data: attempts } = await supabaseAdmin()
+      .from("payment_attempts").select("gateway_payment_id, method").eq("payment_id", refund.payment_id).eq("status", "SUCCESS").order("created_at", { ascending: false }).limit(1);
+
+    res.json({
+      refund, orderItems: orderItems || [], refundsForPayment: allRefundsForPayment || [],
+      successAttempt: (attempts && attempts[0]) || null,
+    });
+  })
+);
+
+// ---- Refund summary KPIs (Refund Management header cards) - read-only
+// aggregate over the same `refunds` table used above. ----
+router.get(
+  "/refunds/summary",
+  asyncRoute(async (req, res) => {
+    const { data: rows, error } = await supabaseAdmin().from("refunds").select("status, amount");
+    if (error) throw error;
+    const total = (rows || []).length;
+    const countByStatus = (rows || []).reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
+    const totalRefunded = (rows || []).filter((r) => r.status === "PROCESSED").reduce((s, r) => s + Number(r.amount || 0), 0);
+    res.json({
+      total,
+      completed: countByStatus.PROCESSED || 0,
+      pending: countByStatus.INITIATED || 0,
+      rejected: countByStatus.FAILED || 0,
+      totalRefunded,
+    });
   })
 );
 
@@ -130,10 +233,12 @@ router.get(
 router.get(
   "/webhooks",
   asyncRoute(async (req, res) => {
-    const { status, eventType } = req.query;
+    const { status, eventType, from, to } = req.query;
     let query = supabaseAdmin().from("webhook_events").select("*", { count: "exact" }).order("created_at", { ascending: false });
     if (status) query = query.eq("processing_status", status);
     if (eventType) query = query.eq("event_type", eventType);
+    if (from) query = query.gte("created_at", from);
+    if (to) query = query.lte("created_at", to);
 
     const { page, pageSize } = parsePagination(req.query);
     query = query.range((page - 1) * pageSize, page * pageSize - 1);
@@ -144,14 +249,18 @@ router.get(
     // Stats for the last 24h - the reference dashboard's summary tiles.
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: recent } = await supabaseAdmin().from("webhook_events").select("processing_status").gte("created_at", since);
-    const stats = { total24h: (recent || []).length, processed: 0, failed: 0, other: 0 };
+    const stats = { total24h: (recent || []).length, processed: 0, failed: 0, processing: 0, other: 0 };
     for (const r of recent || []) {
       if (r.processing_status === "PROCESSED") stats.processed++;
       else if (r.processing_status === "ERROR") stats.failed++;
+      else if (r.processing_status === "RECEIVED") stats.processing++;
       else stats.other++;
     }
 
-    res.json({ items: data, total: count, page, pageSize, stats });
+    const { data: latest } = await supabaseAdmin().from("webhook_events").select("event_type, created_at").order("created_at", { ascending: false }).limit(1);
+    const lastEvent = (latest && latest[0]) || null;
+
+    res.json({ items: data, total: count, page, pageSize, stats, lastEvent });
   })
 );
 
@@ -178,8 +287,14 @@ router.get(
       .from("payment_attempts").select("*").eq("payment_id", payment.id).order("attempt_number", { ascending: true });
     const { data: refunds } = await supabaseAdmin()
       .from("refunds").select("*").eq("payment_id", payment.id).order("created_at", { ascending: false });
+    // Order line items for the "Items in Order" breakdown on the payment
+    // detail page - same order_items table/columns dashboard.js and
+    // order-detail.html already read, just scoped to this payment's order.
+    const { data: orderItems } = payment.order_id
+      ? await supabaseAdmin().from("order_items").select("title_snapshot, variant_label_snapshot, qty, price_snapshot, subtotal").eq("order_id", payment.order_id)
+      : { data: [] };
 
-    res.json({ payment, attempts: attempts || [], refunds: refunds || [] });
+    res.json({ payment, attempts: attempts || [], refunds: refunds || [], orderItems: orderItems || [] });
   })
 );
 

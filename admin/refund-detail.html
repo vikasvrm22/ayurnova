@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Refund — AyurNova Admin</title>
+<link rel="stylesheet" href="css/admin.css">
+<script src="js/api.js"></script>
+<script>requireAdminAuth();</script>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand"><svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4C13 4 6 13 6 24c0 4 1.3 8.4 4.3 12.4C13.6 40.8 18.3 44 24 44c5.7 0 10.4-3.2 13.7-7.6C40.7 32.4 42 28 42 24 42 13 35 4 24 4z" fill="currentColor" opacity=".12"/><path d="M24 6C16 12 12 19 12 26c0 6 4 11 12 15 8-4 12-9 12-15 0-7-4-14-12-20z" fill="currentColor"/><path d="M24 10v26" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".55"/></svg><span class="sidebar-brand-text">AyurNova<em>Admin Portal</em></span></div>
+    <nav class="sidebar-nav">
+      <a href="dashboard.html">Dashboard</a>
+      <a href="products-list.html">Products</a>
+      <a href="categories.html">Categories</a>
+      <a href="orders-list.html">Orders</a>
+      <a href="customers.html">Customers</a>
+      <div class="sidebar-group-label">Content</div>
+      <a href="blog.html">Blog Posts</a>
+      <a href="discovery.html">Discovery</a>
+      <a href="faqs.html">FAQs</a>
+      <a href="wellness.html">Wellness</a>
+      <a href="legal-pages.html">Legal Pages</a>
+      <div class="sidebar-group-label">Catalog Ops</div>
+      <a href="inventory.html">Inventory</a>
+      <a href="returns.html">Returns</a>
+      <a href="coupons.html">Coupons</a>
+      <a href="reviews.html">Reviews</a>
+      <a href="vaidya-bookings.html">Vaidya Bookings</a>
+      <div class="sidebar-group-label">Payments</div>
+      <a href="payments-list.html">Payments</a>
+      <a href="refunds.html" class="active">Refunds</a>
+      <a href="reconciliation.html">Reconciliation</a>
+      <a href="webhooks.html">Webhooks</a>
+      <a href="invoices.html">Invoices</a>
+      <a href="integrations.html">Integrations</a>
+      <div class="sidebar-group-label">Admin</div>
+      <a href="media.html">Banners & Media</a>
+      <a href="notifications.html">Notifications</a>
+      <a href="error-log.html">Error Log</a>
+      <a href="users.html">Users & Roles</a>
+      <a href="settings.html">Settings</a>
+    </nav>
+    <div class="sidebar-user">
+      <div class="name"></div>
+      <div class="role-badge"></div>
+      <button id="change-password-btn">Change Password</button>
+      <button onclick="Api.clearSession(); location.href='login.html';">Log out</button>
+    </div>
+  </aside>
+
+  <div class="main-col">
+  <div class="topbar">
+    <div class="topbar-search"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="text" placeholder="Search orders, products, customers..." disabled></div>
+    <div class="topbar-actions">
+      <a class="topbar-bell" href="notifications.html" title="Notifications"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></a>
+      <div class="topbar-user"><div class="topbar-avatar" id="topbar-avatar">A</div><div><div class="name" id="topbar-name">Admin</div><div class="role" id="topbar-role"></div></div></div>
+    </div>
+  </div>
+  <main class="main-area">
+    <div class="breadcrumb"><a href="payments-list.html">Payments</a> <span>&rsaquo;</span> <a href="refunds.html">Refunds</a> <span>&rsaquo;</span> <span id="breadcrumb-refund">Refund</span></div>
+    <div class="page-header">
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <a href="refunds.html" class="page-icon" style="text-decoration:none;">←</a>
+        <div><h2 id="page-title">Refund Details</h2><div class="sub">View refund information, status and related order details.</div></div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <a class="btn btn-outline" id="view-payment-link" href="payments-list.html" style="text-decoration:none;">📄 View Original Payment</a>
+        <a class="btn btn-outline" id="process-additional-link" href="payments-list.html" style="text-decoration:none;">↺ Process Additional Refund</a>
+      </div>
+    </div>
+
+    <div class="card" id="refund-summary-strip">Loading...</div>
+
+    <div class="two-col refunds-layout">
+      <div>
+        <div class="card" id="order-details-card">
+          <h3 style="margin-top:0;">Order Details</h3>
+          <div id="order-details-block">Loading...</div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">Items in Order <span id="items-count"></span></h3>
+          <table class="data-table">
+            <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Subtotal</th></tr></thead>
+            <tbody id="order-items-rows"><tr><td colspan="4">Loading...</td></tr></tbody>
+          </table>
+          <p style="font-size:11px; color:var(--muted); margin-top:8px;">Per-item refund allocation isn't tracked in this app's data model - refunds are recorded against the payment as a whole, not split across order items.</p>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">Refund Transactions <span id="txn-count"></span></h3>
+          <table class="data-table">
+            <thead><tr><th>#</th><th>Amount</th><th>Status</th><th>Processed At</th><th>Reference ID</th></tr></thead>
+            <tbody id="refund-txns-rows"><tr><td colspan="5">Loading...</td></tr></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">Refund Reason</h3>
+          <p id="refund-reason-block" style="font-size:13px;">Loading...</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3 style="margin-top:0;">Refund Timeline</h3>
+          <div id="refund-timeline" class="timeline">Loading...</div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">Payment &amp; Refund Summary</h3>
+          <div id="payment-refund-summary" style="font-size:13px;">Loading...</div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0;">Razorpay Details</h3>
+          <div id="razorpay-details-block" style="font-size:12.5px;">Loading...</div>
+        </div>
+      </div>
+    </div>
+  </main>
+  </div>
+</div>
+<script src="js/pages/changePassword.js"></script>
+<script>
+  const refundId = new URLSearchParams(location.search).get("id");
+  function fmt(n){ return "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fmtDate(s){ return s ? new Date(s).toLocaleString("en-IN") : "-"; }
+  function copyBtn(text) { return `<button type="button" class="copy-btn" onclick="navigator.clipboard.writeText('${text}')" title="Copy">📋</button>`; }
+  function statusLabel(s) { return { PROCESSED: "Completed", INITIATED: "Pending", FAILED: "Failed" }[s] || s; }
+  function statusBadge(s) { return { PROCESSED: "delivered", INITIATED: "pending", FAILED: "cancelled" }[s] || "pending"; }
+
+  async function load() {
+    if (!refundId) { document.getElementById("page-title").textContent = "No refund selected"; return; }
+    try {
+      const { refund, orderItems, refundsForPayment, successAttempt } = await Api.get(`/payments/refunds/${refundId}`);
+      const payment = refund.payments;
+      const order = payment?.orders;
+      const isFull = payment && Number(refund.amount) >= Number(payment.amount);
+      const shortId = refund.id.slice(0, 8).toUpperCase();
+      document.getElementById("breadcrumb-refund").textContent = `Refund #${shortId}`;
+
+      document.getElementById("refund-summary-strip").innerHTML = `
+        <div class="page-header" style="margin:0 0 4px;">
+          <div style="display:flex; gap:10px; align-items:center;">
+            <span class="payment-status-icon ${refund.status === "PROCESSED" ? "ok" : refund.status === "FAILED" ? "bad" : "wait"}">↺</span>
+            <div><h3 style="margin:0;">Refund Summary</h3><span class="badge badge-lowstock">${isFull ? "Full" : "Partial"} Refund</span></div>
+          </div>
+        </div>
+        <p style="font-size:12.5px; color:var(--muted); margin:0 0 14px;">A ${isFull ? "full" : "partial"} refund has ${refund.status === "PROCESSED" ? "been processed successfully" : refund.status === "FAILED" ? "failed" : "been requested and is pending"}.</p>
+        <div class="order-details-grid">
+          <div><div class="micro">Refund ID</div><b>${shortId}${copyBtn(refund.id)}</b></div>
+          <div><div class="micro">Order ID</div><b>${order?.order_number || "-"}</b></div>
+          <div><div class="micro">Refund Date</div><b>${fmtDate(refund.created_at)}</b></div>
+          <div><div class="micro">Refund Amount</div><b>${fmt(refund.amount)}</b></div>
+          <div><div class="micro">Refund Status</div><span class="badge badge-${statusBadge(refund.status)}">${statusLabel(refund.status)}</span></div>
+          <div><div class="micro">Payment Method</div><b>${successAttempt?.method || "-"}</b></div>
+        </div>
+      `;
+
+      document.getElementById("view-payment-link").href = payment ? `payment-detail.html?id=${payment.id}` : "payments-list.html";
+      document.getElementById("process-additional-link").href = payment ? `payment-detail.html?id=${payment.id}#section-refund` : "payments-list.html";
+
+      document.getElementById("order-details-block").innerHTML = order ? `
+        <div class="order-details-grid">
+          <div><div class="micro">Order ID</div><b>${order.order_number}${copyBtn(order.order_number)}</b></div>
+          <div><div class="micro">Order Date</div><b>${fmtDate(order.created_at)}</b></div>
+          <div><div class="micro">Order Status</div><span class="badge badge-instock" style="text-transform:capitalize;">${order.status}</span></div>
+          <div><div class="micro">Customer</div><b>${order.guest_email || order.guest_phone || (order.customer_id ? "Registered customer" : "-")}</b></div>
+        </div>` : `<p style="color:var(--muted);">No related order found.</p>`;
+
+      document.getElementById("items-count").textContent = `(${orderItems.length})`;
+      document.getElementById("order-items-rows").innerHTML = orderItems.length
+        ? orderItems.map(i => `<tr><td><span class="thumb"></span>${i.title_snapshot}${i.variant_label_snapshot ? `<br><span style="color:#888;font-size:11px;">${i.variant_label_snapshot}</span>` : ""}</td><td>${fmt(i.price_snapshot)}</td><td>${i.qty}</td><td>${fmt(i.subtotal)}</td></tr>`).join("")
+        : `<tr><td colspan="4">No items found.</td></tr>`;
+
+      document.getElementById("txn-count").textContent = `(${refundsForPayment.length})`;
+      document.getElementById("refund-txns-rows").innerHTML = refundsForPayment.length
+        ? refundsForPayment.map((r, i) => `<tr><td>${i + 1}</td><td>${fmt(r.amount)}</td><td><span class="badge badge-${statusBadge(r.status)}">${statusLabel(r.status)}</span></td><td>${fmtDate(r.updated_at)}</td><td style="font-size:11px;">${r.gateway_refund_id || "-"}</td></tr>`).join("")
+        : `<tr><td colspan="5">No refund transactions found.</td></tr>`;
+
+      document.getElementById("refund-reason-block").textContent = refund.reason || "No reason recorded.";
+
+      const timelineSteps = [{ label: "Refund Requested", at: refund.created_at, detail: `${refund.created_by ? `Requested by ${refund.created_by}` : "Refund requested"}${refund.reason ? ` - ${refund.reason}` : ""}`, ok: true }];
+      if (refund.status === "PROCESSED") timelineSteps.push({ label: "Refund Processed", at: refund.updated_at, detail: `${fmt(refund.amount)} refunded to customer${refund.gateway_refund_id ? ` - Reference ${refund.gateway_refund_id}` : ""}`, ok: true });
+      else if (refund.status === "FAILED") timelineSteps.push({ label: "Refund Failed", at: refund.updated_at, detail: "The refund attempt did not succeed.", bad: true });
+      else timelineSteps.push({ label: "Awaiting Processing", at: null, detail: "This refund has not been processed yet." });
+      document.getElementById("refund-timeline").innerHTML = `<div class="timeline-list">${timelineSteps.map(s => `
+        <div class="timeline-step ${s.ok ? "ok" : s.bad ? "bad" : ""}">
+          <span class="timeline-dot">${s.ok ? "✓" : s.bad ? "✕" : ""}</span>
+          <div><b>${s.label}</b>${s.at ? `<div class="micro">${fmtDate(s.at)}</div>` : ""}<div class="micro">${s.detail}</div></div>
+        </div>`).join("")}</div>`;
+
+      if (payment) {
+        const netPaid = Number(payment.amount) - Number(payment.refunded_amount);
+        document.getElementById("payment-refund-summary").innerHTML = `
+          <div style="display:flex; justify-content:space-between; padding:4px 0;"><span>Original Payment Amount</span><b>${fmt(payment.amount)}</b></div>
+          <div style="display:flex; justify-content:space-between; padding:4px 0; color:var(--danger);"><span>Refunded Amount</span><b>- ${fmt(payment.refunded_amount)}</b></div>
+          <div style="display:flex; justify-content:space-between; padding:6px 0; border-top:1px solid var(--border); margin-top:4px; color:var(--success);"><span><b>Net Paid Amount</b></span><b>${fmt(netPaid)}</b></div>
+        `;
+      }
+
+      document.getElementById("razorpay-details-block").innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; justify-content:space-between;"><span class="micro">Original Payment ID</span><b>${successAttempt?.gateway_payment_id || "-"}</b></div>
+          <div style="display:flex; justify-content:space-between;"><span class="micro">Refund ID (Razorpay)</span><b>${refund.gateway_refund_id || "-"}</b></div>
+          <div style="display:flex; justify-content:space-between;"><span class="micro">Refund Amount</span><b>${fmt(refund.amount)}</b></div>
+          <div style="display:flex; justify-content:space-between;"><span class="micro">Refund Status</span><b>${refund.status.toLowerCase()}</b></div>
+          <div style="display:flex; justify-content:space-between;"><span class="micro">Refunded At</span><b>${refund.status === "PROCESSED" ? fmtDate(refund.updated_at) : "-"}</b></div>
+        </div>
+      `;
+    } catch (e) {
+      document.getElementById("refund-summary-strip").innerHTML = `Could not load: ${e.message}`;
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "page": "admin-razorpay-config",
+  "overall": 79,
+  "categoryScores": {
+    "layout": 53,
+    "components": 100,
+    "typography": 86,
+    "spacing": null,
+    "assets": 100,
+    "colors": 100,
+    "responsive": 80,
+    "functional": 60
+  },
+  "savedAt": "2026-09-13T19:07:24.548Z",
+  "reportPath": "D:\\FinalAyurveda\\ayurveda-store-full-project\\ayur-app\\ui-judge\\reports\\admin-razorpay-config__2026-09-13T19-07-24-241Z.json"
+}
