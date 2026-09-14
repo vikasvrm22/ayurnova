@@ -1,0 +1,76 @@
+{
+  "_comment": "Customer Auth + E2E journey audit scope. Separate from pages.config.json so it doesn't disturb the admin storageState wiring already configured there. Paths resolve relative to this file.",
+  "baseUrl": "http://localhost:5100",
+  "sourceRoots": ["../../../admin", "../../../public-site"],
+  "designRefDir": "../../../public-site/design-ref",
+  "auth": { "storageState": "../.auth/customer-storageState.json", "_note": "Not committed (gitignored, like the admin one). Regenerate by logging in as a disposable confirmed test customer through the real UI and saving context.storageState() before auditing any requiresAuth page below." },
+  "pages": [
+    {
+      "name": "customer-login",
+      "route": "/account",
+      "reference": "../references/customer-login-panel1.png",
+      "viewport": { "width": 1440, "height": 900 },
+      "additionalViewports": [{ "name": "mobile", "width": 390, "height": 844 }],
+      "waitForSelector": "#login-panel"
+    },
+    {
+      "name": "customer-registration",
+      "route": "/account",
+      "reference": "../references/customer-registration-panel2.png",
+      "viewport": { "width": 1440, "height": 900 },
+      "additionalViewports": [{ "name": "mobile", "width": 390, "height": 844 }],
+      "waitForSelector": "#signup-panel",
+      "_note": "The signup panel only becomes visible after clicking #tab-signup-btn - UI Judge is non-interactive by design (never clicks/submits), so this entry audits the DOM as-loaded (login panel visible). A genuine visual score for the post-click state needs a click-through screenshot fed into src/lib/imageUtils.js's pixelDiff() directly, or a future interactive-state extension to the tool."
+    },
+    {
+      "name": "customer-account",
+      "route": "/account",
+      "reference": "../../../public-site/design-ref/Phase1 07 Customer Account.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [{ "name": "mobile", "width": 390, "height": 844 }],
+      "requiresAuth": true,
+      "waitForSelector": "#account-panel"
+    },
+    {
+      "name": "customer-shop",
+      "route": "/shop",
+      "reference": "../../../public-site/design-ref/Phase1 02 Shop  Product Listing.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [{ "name": "mobile", "width": 390, "height": 844 }],
+      "waitForSelector": ".product-grid"
+    },
+    {
+      "name": "customer-product-detail",
+      "route": "/product/ayurnova-ashwagandha-capsules-qa-sample",
+      "reference": "../../../public-site/design-ref/Phase1 03 Product Detail.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [{ "name": "mobile", "width": 390, "height": 844 }]
+    },
+    {
+      "name": "customer-checkout",
+      "route": "/cart",
+      "reference": "../../../public-site/design-ref/Phase2 1 Checkout  Payment Selection.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [{ "name": "mobile", "width": 390, "height": 844 }],
+      "requiresAuth": true,
+      "waitForSelector": "#cart-body"
+    },
+    {
+      "name": "customer-order-history",
+      "route": "/account",
+      "reference": "../../../public-site/design-ref/Phase6 My Orders  Order History.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [{ "name": "mobile", "width": 390, "height": 844 }],
+      "requiresAuth": true,
+      "waitForSelector": "#orders-list"
+    },
+    {
+      "name": "customer-order-detail",
+      "route": "/order-detail?id=d60b89f9-ea04-4022-bd1c-3f3fbd2e07e5",
+      "reference": "../../../public-site/design-ref/Phase6 Customer Order Detail.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [{ "name": "mobile", "width": 390, "height": 844 }],
+      "requiresAuth": true
+    }
+  ]
+}

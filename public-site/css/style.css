@@ -103,7 +103,15 @@ a{ color:var(--green-dark); }
    overflow already fixed for .main-nav at line 138. min-width:0 lets it
    actually shrink with its flex-basis. */
 .header-search input{ flex:1; min-width:0; padding:10px 12px; border:1px solid var(--hairline); border-right:none; border-radius:20px 0 0 20px; font-size:13.5px; }
-@media (max-width:480px){ .header-search{ min-width:0; } }
+@media (max-width:480px){
+  /* Customer auth/E2E audit: shrinking to min-width:0 alone still left the
+     search bar sharing its row with the (non-shrinking) brand block, which
+     squeezed the input to ~0 visible width behind the Search button -
+     verified via headed-browser scrollWidth/screenshot at 390px. Forcing
+     it onto its own full-width row (after the icons) guarantees the input
+     stays usable instead of merely present in the DOM. */
+  .header-search{ min-width:0; flex-basis:100%; order:3; }
+}
 .header-search button{ background:var(--green); color:#fff; border:none; padding:0 18px; border-radius:0 20px 20px 0; font-weight:700; cursor:pointer; }
 .header-icons{ display:flex; gap:22px; align-items:center; font-size:13px; }
 .header-icons a{ text-decoration:none; color:var(--ink); display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11px; position:relative; }
@@ -383,6 +391,16 @@ a{ color:var(--green-dark); }
 .cart-table{ width:100%; border-collapse:collapse; background:#fff; }
 .cart-table th{ background:var(--green-light); text-align:left; padding:10px 12px; font-size:12.5px; }
 .cart-table td{ padding:12px; border-bottom:1px solid var(--hairline); font-size:13.5px; vertical-align:middle; }
+/* Customer auth/E2E audit: the table's own cells (product name + thumb,
+   price, qty stepper, subtotal, remove link) have a combined intrinsic
+   min-content width wider than a phone viewport even after
+   .checkout-main/.checkout-layout's min-width:0 fixes let their grid/flex
+   ancestors shrink - a table doesn't shrink cell content below that
+   minimum on its own. Same contained-horizontal-scroll pattern already
+   used for admin's table.data-table (admin/css/admin.css) rather than
+   letting it push the whole page wider - verified via headed-browser
+   scrollWidth at 390px. */
+@media (max-width:600px){ .cart-table{ display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; white-space:nowrap; } }
 .cart-thumb{ width:52px; height:52px; background:#eef3ea; border-radius:6px; display:inline-block; margin-right:10px; vertical-align:middle; }
 .qty-box{ display:flex; align-items:center; gap:8px; }
 .qty-box button{ width:26px; height:26px; border:1px solid var(--hairline); background:#fff; border-radius:4px; cursor:pointer; }
