@@ -284,9 +284,66 @@ async function initWishlistButtons() {
   });
 }
 
+/** Binds every not-yet-bound `[data-add-to-cart-variant-id]` button (Phase 1
+ * gap closure: homepage product-grid cards previously only linked to the
+ * PDP) to the same guest cart every other Add to Cart control on the site
+ * already uses (product.html's own siteAddToCart -> addToCart above) -
+ * no separate cart system, just another caller of it. Brief inline
+ * "Added" confirmation instead of a page navigation, since these cards
+ * are meant to keep the shopper browsing the grid. */
+function initAddToCartButtons() {
+  document.querySelectorAll("[data-add-to-cart-variant-id]:not([data-add-to-cart-bound])").forEach((btn) => {
+    btn.dataset.addToCartBound = "true";
+    const originalLabel = btn.textContent;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      addToCart(btn.dataset.addToCartVariantId, 1);
+      btn.textContent = "Added ✓";
+      btn.classList.add("added");
+      setTimeout(() => {
+        btn.textContent = originalLabel;
+        btn.classList.remove("added");
+      }, 1500);
+    });
+  });
+}
+
+/** Hero carousel (Phase 1 gap closure) - cycles `.hero-slide`/`.hero-dot`
+ * active state. 0 or 1 slide (no active "home_hero" media asset beyond
+ * the static fallback - see pages.js's renderHeroSlides) means there's
+ * nothing to cycle through, so the arrows/dots are hidden entirely
+ * (`.single`) rather than shipped as dead controls. */
+function initHeroCarousel() {
+  const root = document.getElementById("hero-carousel");
+  if (!root) return;
+  const slides = Array.from(root.querySelectorAll(".hero-slide"));
+  const dots = Array.from(root.querySelectorAll(".hero-dot"));
+  if (slides.length <= 1) { root.classList.add("single"); return; }
+
+  let index = Math.max(0, slides.findIndex((s) => s.classList.contains("active")));
+  function show(i) {
+    index = (i + slides.length) % slides.length;
+    slides.forEach((s, n) => s.classList.toggle("active", n === index));
+    dots.forEach((d, n) => d.classList.toggle("active", n === index));
+  }
+  root.querySelectorAll("[data-hero-nav]").forEach((btn) => {
+    btn.addEventListener("click", () => { show(index + Number(btn.dataset.heroNav)); resetAutoplay(); });
+  });
+  dots.forEach((d, n) => d.addEventListener("click", () => { show(n); resetAutoplay(); }));
+
+  let timer;
+  function resetAutoplay() {
+    clearInterval(timer);
+    timer = setInterval(() => show(index + 1), 6000);
+  }
+  resetAutoplay();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   updateCartBadge();
   initWishlistButtons();
+  initAddToCartButtons();
+  initHeroCarousel();
   // Only pages that actually have this markup (index.html, product.html)
   // get anything rendered here - every other page's call is a no-op via
   // loadForYouSection's own auth/session guard returning early.

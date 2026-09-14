@@ -9,7 +9,7 @@ import { trackPageView } from "../analytics/tracker.js";
 import { sanitizeRichText } from "../utils/richTextSanitizer.js";
 import {
   listPublishedProducts, getPublishedProductBySlug, listCategories, listRelatedEntities, searchCatalog,
-  getCategoryBySlug, getIngredientBySlug,
+  getCategoryBySlug, getIngredientBySlug, listIngredients,
   PRODUCT_SORT_MAP, DEFAULT_PRODUCT_SORT,
 } from "../services/catalogService.js";
 
@@ -126,16 +126,60 @@ function renderFooterCategories(concerns, benefits) {
 
 /** Homepage "Shop by Category" tiles - real product_type categories,
  * linking to the same /shop?category= filter the shop sidebar already
- * uses. Empty state instead of inventing placeholder categories. */
+ * uses. Empty state instead of inventing placeholder categories. Renders
+ * the category's own admin-set `hero_image` (categories.js has always
+ * accepted this field; the Admin Categories form just never exposed it -
+ * see admin/categories.html) when present, falling back to the generic
+ * leaf glyph so a category with no image set still renders cleanly. */
 function renderCategoryTiles(categories) {
   if (!categories.length) return `<p style="color:#888; font-size:13px;">Categories coming soon.</p>`;
   return categories.slice(0, 8).map((c) => `
     <a class="category-tile" href="/shop?category=${escapeHtml(c.slug)}">
-      <span class="category-tile-icon">${LEAF_ICON}</span>
+      <span class="category-tile-icon">${c.hero_image ? `<img src="${escapeHtml(c.hero_image)}" alt="${escapeHtml(c.name)}" loading="lazy">` : LEAF_ICON}</span>
       <span class="category-tile-name">${escapeHtml(c.name)}</span>
     </a>`).join("");
 }
 const LEAF_ICON = `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6C16 12 12 19 12 26c0 6 4 11 12 15 8-4 12-9 12-15 0-7-4-14-12-20z" fill="currentColor"/></svg>`;
+
+// Phase 1 gap closure: real icon glyphs for the 3 channels Admin Settings'
+// "Social Links" panel actually manages (admin/settings.html) - only these
+// three, since inventing Facebook/YouTube/Pinterest icons for channels
+// Admin has no field for would be exactly the kind of unwired/fabricated
+// capability this pass is closing.
+const SOCIAL_ICONS = {
+  whatsapp_channel: { label: "WhatsApp", svg: `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.7-.8-1.9-.9-.3-.1-.4-.1-.6.1-.2.3-.7.9-.8 1-.1.2-.3.2-.6.1-.3-.1-1.2-.5-2.3-1.5-.9-.8-1.4-1.7-1.6-2-.1-.3 0-.4.1-.6l.4-.5c.1-.1.2-.3.2-.4.1-.1 0-.3 0-.4-.1-.1-.6-1.5-.8-2-.2-.5-.4-.5-.6-.5h-.5c-.2 0-.4.1-.7.3-.2.3-.9.9-.9 2.1s.9 2.5 1.1 2.7c.1.2 1.9 2.9 4.6 4 .6.3 1.1.4 1.5.6.6.2 1.2.2 1.6.1.5-.1 1.7-.7 1.9-1.3.2-.6.2-1.2.2-1.3-.1-.1-.3-.2-.6-.3z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.9.5 3.6 1.4 5.1L2 22l5.1-1.3c1.4.8 3.1 1.2 4.9 1.2 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18.3c-1.6 0-3.1-.4-4.5-1.2l-.3-.2-3.3.9.9-3.2-.2-.3C3.8 14.9 3.3 13.5 3.3 12c0-4.8 3.9-8.7 8.7-8.7s8.7 3.9 8.7 8.7-3.9 8.7-8.7 8.7z"/></svg>` },
+  telegram: { label: "Telegram", svg: `<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M21.9 4.3 18.7 19.8c-.2 1.1-.9 1.3-1.8.8l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1 9.3-8.4c.4-.4-.1-.6-.6-.2L6 12.5l-5-1.6c-1.1-.3-1.1-1.1.2-1.6L20.5 3.2c.9-.3 1.7.2 1.4 1.1z"/></svg>` },
+  instagram: { label: "Instagram", svg: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>` },
+};
+
+/** Footer "Follow Us" icons - reads the exact same `social_links` setting
+ * Admin Settings already writes (server/src/routes/settings.js,
+ * admin/settings.html) via the public-storefront read `public.js` already
+ * exposes at GET /api/public/settings. Renders only channels an admin has
+ * actually filled in; when none are configured yet, returns "" so the
+ * whole "Follow Us" block disappears rather than showing dead/placeholder
+ * icon links (same empty-state convention as renderMegaMenu/
+ * renderCategoryTiles above). */
+function renderSocialIcons(socialLinks) {
+  const entries = Object.entries(SOCIAL_ICONS)
+    .filter(([key]) => typeof socialLinks?.[key] === "string" && socialLinks[key].trim());
+  if (!entries.length) return "";
+  return entries.map(([key, icon]) => `<a href="${escapeHtml(socialLinks[key].trim())}" class="social-icon" title="${icon.label}" target="_blank" rel="noopener noreferrer">${icon.svg}</a>`).join("");
+}
+
+/** Hero carousel slides/dots - reuses the exact same admin-managed
+ * `media_assets` placement="home_hero" mechanism the single-image hero
+ * already used (Phase UI-1's Banners & Media), just reading every active
+ * row for that placement instead of only the newest one. 0 or 1 active
+ * asset renders as a plain static hero (arrows/dots are hidden client-side
+ * in site.js when there's nothing to cycle through - see initHeroCarousel),
+ * so this never invents slide content Admin hasn't actually uploaded. */
+function renderHeroSlides(heroAssets) {
+  const slides = heroAssets.length ? heroAssets : [{ url: "/img/hero-home-bottles.webp", title: "AyurNova herbal supplement bottles with fresh herbs and turmeric" }];
+  const imgs = slides.map((s, i) => `<img class="hero-slide${i === 0 ? " active" : ""}" src="${escapeHtml(s.url)}" alt="${escapeHtml(s.title || "AyurNova")}" width="500" height="300" loading="${i === 0 ? "eager" : "lazy"}">`).join("");
+  const dots = slides.length > 1 ? slides.map((_, i) => `<button type="button" class="hero-dot${i === 0 ? " active" : ""}" data-hero-dot="${i}" aria-label="Go to slide ${i + 1}"></button>`).join("") : "";
+  return { imgs, dots };
+}
 
 function injectHead(html, headMeta) {
   return html.replace("<!--SSR_HEAD-->", headMeta).replace(/<!--SSR_HEAD-->/g, "");
@@ -155,16 +199,33 @@ function injectSupabaseConfig(html) {
   return html.replace("</head>", `${script}\n</head>`);
 }
 
-function productCardHtml(product) {
+/** @param {object} [opts]
+ * @param {boolean} [opts.bestseller] - top-ranked card in the "Our
+ *   Bestsellers" section (rank 0 of the same real `sort=bestselling`
+ *   query that section already runs, not an invented flag - see
+ *   PRODUCT_SORT_MAP). Renders a "Bestseller" ribbon in place of the
+ *   %-off badge, matching the single-ribbon treatment in the Phase 1
+ *   Home reference.
+ * @param {boolean} [opts.showAddToCart] - renders a real "Add to Cart"
+ *   button (wired client-side in site.js via the variant id) alongside
+ *   "View Product", instead of the product-detail navigation being the
+ *   card's only action. */
+function productCardHtml(product, opts = {}) {
   const variant = product.product_variants?.[0];
   const image = product.product_images?.[0]?.url;
   const stars = "★".repeat(Math.round(product.avg_rating)) + "☆".repeat(5 - Math.round(product.avg_rating));
   const bullets = parseListLines(product.short_description).slice(0, 1)[0] || "";
   const inStock = variant ? Number(variant.stock) > 0 : false;
   const off = variant?.mrp && variant.mrp > variant.price ? Math.round((1 - variant.price / variant.mrp) * 100) : 0;
+  const badgeHtml = opts.bestseller
+    ? `<span class="pill-badge new card-badge badge-bestseller">Bestseller</span>`
+    : (off > 0 ? `<span class="pill-badge danger card-badge">${off}% OFF</span>` : "");
+  const addToCartBtn = opts.showAddToCart && variant && inStock
+    ? `<button class="add-to-cart-btn" data-add-to-cart-variant-id="${escapeHtml(variant.id)}" title="Add to Cart">🛒 Add to Cart</button>`
+    : "";
   return `
     <div class="product-card">
-      ${off > 0 ? `<span class="pill-badge danger card-badge">${off}% OFF</span>` : ""}
+      ${badgeHtml}
       <button class="wishlist-toggle" data-wishlist-product-id="${product.id}" title="Add to Wishlist">♡</button>
       <div class="img">${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.title)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;">` : "Product Image"}</div>
       <div class="body">
@@ -175,6 +236,7 @@ function productCardHtml(product) {
           ${variant ? `<span class="price">${fmtPrice(variant.price)}</span>${variant.mrp && variant.mrp > variant.price ? `<span class="mrp">${fmtPrice(variant.mrp)}</span>` : ""}` : ""}
         </div>
         <div class="stock-row"><span class="stock-dot ${inStock ? "in" : "out"}"></span>${inStock ? "In Stock" : "Out of Stock"}</div>
+        ${addToCartBtn}
         <button class="add-btn" onclick="location.href='/product/${escapeHtml(product.slug)}'" ${inStock ? "" : "disabled"}>${inStock ? "View Product" : "Out of Stock"}</button>
       </div>
     </div>`;
@@ -206,17 +268,21 @@ router.get("/", trackPageView, async (req, res, next) => {
       const { items: highlights } = await listPublishedProducts({ page: 1, pageSize: 4, sort: "newest" });
       const { items: bestSellers } = await listPublishedProducts({ page: 1, pageSize: 4, sort: "bestselling" });
 
-      // Phase UI-1: admin-managed hero image (Banners & Media), falling
-      // back to the static extracted-asset image when no "home_hero"
-      // placement is active - never a broken/blank hero.
-      let heroImageUrl = "/img/hero-home-bottles.webp";
+      // Phase UI-1: admin-managed hero image(s) (Banners & Media). Reads
+      // every active "home_hero" asset now (was .limit(1).maybeSingle())
+      // so 2+ active assets render as a real carousel (Phase 1 gap
+      // closure) - 0 or 1 active asset still renders the exact same
+      // single, static hero as before.
+      let heroAssets = [];
       try {
-        const { data: heroAsset } = await supabaseAdmin()
-          .from("media_assets").select("url").eq("placement", "home_hero").eq("active", true)
-          .order("created_at", { ascending: false }).limit(1).maybeSingle();
-        if (heroAsset?.url) heroImageUrl = heroAsset.url;
+        const { data } = await supabaseAdmin()
+          .from("media_assets").select("url, title").eq("placement", "home_hero").eq("active", true)
+          .order("created_at", { ascending: false }).limit(6);
+        heroAssets = data || [];
       } catch (e) { /* media_assets migration not applied yet - static fallback stays */ }
-      template = template.replace('src="/img/hero-home-bottles.webp"', `src="${escapeHtml(heroImageUrl)}"`);
+      const { imgs: heroSlidesHtml, dots: heroDotsHtml } = renderHeroSlides(heroAssets);
+      template = template.replace("<!--HERO_SLIDES-->", heroSlidesHtml);
+      template = template.replace("<!--HERO_DOTS-->", heroDotsHtml);
 
       const { data: recentPosts } = await supabaseAdmin()
         .from("blog_posts")
@@ -239,16 +305,43 @@ router.get("/", trackPageView, async (req, res, next) => {
       // Fixed by injecting at dedicated, unambiguous HTML comment markers
       // (public-site/index.html) instead of pattern-matching nested HTML -
       // a marker can never be ambiguous about where it ends.
-      template = template.replace("<!--PRODUCT_HIGHLIGHTS-->", highlights.map(productCardHtml).join(""));
-      template = template.replace("<!--BEST_SELLERS-->", bestSellers.map(productCardHtml).join(""));
+      // showAddToCart: homepage grid cards previously only navigated to the
+      // PDP ("View Product") - now also offer a real Add to Cart action,
+      // wired client-side (site.js) against the same guest cart used
+      // everywhere else. bestseller: true only for the #1 card of the
+      // *already* bestselling-sorted list (see productCardHtml's doc
+      // comment) - New Arrivals never gets the ribbon.
+      template = template.replace("<!--PRODUCT_HIGHLIGHTS-->", highlights.map((p) => productCardHtml(p, { showAddToCart: true })).join(""));
+      template = template.replace("<!--BEST_SELLERS-->", bestSellers.map((p, i) => productCardHtml(p, { bestseller: i === 0, showAddToCart: true })).join(""));
 
-      const [concerns, benefits, productTypes] = await Promise.all([
-        listCategories({ type: "concern" }), listCategories({ type: "benefit" }), listCategories({ type: "product_type" }),
+      const [concerns, benefits, goals, productTypes, ingredients] = await Promise.all([
+        listCategories({ type: "concern" }), listCategories({ type: "benefit" }), listCategories({ type: "goal" }),
+        listCategories({ type: "product_type" }), listIngredients(),
       ]);
       template = template.replace("<!--SHOP_CATEGORIES-->", renderCategoryTiles(productTypes));
       template = template.replace("<!--MEGA_CONCERN-->", renderMegaMenu(concerns, "concern"));
       template = template.replace("<!--MEGA_BENEFIT-->", renderMegaMenu(benefits, "benefit"));
+      // Phase 1 gap closure: "By Goal"/"By Ingredient" had real, working
+      // /goal/:slug and /ingredient/:slug landing pages (pages.js's
+      // DISCOVER_TYPES loop, and the dedicated /ingredient/:slug route)
+      // plus full Admin management (admin/discovery.html's Goals/
+      // Ingredients tabs) - the header nav just never linked to them.
+      template = template.replace("<!--MEGA_GOAL-->", renderMegaMenu(goals, "goal"));
+      template = template.replace("<!--MEGA_INGREDIENT-->", renderMegaMenu(ingredients, "ingredient"));
       template = template.replace("<!--FOOTER_CATEGORIES-->", renderFooterCategories(concerns, benefits));
+
+      // Phase 1 gap closure: footer "Follow Us" - Admin Settings' Social
+      // Links panel (admin/settings.html) and the public read
+      // (GET /api/public/settings, public.js) already existed; the
+      // storefront footer just never rendered them.
+      let socialLinks = {};
+      try {
+        const { data: socialSetting } = await supabaseAdmin().from("settings").select("value").eq("key", "social_links").maybeSingle();
+        socialLinks = socialSetting?.value || {};
+      } catch (e) { /* settings table read best-effort - footer just omits the block */ }
+      const socialIconsHtml = renderSocialIcons(socialLinks);
+      template = template.replace("<!--FOOTER_SOCIAL-->", socialIconsHtml);
+      template = template.replace("<!--FOOTER_SOCIAL_CLASS-->", socialIconsHtml ? "" : " hidden");
 
       const headMeta = renderHeadMeta({
         title: "AyurNova — Authentic Ayurvedic Supplements Online",

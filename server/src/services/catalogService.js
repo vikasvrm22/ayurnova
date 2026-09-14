@@ -250,6 +250,16 @@ export async function getCategoryBySlug(slug) {
   return data || null;
 }
 
+/** Lists every ingredient, for the header "By Ingredient" mega-menu -
+ * same shape/query as GET /api/public/ingredients (catalogPublic.js),
+ * reused here so the SSR nav can render real ingredient links instead of
+ * inventing its own separate read of the same table. */
+export async function listIngredients() {
+  const { data, error } = await supabaseAdmin().from("ingredients").select("id, name, slug, description").order("name");
+  if (error) throw error;
+  return data || [];
+}
+
 /** One ingredient by slug, for an ingredient landing page. */
 export async function getIngredientBySlug(slug) {
   const { data } = await supabaseAdmin().from("ingredients").select("id, name, slug, description").eq("slug", slug).maybeSingle();

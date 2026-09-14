@@ -139,6 +139,8 @@
           </select></div>
         <div class="form-field" style="margin-top:8px;"><label>Display Order</label><input type="number" id="c-order" value="${existing?.sort_order ?? 0}"></div>
         <div class="form-field" style="margin-top:8px;"><label>Description (optional)</label><textarea id="c-desc">${existing?.description || ""}</textarea></div>
+        <div class="form-field" style="margin-top:8px;"><label>Hero Image URL (optional)</label><input id="c-hero" value="${existing?.hero_image || ""}" placeholder="Paste a URL from Banners & Media"></div>
+        <p style="font-size:11.5px; color:#888; margin:4px 0 0;">Shown as this category's icon on the homepage "Shop by Category" tiles. Upload an image on <a href="media.html" target="_blank">Banners &amp; Media</a> first, then paste its URL here.</p>
         <div id="c-error" style="color:#b91c1c; font-size:12px; margin-top:8px;"></div>
         <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
           <button class="btn btn-outline" id="c-cancel">Cancel</button>
@@ -153,6 +155,7 @@
         type: backdrop.querySelector("#c-type").value,
         sort_order: Number(backdrop.querySelector("#c-order").value || 0),
         description: backdrop.querySelector("#c-desc").value.trim() || undefined,
+        hero_image: backdrop.querySelector("#c-hero").value.trim() || undefined,
       };
       try {
         if (existing) await Api.put(`/categories/${existing.id}`, body);
