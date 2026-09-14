@@ -96,7 +96,14 @@ a{ color:var(--green-dark); }
 .site-header{ background:#fff; border-bottom:1px solid var(--hairline); }
 .site-header .container{ display:flex; align-items:center; justify-content:space-between; padding:16px; gap:20px; flex-wrap:wrap; }
 .header-search{ display:flex; flex:1; max-width:420px; min-width:200px; }
-.header-search input{ flex:1; padding:10px 12px; border:1px solid var(--hairline); border-right:none; border-radius:20px 0 0 20px; font-size:13.5px; }
+/* Phase 3: a text input's default intrinsic min-content width (~170-200px)
+   ignores this flex item's own min-width unless overridden, so at narrow
+   mobile viewports .header-search itself is forced wider than the
+   viewport regardless of the 200px min-width above - the same class of
+   overflow already fixed for .main-nav at line 138. min-width:0 lets it
+   actually shrink with its flex-basis. */
+.header-search input{ flex:1; min-width:0; padding:10px 12px; border:1px solid var(--hairline); border-right:none; border-radius:20px 0 0 20px; font-size:13.5px; }
+@media (max-width:480px){ .header-search{ min-width:0; } }
 .header-search button{ background:var(--green); color:#fff; border:none; padding:0 18px; border-radius:0 20px 20px 0; font-weight:700; cursor:pointer; }
 .header-icons{ display:flex; gap:22px; align-items:center; font-size:13px; }
 .header-icons a{ text-decoration:none; color:var(--ink); display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11px; position:relative; }

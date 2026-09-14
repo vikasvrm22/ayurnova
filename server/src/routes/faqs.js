@@ -12,8 +12,22 @@ import { supabaseAdmin } from "../db/supabaseClient.js";
 import { requireStaffAuth } from "../auth/adminAuth.js";
 import { requirePermission } from "../auth/rbac.js";
 import { sanitizeText, isValidUUID } from "../validation/validators.js";
+import { invalidateCatalogCache } from "./pages.js";
 
 const router = Router();
+
+// Wiring Guardian WG-0036: the public /faq page is cached under a static
+// "faq" key (pages.js) that nothing cleared, so an admin create/update/
+// publish/delete here could leave the public page stale for up to the
+// cache TTL. Same invalidation-on-write pattern as categories.js/products.js.
+router.use((req, res, next) => {
+  if (["POST", "PUT", "DELETE"].includes(req.method)) {
+    res.on("finish", () => {
+      if (res.statusCode < 400) invalidateCatalogCache();
+    });
+  }
+  next();
+});
 
 // ?product_id=<uuid> -> that product's FAQs only. ?scope=global -> only the
 // site-wide FAQs (product_id is null). Neither given -> everything, most

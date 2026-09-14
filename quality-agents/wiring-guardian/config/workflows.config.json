@@ -191,6 +191,98 @@
       "recoveryScenarios": ["See each composed workflow"],
       "idempotencyExpectations": ["See each composed workflow"],
       "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "customer.discovery.concern_benefit_goal_browse",
+      "name": "Browse products by Concern / Benefit / Goal landing page",
+      "level": "FEATURE",
+      "phase": "Phase 3",
+      "actors": ["customer", "guest"],
+      "startingCondition": "At least one published `categories` row of type concern/benefit/goal exists.",
+      "steps": [
+        { "seq": 1, "description": "List categories by type (mega-menu / filter sidebar source)", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/api/public/categories" } },
+        { "seq": 2, "description": "Category-scoped landing page (JSON API)", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/api/public/categories/:slug" } },
+        { "seq": 3, "description": "Category-scoped SSR landing page (/concern|/benefit|/goal)", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/concern/:slug" } },
+        { "seq": 4, "description": "Products tagged via the many-to-many join tables (Decision 1)", "actor": "system", "check": { "type": "table", "table": "product_concerns" } }
+      ],
+      "failureScenarios": ["A category slug with zero tagged products renders an empty-but-valid page, not an error"],
+      "recoveryScenarios": ["Not applicable - read-only discovery, no state transition to recover"],
+      "idempotencyExpectations": ["GET is naturally idempotent"],
+      "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "customer.discovery.ingredient_browse",
+      "name": "Browse products by Ingredient",
+      "level": "FEATURE",
+      "phase": "Phase 3",
+      "actors": ["customer", "guest"],
+      "startingCondition": "At least one `ingredients` row exists.",
+      "steps": [
+        { "seq": 1, "description": "List all ingredients", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/api/public/ingredients" } },
+        { "seq": 2, "description": "Ingredient detail (JSON API)", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/api/public/ingredients/:slug" } },
+        { "seq": 3, "description": "Ingredient detail SSR page", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/ingredient/:slug" } },
+        { "seq": 4, "description": "Products tagged to this ingredient via the join table", "actor": "system", "check": { "type": "table", "table": "product_ingredients" } }
+      ],
+      "failureScenarios": ["An ingredient with zero tagged products renders an empty-but-valid page, not an error"],
+      "recoveryScenarios": ["Not applicable - read-only discovery"],
+      "idempotencyExpectations": ["GET is naturally idempotent"],
+      "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "customer.discovery.product_comparison",
+      "name": "Compare up to 4 products side by side",
+      "level": "FEATURE",
+      "phase": "Phase 3",
+      "actors": ["customer", "guest"],
+      "startingCondition": "Customer has selected 2+ published product ids to compare.",
+      "steps": [
+        { "seq": 1, "description": "Fetch comparable attribute set for the selected product ids", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/api/public/products/compare" } },
+        { "seq": 2, "description": "Compare page (client-rendered)", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/compare" } },
+        { "seq": 3, "description": "Only published products are comparable", "actor": "system", "check": { "type": "table", "table": "products" } }
+      ],
+      "failureScenarios": ["Product ids that don't exist or aren't published must be rejected/excluded, not silently comparing stale data"],
+      "recoveryScenarios": ["Not applicable - read-only aggregation"],
+      "idempotencyExpectations": ["GET is naturally idempotent"],
+      "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "customer.discovery.faq_and_knowledge_hub",
+      "name": "Read global FAQs and Knowledge Hub (blog) articles",
+      "level": "FEATURE",
+      "phase": "Phase 3",
+      "actors": ["customer", "guest"],
+      "startingCondition": "At least one published `faqs`/`blog_posts` row exists (both render a valid empty state otherwise).",
+      "steps": [
+        { "seq": 1, "description": "Global FAQ list (JSON API)", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/api/public/faqs" } },
+        { "seq": 2, "description": "Global FAQ SSR page", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/faq" } },
+        { "seq": 3, "description": "Knowledge Hub article list SSR page", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/blog" } },
+        { "seq": 4, "description": "Knowledge Hub article detail SSR page", "actor": "guest", "check": { "type": "route", "method": "GET", "path": "/blog/:slug" } },
+        { "seq": 5, "description": "FAQs persisted with a status gate (draft never leaks publicly)", "actor": "system", "check": { "type": "table", "table": "faqs" } }
+      ],
+      "failureScenarios": ["A draft FAQ or blog post must never appear on the public list/detail page"],
+      "recoveryScenarios": ["Not applicable - read-only discovery"],
+      "idempotencyExpectations": ["GET is naturally idempotent"],
+      "testStrategy": "STATIC_EVIDENCE"
+    },
+    {
+      "id": "admin.discovery_content.manage",
+      "name": "Admin manages Concerns/Benefits/Goals, Ingredients and FAQs",
+      "level": "FEATURE",
+      "phase": "Phase 3",
+      "actors": ["admin"],
+      "startingCondition": "Staff is authenticated with the manageProducts permission.",
+      "steps": [
+        { "seq": 1, "description": "Staff auth required for every admin discovery-content route", "actor": "admin", "check": { "type": "rbacSweep", "scope": "admin-auth" } },
+        { "seq": 2, "description": "manageProducts permission gates writes (categories/ingredients/faqs)", "actor": "admin", "check": { "type": "rbacSweep", "scope": "admin-permission" } },
+        { "seq": 3, "description": "Create/update a category (concern/benefit/goal)", "actor": "admin", "check": { "type": "route", "method": "POST", "path": "/api/admin/categories" } },
+        { "seq": 4, "description": "Create/update an ingredient", "actor": "admin", "check": { "type": "route", "method": "POST", "path": "/api/admin/ingredients" } },
+        { "seq": 5, "description": "Create/update/publish a FAQ", "actor": "admin", "check": { "type": "route", "method": "POST", "path": "/api/admin/faqs" } },
+        { "seq": 6, "description": "FAQ publish transition", "actor": "admin", "check": { "type": "route", "method": "POST", "path": "/api/admin/faqs/:id/publish" } }
+      ],
+      "failureScenarios": ["A staff account without manageProducts must not be able to create/edit/delete a category, ingredient, or FAQ"],
+      "recoveryScenarios": ["Not applicable - CRUD admin surface, no multi-step transaction to recover"],
+      "idempotencyExpectations": ["PUT/update by id is naturally idempotent; POST create is not (each call creates a new row, expected)"],
+      "testStrategy": "STATIC_EVIDENCE"
     }
   ]
 }

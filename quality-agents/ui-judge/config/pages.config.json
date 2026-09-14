@@ -147,6 +147,78 @@
       ],
       "requiresAuth": true,
       "waitForSelector": "#integration-status-card"
+    },
+    {
+      "name": "admin-discovery",
+      "route": "/admin/discovery.html",
+      "reference": "../../../public-site/design-ref/Phase3 Admin Ayurveda Discovery Management.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#rows"
+    },
+    {
+      "name": "admin-knowledge-faq",
+      "route": "/admin/faqs.html",
+      "reference": "../../../public-site/design-ref/Phase3 Admin Knowledge  FAQ Management.png",
+      "viewport": { "width": 1536, "height": 1024 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "requiresAuth": true,
+      "waitForSelector": "#rows"
+    },
+    {
+      "name": "discover-hub",
+      "route": "/shop",
+      "reference": "../../../public-site/design-ref/Phase3 Ayurveda Discovery Hub k liye design banao.png",
+      "viewport": { "width": 1440, "height": 900 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "waitForSelector": ".product-grid"
+    },
+    {
+      "name": "shop-by-concern-ingredient-goal",
+      "route": "/shop",
+      "reference": "../../../public-site/design-ref/Phase3 Shop by Concern  Ingredient  Goal.png",
+      "viewport": { "width": 1440, "height": 900 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "waitForSelector": ".filter-sidebar"
+    },
+    {
+      "name": "concern-detail",
+      "route": "/concern/daily-consumable",
+      "reference": "../../../public-site/design-ref/Phase3 Concerns Listing + Detail.png",
+      "viewport": { "width": 1440, "height": 900 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "waitForSelector": "#discover-title"
+    },
+    {
+      "name": "knowledge-hub",
+      "route": "/blog",
+      "reference": "../../../public-site/design-ref/Phase3 Knowledge Hub  Educational Content.png",
+      "viewport": { "width": 1440, "height": 900 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "waitForSelector": "#blog-posts"
+    },
+    {
+      "name": "product-comparison",
+      "route": "/compare",
+      "reference": "../../../public-site/design-ref/Phase3 Product Comparison.png",
+      "viewport": { "width": 1440, "height": 900 },
+      "additionalViewports": [
+        { "name": "mobile", "width": 390, "height": 844 }
+      ],
+      "waitForSelector": "#compare-body"
     }
   ]
 }

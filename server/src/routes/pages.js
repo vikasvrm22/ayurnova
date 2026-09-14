@@ -35,11 +35,16 @@ function cached(key, renderFn) {
 // legal-pages.js already gets via its own updated_at-keyed cache key
 // (a different technique, not applicable here since these two pages
 // aggregate many rows rather than rendering one). Deliberately narrow:
-// only the catalog-derived entries (home/shop/sitemap) are cleared -
-// faq/legal caches are untouched since neither route can affect them.
+// only the catalog-derived entries (home/shop/sitemap/faq) are cleared -
+// the legal-page cache is untouched since it uses its own content-derived
+// key (page.updated_at) instead and self-invalidates by construction.
+// "faq" added alongside faqs.js's own write routes (Wiring Guardian
+// finding WG-0036): the global FAQ page was cached under a static "faq"
+// key that nothing ever cleared, so a published/edited FAQ could stay
+// stale on the public page for up to the cache TTL.
 export function invalidateCatalogCache() {
   for (const key of pageCache.keys()) {
-    if (key === "home" || key === "sitemap" || key.startsWith("shop:")) pageCache.delete(key);
+    if (key === "home" || key === "sitemap" || key === "faq" || key.startsWith("shop:")) pageCache.delete(key);
   }
 }
 
